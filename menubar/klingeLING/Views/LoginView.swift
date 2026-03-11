@@ -10,7 +10,7 @@ struct LoginView: View {
                 .font(.system(size: 32))
                 .foregroundStyle(.blue)
 
-            Text("klingeLING!")
+            Text("kaching.")
                 .font(.title2.bold())
 
             Text("Paste your API token to connect")

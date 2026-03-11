@@ -41,7 +41,7 @@ struct MenuBarLabel: View {
     var body: some View {
         switch state {
         case .idle:
-            Label("klingeLING!", systemImage: "clock")
+            Label("kaching.", systemImage: "clock")
         case .tracking:
             Label(elapsed, systemImage: "clock.fill")
                 .foregroundStyle(.green)

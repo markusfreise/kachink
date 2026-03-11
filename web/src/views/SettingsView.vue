@@ -17,7 +17,7 @@ const auth = useAuthStore()
 const settings = useSettingsStore()
 
 const generatedToken = ref<string | null>(null)
-const tokenName = ref('klingeLING! Menu Bar')
+const tokenName = ref('kaching. Menu Bar')
 const generating = ref(false)
 const copied = ref(false)
 const error = ref('')

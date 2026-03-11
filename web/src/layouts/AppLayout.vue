@@ -47,7 +47,7 @@ async function handleLogout() {
     <aside class="app-sidebar">
       <div class="sidebar-brand">
         <ClockIcon class="sidebar-brand-icon" />
-        <span class="sidebar-brand-text">klingeLING!</span>
+        <span class="sidebar-brand-text">kaching.</span>
       </div>
 
       <nav class="sidebar-nav">

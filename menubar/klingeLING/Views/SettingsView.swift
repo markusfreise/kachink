@@ -26,7 +26,7 @@ struct SettingsView: View {
 
             Section("About") {
                 LabeledContent("Version", value: "1.0.0")
-                LabeledContent("App", value: "klingeLING!")
+                LabeledContent("App", value: "kaching.")
             }
         }
         .formStyle(.grouped)
