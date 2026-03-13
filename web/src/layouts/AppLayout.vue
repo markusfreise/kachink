@@ -9,6 +9,7 @@ import {
   HomeIcon,
   FolderIcon,
   UsersIcon,
+  UserGroupIcon,
   ChartBarIcon,
   TagIcon,
   Cog6ToothIcon,
@@ -27,6 +28,7 @@ const navItems = computed(() => [
   { to: '/clients', label: t('nav.clients'), icon: UsersIcon },
   { to: '/reports', label: t('nav.reports'), icon: ChartBarIcon },
   { to: '/tags', label: t('nav.tags'), icon: TagIcon },
+  ...(auth.isAdmin ? [{ to: '/users', label: t('users.title'), icon: UserGroupIcon }] : []),
   { to: '/settings', label: t('nav.settings'), icon: Cog6ToothIcon },
 ])
 

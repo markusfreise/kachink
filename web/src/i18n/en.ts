@@ -278,6 +278,24 @@ export default {
     timesheetPagination: '{total} entries \u00B7 Page {current} of {last}',
   },
 
+  // Users
+  users: {
+    title: 'Team',
+    inviteUser: 'Invite User',
+    editUser: 'Edit User',
+    noUsers: 'No team members yet.',
+    nameRequired: 'Name *',
+    emailRequired: 'Email *',
+    role: 'Role',
+    roleMember: 'Member',
+    roleAdmin: 'Admin',
+    statusActive: 'Active',
+    statusInactive: 'Inactive',
+    inviteSent: 'Invite sent \u2014 the user will receive an email to set their password.',
+    deactivateConfirm: 'Deactivate {name}?',
+    activateConfirm: 'Re-activate {name}?',
+  },
+
   // Settings
   settings: {
     title: 'Settings',
