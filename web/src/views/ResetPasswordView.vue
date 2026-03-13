@@ -42,7 +42,7 @@ async function handleSubmit() {
       // Map Laravel validation errors
       const errs: Record<string, string> = {}
       for (const [key, messages] of Object.entries(data.errors as Record<string, string[]>)) {
-        errs[key] = (messages as string[])[0]
+        errs[key] = (messages as string[])[0] ?? ''
       }
       fieldErrors.value = errs
     } else {
