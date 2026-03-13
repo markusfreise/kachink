@@ -126,13 +126,15 @@ class HarvestImport extends Command
     {
         $this->info('Importing clients...');
         $clients = $this->fetchAll('/clients', 'clients');
+        $orgId = $this->organization->id;
 
         foreach ($clients as $hc) {
             $slug = Str::slug($hc['name']);
-            $client = Client::where('harvest_id', (string) $hc['id'])->first()
-                ?? Client::where('slug', $slug)->first()
+            $client = Client::withoutGlobalScope('organization')->where('harvest_id', (string) $hc['id'])->first()
+                ?? Client::withoutGlobalScope('organization')->where('organization_id', $orgId)->where('slug', $slug)->first()
                 ?? new Client();
             $client->fill([
+                'organization_id' => $orgId,
                 'harvest_id' => (string) $hc['id'],
                 'name' => $hc['name'],
                 'slug' => $slug,
@@ -148,6 +150,7 @@ class HarvestImport extends Command
     {
         $this->info('Importing projects...');
         $projects = $this->fetchAll('/projects', 'projects');
+        $orgId = $this->organization->id;
 
         foreach ($projects as $hp) {
             $client = $hp['client'] ? ($this->clientMap[(string) $hp['client']['id']] ?? null) : null;
@@ -156,10 +159,11 @@ class HarvestImport extends Command
             }
 
             $slug = Str::slug($hp['name']);
-            $project = Project::where('harvest_id', (string) $hp['id'])->first()
-                ?? Project::where('client_id', $client->id)->where('slug', $slug)->first()
+            $project = Project::withoutGlobalScope('organization')->where('harvest_id', (string) $hp['id'])->first()
+                ?? Project::withoutGlobalScope('organization')->where('organization_id', $orgId)->where('client_id', $client->id)->where('slug', $slug)->first()
                 ?? new Project();
             $project->fill([
+                'organization_id' => $orgId,
                 'harvest_id' => (string) $hp['id'],
                 'client_id' => $client->id,
                 'name' => $hp['name'],
@@ -180,11 +184,13 @@ class HarvestImport extends Command
     {
         $this->info('Importing tasks...');
         $tasks = $this->fetchAll('/tasks', 'tasks');
+        $orgId = $this->organization->id;
 
         foreach ($tasks as $ht) {
-            $task = Task::updateOrCreate(
+            $task = Task::withoutGlobalScope('organization')->updateOrCreate(
                 ['harvest_id' => (string) $ht['id']],
                 [
+                    'organization_id' => $orgId,
                     'name' => $ht['name'],
                     'is_active' => $ht['is_active'],
                 ]
@@ -199,6 +205,7 @@ class HarvestImport extends Command
     {
         $this->info('Importing time entries...');
         $entries = $this->fetchAll('/time_entries', 'time_entries');
+        $orgId = $this->organization->id;
         $imported = 0;
         $skipped = 0;
 
@@ -221,9 +228,10 @@ class HarvestImport extends Command
             $hours = (float) $he['hours'];
             $durationSeconds = (int) round($hours * 3600);
 
-            TimeEntry::updateOrCreate(
+            TimeEntry::withoutGlobalScope('organization')->updateOrCreate(
                 ['harvest_id' => (string) $he['id']],
                 [
+                    'organization_id' => $orgId,
                     'user_id' => $user->id,
                     'project_id' => $project->id,
                     'task_id' => $task?->id,
