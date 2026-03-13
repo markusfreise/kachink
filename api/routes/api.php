@@ -1,8 +1,9 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
-use App\Http\Controllers\Api\PasswordResetController;
 use App\Http\Controllers\Api\ClientController;
+use App\Http\Controllers\Api\OrganizationController;
+use App\Http\Controllers\Api\PasswordResetController;
 use App\Http\Controllers\Api\ProjectController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\TagController;
@@ -27,38 +28,47 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/auth/tokens', [AuthController::class, 'listTokens']);
     Route::delete('/auth/tokens/{token}', [AuthController::class, 'revokeToken']);
 
-    // Clients
-    Route::apiResource('clients', ClientController::class);
+    // Organizations (no org context needed)
+    Route::apiResource('organizations', OrganizationController::class);
+    Route::get('/organizations/{organization}/members', [OrganizationController::class, 'members']);
+    Route::post('/organizations/{organization}/members', [OrganizationController::class, 'addMember']);
+    Route::delete('/organizations/{organization}/members/{user}', [OrganizationController::class, 'removeMember']);
 
-    // Projects
-    Route::apiResource('projects', ProjectController::class);
+    // All routes below require X-Organization-Id header
+    Route::middleware('resolve.organization')->group(function () {
+        // Clients
+        Route::apiResource('clients', ClientController::class);
 
-    // Tasks (workspace-global)
-    Route::apiResource('tasks', TaskController::class)->only(['index', 'store', 'update', 'destroy']);
+        // Projects
+        Route::apiResource('projects', ProjectController::class);
 
-    // Time Entries
-    Route::post('/time-entries/start', [TimeEntryController::class, 'start']);
-    Route::post('/time-entries/stop', [TimeEntryController::class, 'stop']);
-    Route::get('/time-entries/running', [TimeEntryController::class, 'running']);
-    Route::apiResource('time-entries', TimeEntryController::class)->parameters([
-        'time-entries' => 'time_entry',
-    ]);
+        // Tasks
+        Route::apiResource('tasks', TaskController::class)->only(['index', 'store', 'update', 'destroy']);
 
-    // Tags
-    Route::apiResource('tags', TagController::class)->except(['show']);
+        // Time Entries
+        Route::post('/time-entries/start', [TimeEntryController::class, 'start']);
+        Route::post('/time-entries/stop', [TimeEntryController::class, 'stop']);
+        Route::get('/time-entries/running', [TimeEntryController::class, 'running']);
+        Route::apiResource('time-entries', TimeEntryController::class)->parameters([
+            'time-entries' => 'time_entry',
+        ]);
 
-    // Users
-    Route::get('/users', [UserController::class, 'index']);
-    Route::post('/users', [UserController::class, 'store']);
-    Route::get('/users/{user}', [UserController::class, 'show']);
-    Route::put('/users/{user}', [UserController::class, 'update']);
+        // Tags
+        Route::apiResource('tags', TagController::class)->except(['show']);
 
-    // Reports
-    Route::prefix('reports')->group(function () {
-        Route::get('/summary', [ReportController::class, 'summary']);
-        Route::get('/detailed', [ReportController::class, 'detailed']);
-        Route::get('/budget', [ReportController::class, 'budget']);
-        Route::get('/utilization', [ReportController::class, 'utilization']);
-        Route::get('/export', [ReportController::class, 'export']);
+        // Users (org members)
+        Route::get('/users', [UserController::class, 'index']);
+        Route::post('/users', [UserController::class, 'store']);
+        Route::get('/users/{user}', [UserController::class, 'show']);
+        Route::put('/users/{user}', [UserController::class, 'update']);
+
+        // Reports
+        Route::prefix('reports')->group(function () {
+            Route::get('/summary', [ReportController::class, 'summary']);
+            Route::get('/detailed', [ReportController::class, 'detailed']);
+            Route::get('/budget', [ReportController::class, 'budget']);
+            Route::get('/utilization', [ReportController::class, 'utilization']);
+            Route::get('/export', [ReportController::class, 'export']);
+        });
     });
 });

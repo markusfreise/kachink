@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\Client;
+use App\Models\Organization;
 use App\Models\Project;
 use App\Models\Task;
 use App\Models\TimeEntry;
@@ -18,12 +19,14 @@ class HarvestImport extends Command
     protected $signature = 'harvest:import
         {--token= : Harvest Personal Access Token (or set HARVEST_TOKEN in .env)}
         {--account= : Harvest Account ID (or set HARVEST_ACCOUNT_ID in .env)}
-        {--fresh : Wipe all existing data before importing}';
+        {--org= : Organization ID or slug to import into (required)}
+        {--fresh : Wipe all existing org data before importing}';
 
     protected $description = 'Import users, clients, projects, tasks, and time entries from Harvest';
 
     private ?string $token;
     private ?string $accountId;
+    private Organization $organization;
     private array $userMap = [];    // harvest_id -> local User
     private array $clientMap = [];  // harvest_id -> local Client
     private array $projectMap = []; // harvest_id -> local Project
@@ -39,8 +42,25 @@ class HarvestImport extends Command
             return 1;
         }
 
+        $orgOption = $this->option('org');
+        if (!$orgOption) {
+            $this->error('Specify the target organization with --org=<id-or-slug>.');
+            return 1;
+        }
+
+        $this->organization = Organization::where('id', $orgOption)
+            ->orWhere('slug', $orgOption)
+            ->first();
+
+        if (!$this->organization) {
+            $this->error("Organization '{$orgOption}' not found.");
+            return 1;
+        }
+
+        app()->instance('current_organization', $this->organization);
+
         if ($this->option('fresh')) {
-            if (!$this->confirm('This will DELETE all existing time entries, projects, clients, tasks, and non-admin users. Continue?')) {
+            if (!$this->confirm("This will DELETE all existing data for org '{$this->organization->name}'. Continue?")) {
                 return 0;
             }
             $this->wipe();
@@ -59,15 +79,16 @@ class HarvestImport extends Command
 
     private function wipe(): void
     {
-        $this->warn('Wiping existing data...');
-        DB::statement('SET FOREIGN_KEY_CHECKS=0');
-        DB::statement('TRUNCATE TABLE time_entry_tag');
-        DB::statement('TRUNCATE TABLE time_entries');
-        DB::statement('TRUNCATE TABLE tasks');
-        DB::statement('TRUNCATE TABLE projects');
-        DB::statement('TRUNCATE TABLE clients');
-        DB::statement('SET FOREIGN_KEY_CHECKS=1');
-        User::where('role', '!=', 'admin')->delete();
+        $this->warn('Wiping existing org data...');
+        $orgId = $this->organization->id;
+        DB::table('time_entry_tag')
+            ->whereIn('time_entry_id', DB::table('time_entries')->where('organization_id', $orgId)->pluck('id'))
+            ->delete();
+        TimeEntry::withoutGlobalScope('organization')->where('organization_id', $orgId)->delete();
+        Task::withoutGlobalScope('organization')->where('organization_id', $orgId)->delete();
+        Project::withoutGlobalScope('organization')->where('organization_id', $orgId)->delete();
+        Client::withoutGlobalScope('organization')->where('organization_id', $orgId)->delete();
+        $this->organization->users()->wherePivot('role', '!=', 'owner')->detach();
         $this->line('Done.');
     }
 
@@ -81,16 +102,20 @@ class HarvestImport extends Command
                 continue;
             }
 
+            $orgRole = in_array('administrator', $hu['access_roles'] ?? []) ? 'admin' : 'member';
             $user = User::updateOrCreate(
                 ['harvest_id' => (string) $hu['id']],
                 [
                     'name' => $hu['first_name'] . ' ' . $hu['last_name'],
                     'email' => $hu['email'],
                     'password' => Hash::make(Str::random(32)),
-                    'role' => in_array('administrator', $hu['access_roles'] ?? []) ? 'admin' : 'member',
+                    'role' => 'member',
                     'is_active' => true,
                 ]
             );
+            $this->organization->users()->syncWithoutDetaching([
+                $user->id => ['role' => $orgRole],
+            ]);
             $this->userMap[(string) $hu['id']] = $user;
         }
 
