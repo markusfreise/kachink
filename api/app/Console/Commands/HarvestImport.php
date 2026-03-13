@@ -131,7 +131,7 @@ class HarvestImport extends Command
         foreach ($clients as $hc) {
             $slug = Str::slug($hc['name']);
             $client = Client::withoutGlobalScope('organization')->where('harvest_id', (string) $hc['id'])->first()
-                ?? Client::withoutGlobalScope('organization')->where('organization_id', $orgId)->where('slug', $slug)->first()
+                ?? Client::withoutGlobalScope('organization')->where('slug', $slug)->first()
                 ?? new Client();
             $client->fill([
                 'organization_id' => $orgId,
@@ -160,7 +160,7 @@ class HarvestImport extends Command
 
             $slug = Str::slug($hp['name']);
             $project = Project::withoutGlobalScope('organization')->where('harvest_id', (string) $hp['id'])->first()
-                ?? Project::withoutGlobalScope('organization')->where('organization_id', $orgId)->where('client_id', $client->id)->where('slug', $slug)->first()
+                ?? Project::withoutGlobalScope('organization')->where('client_id', $client->id)->where('slug', $slug)->first()
                 ?? new Project();
             $project->fill([
                 'organization_id' => $orgId,
