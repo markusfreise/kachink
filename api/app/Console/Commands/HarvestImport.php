@@ -60,11 +60,13 @@ class HarvestImport extends Command
     private function wipe(): void
     {
         $this->warn('Wiping existing data...');
-        DB::statement('TRUNCATE TABLE time_entry_tag CASCADE');
-        DB::statement('TRUNCATE TABLE time_entries CASCADE');
-        DB::statement('TRUNCATE TABLE tasks CASCADE');
-        DB::statement('TRUNCATE TABLE projects CASCADE');
-        DB::statement('TRUNCATE TABLE clients CASCADE');
+        DB::statement('SET FOREIGN_KEY_CHECKS=0');
+        DB::statement('TRUNCATE TABLE time_entry_tag');
+        DB::statement('TRUNCATE TABLE time_entries');
+        DB::statement('TRUNCATE TABLE tasks');
+        DB::statement('TRUNCATE TABLE projects');
+        DB::statement('TRUNCATE TABLE clients');
+        DB::statement('SET FOREIGN_KEY_CHECKS=1');
         User::where('role', '!=', 'admin')->delete();
         $this->line('Done.');
     }
