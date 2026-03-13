@@ -7,13 +7,11 @@ return new class extends Migration
 {
     public function up(): void
     {
-        DB::statement("ALTER TABLE time_entries DROP CONSTRAINT time_entries_source_check");
-        DB::statement("ALTER TABLE time_entries ADD CONSTRAINT time_entries_source_check CHECK (source IN ('web', 'menubar', 'manual', 'api', 'harvest'))");
+        DB::statement("ALTER TABLE time_entries MODIFY COLUMN source ENUM('web', 'menubar', 'manual', 'api', 'harvest') NOT NULL DEFAULT 'web'");
     }
 
     public function down(): void
     {
-        DB::statement("ALTER TABLE time_entries DROP CONSTRAINT time_entries_source_check");
-        DB::statement("ALTER TABLE time_entries ADD CONSTRAINT time_entries_source_check CHECK (source IN ('web', 'menubar', 'manual', 'api'))");
+        DB::statement("ALTER TABLE time_entries MODIFY COLUMN source ENUM('web', 'menubar', 'manual', 'api') NOT NULL DEFAULT 'web'");
     }
 };
