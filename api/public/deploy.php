@@ -7,6 +7,8 @@
 
 $secret = getenv('DEPLOY_SECRET') ?: '';
 
+// Helll
+
 // Validate secret from query string: /deploy.php?secret=xxx
 if (!$secret || ($_GET['secret'] ?? '') !== $secret) {
     http_response_code(403);
