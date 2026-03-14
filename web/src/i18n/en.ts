@@ -306,14 +306,14 @@ export default {
 
     // API Tokens
     apiTokens: 'API Tokens',
-    tokenDescription: 'Generate a token to connect the kaching. menu bar app.',
+    tokenDescription: 'Generate a token to connect the kaCHINK! menu bar app.',
     deviceName: 'Device name',
     devicePlaceholder: 'e.g. MacBook Pro',
     generating: 'Generating...',
     generateToken: 'Generate Token',
     tokenWarning: "Copy this token now \u2014 it won't be shown again.",
     howToConnect: 'How to connect:',
-    step1: 'Open the kaching. menu bar app',
+    step1: 'Open the kaCHINK! menu bar app',
     step2: 'Paste this token into the API Token field',
     step3: 'Click Connect',
     activeTokens: 'Active Tokens',

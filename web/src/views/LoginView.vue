@@ -31,8 +31,8 @@ async function handleLogin() {
   <div class="login-page">
     <div class="login-card">
       <div class="login-header">
-        <img src="/appicon.png" alt="kaching." class="login-logo" />
-        <h1 class="login-title">kaching.</h1>
+        <img src="/appicon.png" alt="kaCHINK!" class="login-logo" />
+        <h1 class="login-title">kaCHINK!</h1>
         <p class="login-subtitle">{{ $t('auth.signInSubtitle') }}</p>
       </div>
 

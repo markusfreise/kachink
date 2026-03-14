@@ -306,14 +306,14 @@ export default {
 
     // API Tokens
     apiTokens: 'API-Tokens',
-    tokenDescription: 'Erstelle einen Token, um die kaching. Men\u00FC-Bar-App zu verbinden.',
+    tokenDescription: 'Erstelle einen Token, um die kaCHINK! Men\u00FC-Bar-App zu verbinden.',
     deviceName: 'Ger\u00E4tename',
     devicePlaceholder: 'z.\u00A0B. MacBook Pro',
     generating: 'Wird erstellt...',
     generateToken: 'Token erstellen',
     tokenWarning: 'Kopiere diesen Token jetzt \u2014 er wird nicht erneut angezeigt.',
     howToConnect: 'So verbindest du:',
-    step1: '\u00D6ffne die kaching. Men\u00FC-Bar-App',
+    step1: '\u00D6ffne die kaCHINK! Men\u00FC-Bar-App',
     step2: 'F\u00FCge diesen Token in das API-Token-Feld ein',
     step3: 'Klicke auf Verbinden',
     activeTokens: 'Aktive Tokens',

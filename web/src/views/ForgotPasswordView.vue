@@ -29,7 +29,7 @@ async function handleSubmit() {
     <div class="login-card">
       <div class="login-header">
         <ClockIcon class="login-logo" />
-        <h1 class="login-title">kaching.</h1>
+        <h1 class="login-title">kaCHINK!</h1>
         <p class="login-subtitle">{{ $t('forgotPassword.title') }}</p>
       </div>
 
