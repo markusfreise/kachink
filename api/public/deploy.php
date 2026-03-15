@@ -39,6 +39,9 @@ $log[] = '=== Deploy ' . date('Y-m-d H:i:s') . ' ===';
 // Pull latest code
 $log[] = run("cd $root && git pull origin main");
 
+// Restore any frontend assets that were overwritten outside of git
+$log[] = run("cd $root && git checkout HEAD -- api/public/");
+
 // PHP dependencies
 $log[] = run("cd $api && composer install --no-interaction --prefer-dist --optimize-autoloader");
 
