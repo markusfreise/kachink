@@ -48,12 +48,7 @@ $log[] = run("cd $api && php artisan migrate --force");
 // Clear caches
 $log[] = run("cd $api && php artisan config:cache && php artisan route:cache && php artisan view:cache");
 
-// Build frontend
-$log[] = run("cd $web && npm ci --prefer-offline 2>&1 || npm install");
-$log[] = run("cd $web && npm run build-only");
-
-// Copy dist into Laravel public
-$log[] = run("cp -r $web/dist/. $public/");
+// Frontend assets are pre-built and committed — no server build step needed.
 
 $output = implode("\n", array_filter($log));
 file_put_contents($logFile, $output . "\n\n", FILE_APPEND);
