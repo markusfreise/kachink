@@ -4,6 +4,7 @@ import { RouterLink, RouterView, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useTimerStore } from '@/stores/timer'
+import { useOrgStore } from '@/stores/org'
 import {
   ClockIcon,
   HomeIcon,
@@ -14,10 +15,12 @@ import {
   TagIcon,
   Cog6ToothIcon,
   ArrowRightStartOnRectangleIcon,
+  BuildingOfficeIcon,
 } from '@heroicons/vue/24/outline'
 
 const { t } = useI18n()
 const auth = useAuthStore()
+const org = useOrgStore()
 const timer = useTimerStore()
 const route = useRoute()
 
@@ -50,6 +53,23 @@ async function handleLogout() {
       <div class="sidebar-brand">
         <ClockIcon class="sidebar-brand-icon" />
         <span class="sidebar-brand-text">kaCHINK!</span>
+      </div>
+
+      <!-- Organization switcher -->
+      <div v-if="org.organizations.length > 0" class="sidebar-org">
+        <BuildingOfficeIcon class="sidebar-org-icon" />
+        <template v-if="org.organizations.length === 1">
+          <span class="sidebar-org-name">{{ org.currentOrg?.name }}</span>
+        </template>
+        <template v-else>
+          <select
+            class="sidebar-org-select"
+            :value="org.currentOrgId ?? ''"
+            @change="org.setCurrentOrg(($event.target as any).value)"
+          >
+            <option v-for="o in org.organizations" :key="o.id" :value="o.id">{{ o.name }}</option>
+          </select>
+        </template>
       </div>
 
       <nav class="sidebar-nav">

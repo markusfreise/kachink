@@ -5,9 +5,10 @@
  * Set DEPLOY_SECRET in api/.env and configure the same secret in Bitbucket.
  */
 
-$secret = getenv('DEPLOY_SECRET') ?: '';
-
-// Helll
+// Read DEPLOY_SECRET directly from api/.env (getenv() won't work on shared hosting)
+$envContents = @file_get_contents(dirname(__DIR__) . '/.env');
+preg_match('/^DEPLOY_SECRET=(.+)$/m', $envContents ?: '', $m);
+$secret = trim($m[1] ?? '');
 
 // Validate secret from query string: /deploy.php?secret=xxx
 if (!$secret || ($_GET['secret'] ?? '') !== $secret) {

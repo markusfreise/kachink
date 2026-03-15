@@ -1,3 +1,11 @@
+export interface Organization {
+  id: string
+  name: string
+  slug: string
+  is_active: boolean
+  role: 'owner' | 'admin' | 'member'
+}
+
 export interface User {
   id: string
   name: string

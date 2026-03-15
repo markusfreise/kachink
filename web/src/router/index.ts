@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useOrgStore } from '@/stores/org'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -79,6 +80,7 @@ const router = createRouter({
 
 router.beforeEach(async (to) => {
   const auth = useAuthStore()
+  const org = useOrgStore()
 
   if (!auth.user && !auth.loading) {
     await auth.fetchUser()
@@ -90,6 +92,11 @@ router.beforeEach(async (to) => {
 
   if (to.meta.guest && auth.isAuthenticated) {
     return { name: 'dashboard' }
+  }
+
+  // Load organizations once after auth
+  if (auth.isAuthenticated && org.organizations.length === 0) {
+    await org.fetchOrganizations()
   }
 })
 
