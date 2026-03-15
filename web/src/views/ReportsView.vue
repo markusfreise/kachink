@@ -391,7 +391,7 @@ tbody td{padding:3px 8px;border-bottom:1px solid #f3f4f6;vertical-align:top;font
 <tbody>${rows}</tbody>
 </table>
 <script>window.onload=function(){window.print()}<\/script>
-</body></html>`
+<\/body><\/html>`
 
     const w = window.open('', '_blank')
     if (w) { w.document.write(html); w.document.close() }
