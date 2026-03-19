@@ -23,14 +23,11 @@ api.interceptors.request.use((config) => {
   return config
 })
 
-// Response interceptor for auth errors
+// Response interceptor: only log out when the token itself is rejected
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (
-      error.response?.status === 401 &&
-      !error.config?.url?.startsWith('/auth/')
-    ) {
+    if (error.response?.status === 401 && error.config?.url === '/auth/me') {
       localStorage.removeItem('auth:token')
       window.location.href = '/'
     }
