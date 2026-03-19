@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
@@ -23,6 +23,10 @@ const auth = useAuthStore()
 const org = useOrgStore()
 const timer = useTimerStore()
 const route = useRoute()
+
+onMounted(() => {
+  timer.fetchRunning()
+})
 
 const navItems = computed(() => [
   { to: '/', label: t('nav.dashboard'), icon: HomeIcon },
