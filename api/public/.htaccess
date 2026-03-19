@@ -13,13 +13,16 @@
     RewriteCond %{HTTP:x-xsrf-token} .
     RewriteRule .* - [E=HTTP_X_XSRF_TOKEN:%{HTTP:X-XSRF-Token}]
 
-    # Redirect Trailing Slashes If Not A Folder...
-    RewriteCond %{REQUEST_FILENAME} !-d
-    RewriteCond %{REQUEST_URI} (.+)/$
-    RewriteRule ^ %1 [L,R=301]
+    # Serve existing files and directories directly
+    RewriteCond %{REQUEST_FILENAME} -d [OR]
+    RewriteCond %{REQUEST_FILENAME} -f
+    RewriteRule ^ - [L]
 
-    # Send Requests To Front Controller...
-    RewriteCond %{REQUEST_FILENAME} !-d
-    RewriteCond %{REQUEST_FILENAME} !-f
+    # Route API, Sanctum, health check, and deploy script to Laravel (index.php)
+    RewriteCond %{REQUEST_URI} ^/(api|sanctum|up)(/|$) [OR]
+    RewriteCond %{REQUEST_URI} ^/deploy\.php$
     RewriteRule ^ index.php [L]
+
+    # All other routes: serve the Vue SPA
+    RewriteRule ^ index.html [L]
 </IfModule>
