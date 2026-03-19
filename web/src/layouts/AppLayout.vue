@@ -42,7 +42,7 @@ function isActive(path: string) {
 
 async function handleLogout() {
   await auth.logout()
-  window.location.href = '/login'
+  window.location.href = '/'
 }
 </script>
 
