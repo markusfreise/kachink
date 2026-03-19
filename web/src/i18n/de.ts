@@ -51,7 +51,7 @@ export default {
     signingIn: 'Anmelden...',
     signInSubtitle: 'Melde dich bei deinem Konto an',
     email: 'E-Mail',
-    emailPlaceholder: 'du@beispiel.de',
+    emailPlaceholder: "du{'@'}beispiel.de",
     password: 'Passwort',
     passwordPlaceholder: 'Passwort',
     forgotPassword: 'Passwort vergessen?',

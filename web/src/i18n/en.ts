@@ -50,7 +50,7 @@ export default {
     signingIn: 'Signing in...',
     signInSubtitle: 'Sign in to your account',
     email: 'Email',
-    emailPlaceholder: 'you@example.com',
+    emailPlaceholder: "you{'@'}example.com",
     password: 'Password',
     passwordPlaceholder: 'Password',
     forgotPassword: 'Forgot password?',
