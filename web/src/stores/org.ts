@@ -14,13 +14,17 @@ export const useOrgStore = defineStore('org', () => {
   )
 
   async function fetchOrganizations() {
-    const { data } = await api.get('/organizations')
-    organizations.value = data.data
+    try {
+      const { data } = await api.get('/organizations')
+      organizations.value = data.data
 
-    // Auto-select: use stored id if valid, otherwise pick first
-    const storedValid = organizations.value.some((o) => o.id === currentOrgId.value)
-    if (!storedValid && organizations.value.length > 0) {
-      setCurrentOrg(organizations.value[0].id)
+      // Auto-select: use stored id if valid, otherwise pick first
+      const storedValid = organizations.value.some((o) => o.id === currentOrgId.value)
+      if (!storedValid && organizations.value.length > 0) {
+        setCurrentOrg(organizations.value[0].id)
+      }
+    } catch {
+      // Non-fatal — user stays authenticated, org context just isn't loaded
     }
   }
 

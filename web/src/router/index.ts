@@ -96,7 +96,7 @@ router.beforeEach(async (to) => {
 
   // Load organizations once after auth
   if (auth.isAuthenticated && org.organizations.length === 0) {
-    await org.fetchOrganizations()
+    await org.fetchOrganizations().catch(() => {})
   }
 })
 
