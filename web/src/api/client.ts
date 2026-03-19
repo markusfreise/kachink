@@ -6,25 +6,24 @@ const api = axios.create({
     'Content-Type': 'application/json',
     Accept: 'application/json',
   },
-  withCredentials: true,
 })
 
-// CSRF cookie for Sanctum SPA auth
-export async function getCsrfCookie(): Promise<void> {
-  await axios.get('/sanctum/csrf-cookie', { withCredentials: true })
-}
-
-// Request interceptor: attach current organization header
+// Request interceptor: attach token and current organization header
 api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('auth:token')
+  if (token) {
+    config.headers['Authorization'] = `Bearer ${token}`
+  }
+
   const orgId = localStorage.getItem('org:current')
   if (orgId) {
     config.headers['X-Organization-Id'] = orgId
   }
+
   return config
 })
 
 // Response interceptor for auth errors
-// Skip redirect for /auth/* endpoints — the auth store and router guard handle those.
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -32,7 +31,8 @@ api.interceptors.response.use(
       error.response?.status === 401 &&
       !error.config?.url?.startsWith('/auth/')
     ) {
-      window.location.href = '/login'
+      localStorage.removeItem('auth:token')
+      window.location.href = '/'
     }
     return Promise.reject(error)
   },
