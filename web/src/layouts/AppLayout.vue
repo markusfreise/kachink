@@ -29,7 +29,7 @@ onMounted(() => {
 })
 
 const navItems = computed(() => [
-  { to: '/', label: t('nav.dashboard'), icon: HomeIcon },
+  { to: '/', label: t('nav.dashboard'), icon: null },
   { to: '/time-entries', label: t('nav.timeEntries'), icon: ClockIcon },
   { to: '/projects', label: t('nav.projects'), icon: FolderIcon },
   { to: '/clients', label: t('nav.clients'), icon: UsersIcon },
@@ -82,7 +82,7 @@ async function handleLogout() {
           :to="item.to"
           :class="isActive(item.to) ? 'sidebar-link-active' : 'sidebar-link'"
         >
-          <component :is="item.icon" class="sidebar-icon" />
+          <component :is="item.icon" v-if="item.icon" class="sidebar-icon" />
           {{ item.label }}
         </RouterLink>
       </nav>
