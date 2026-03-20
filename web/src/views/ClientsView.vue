@@ -1,15 +1,32 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import api from '@/api/client'
-import type { Client } from '@/types'
-import { PlusIcon, XMarkIcon } from '@heroicons/vue/24/outline'
+import type { Client, PaginationMeta } from '@/types'
+import { PlusIcon, XMarkIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/vue/24/outline'
 
 const { t } = useI18n()
 const clients = ref<Client[]>([])
 const loading = ref(true)
 const showForm = ref(false)
 const editingClient = ref<Client | null>(null)
+
+// Filters / sort / pagination
+const search = ref('')
+const sort = ref('name')
+const page = ref(1)
+const perPage = ref(25)
+const meta = ref<PaginationMeta | null>(null)
+
+const perPageOptions = [10, 25, 50, 100]
+const sortOptions = [
+  { value: 'name', label: t('clients.sortName') },
+  { value: '-name', label: t('clients.sortNameDesc') },
+  { value: '-created_at', label: t('clients.sortNewest') },
+  { value: 'created_at', label: t('clients.sortOldest') },
+]
+
+let searchTimer: ReturnType<typeof setTimeout> | null = null
 
 // Form
 const formName = ref('')
@@ -21,12 +38,27 @@ const formError = ref('')
 async function fetchClients() {
   loading.value = true
   try {
-    const { data } = await api.get('/clients', { params: { per_page: 100 } })
+    const params: Record<string, unknown> = {
+      per_page: perPage.value,
+      page: page.value,
+      sort: sort.value,
+    }
+    if (search.value) params['filter[name]'] = search.value
+    const { data } = await api.get('/clients', { params })
     clients.value = data.data
+    meta.value = data.meta ?? null
   } finally {
     loading.value = false
   }
 }
+
+watch(perPage, () => { page.value = 1; fetchClients() })
+watch(page, fetchClients)
+watch(sort, () => { page.value = 1; fetchClients() })
+watch(search, () => {
+  if (searchTimer) clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => { page.value = 1; fetchClients() }, 300)
+})
 
 function openCreate() {
   editingClient.value = null
@@ -82,6 +114,30 @@ onMounted(fetchClients)
       </button>
     </div>
 
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <div class="toolbar-filters">
+        <input
+          v-model="search"
+          type="search"
+          class="form-input search-input"
+          :placeholder="$t('clients.search')"
+        />
+        <select v-model="sort" class="form-select">
+          <option v-for="o in sortOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
+        </select>
+      </div>
+      <div class="toolbar-right">
+        <span class="text-muted">
+          <template v-if="meta">{{ meta.total }} {{ $t('clients.title').toLowerCase() }}</template>
+        </span>
+        <label class="form-label">{{ $t('common.perPage') }}</label>
+        <select v-model="perPage" class="form-select per-page-select">
+          <option v-for="n in perPageOptions" :key="n" :value="n">{{ n }}</option>
+        </select>
+      </div>
+    </div>
+
     <div v-if="loading" class="loading-center">
       <div class="loading-spinner"></div>
     </div>
@@ -134,6 +190,29 @@ onMounted(fetchClients)
       </div>
     </div>
 
+    <!-- Pagination -->
+    <div v-if="meta && meta.last_page > 1" class="pagination">
+      <button class="btn-secondary btn-sm" :disabled="page === 1" @click="page--">
+        <ChevronLeftIcon class="btn-icon-sm" />
+      </button>
+      <div class="pagination-pages">
+        <button
+          v-for="p in meta.last_page"
+          :key="p"
+          :class="p === page ? 'page-btn-active' : 'page-btn'"
+          @click="page = p"
+        >
+          {{ p }}
+        </button>
+      </div>
+      <button class="btn-secondary btn-sm" :disabled="page === meta.last_page" @click="page++">
+        <ChevronRightIcon class="btn-icon-sm" />
+      </button>
+      <span class="pagination-info">
+        {{ $t('common.page', { current: page, last: meta.last_page }) }}
+      </span>
+    </div>
+
     <!-- Form Modal -->
     <div v-if="showForm" class="modal-overlay" @click.self="showForm = false">
       <div class="modal-panel">
@@ -175,6 +254,26 @@ onMounted(fetchClients)
   @apply flex items-center justify-between mb-6;
 }
 
+.toolbar {
+  @apply flex flex-wrap items-center justify-between gap-3 mb-4;
+}
+
+.toolbar-filters {
+  @apply flex flex-wrap items-center gap-2;
+}
+
+.toolbar-right {
+  @apply flex items-center gap-2;
+}
+
+.search-input {
+  @apply w-52;
+}
+
+.per-page-select {
+  @apply w-20;
+}
+
 .loading-center {
   @apply flex justify-center py-12;
 }
@@ -197,6 +296,26 @@ onMounted(fetchClients)
 
 .btn-icon-sm {
   @apply h-4 w-4;
+}
+
+.pagination {
+  @apply flex items-center gap-2 mt-6;
+}
+
+.pagination-pages {
+  @apply flex gap-1;
+}
+
+.page-btn {
+  @apply w-8 h-8 rounded text-sm text-gray-700 hover:bg-gray-100 transition-colors;
+}
+
+.page-btn-active {
+  @apply w-8 h-8 rounded text-sm font-semibold bg-primary-600 text-white;
+}
+
+.pagination-info {
+  @apply text-sm text-gray-500 ml-2;
 }
 
 .modal-overlay {

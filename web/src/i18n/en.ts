@@ -154,6 +154,13 @@ export default {
     rate: 'Rate',
     tasks: 'Tasks',
     archiveConfirm: 'Archive "{name}"?',
+    search: 'Search projects...',
+    sortBy: 'Sort',
+    sortName: 'Name (A–Z)',
+    sortNameDesc: 'Name (Z–A)',
+    sortNewest: 'Newest',
+    sortOldest: 'Oldest',
+    allClients: 'All clients',
   },
 
   // Project Form
@@ -195,6 +202,12 @@ export default {
     status: 'Status',
     nameRequired: 'Name *',
     archiveConfirm: 'Archive "{name}"? This will hide it from active lists.',
+    search: 'Search clients...',
+    sortBy: 'Sort',
+    sortName: 'Name (A–Z)',
+    sortNameDesc: 'Name (Z–A)',
+    sortNewest: 'Newest',
+    sortOldest: 'Oldest',
   },
 
   // Tags

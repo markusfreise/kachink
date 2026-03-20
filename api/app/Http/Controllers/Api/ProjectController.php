@@ -30,6 +30,10 @@ class ProjectController extends Controller
             $query->where('is_billable', $request->boolean('filter.is_billable'));
         }
 
+        if ($request->filled('filter.name')) {
+            $query->where('name', 'like', '%' . $request->input('filter.name') . '%');
+        }
+
         if ($request->boolean('include_time_summary')) {
             $query->with('timeEntries');
         }

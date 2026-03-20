@@ -18,21 +18,33 @@ const editingProject = ref<Project | null>(null)
 const page = ref(1)
 const perPage = ref(25)
 const meta = ref<PaginationMeta | null>(null)
+const search = ref('')
+const sort = ref('name')
+const clientFilter = ref<number | null>(null)
 
 const perPageOptions = [10, 25, 50, 100]
+const sortOptions = [
+  { value: 'name', label: t('projects.sortName') },
+  { value: '-name', label: t('projects.sortNameDesc') },
+  { value: '-created_at', label: t('projects.sortNewest') },
+  { value: 'created_at', label: t('projects.sortOldest') },
+]
+
+let searchTimer: ReturnType<typeof setTimeout> | null = null
 
 async function fetchProjects() {
   loading.value = true
   try {
-    const { data } = await api.get('/projects', {
-      params: {
-        'filter[is_active]': true,
-        per_page: perPage.value,
-        page: page.value,
-        include_time_summary: true,
-        sort: 'name',
-      },
-    })
+    const params: Record<string, unknown> = {
+      'filter[is_active]': true,
+      per_page: perPage.value,
+      page: page.value,
+      include_time_summary: true,
+      sort: sort.value,
+    }
+    if (search.value) params['filter[name]'] = search.value
+    if (clientFilter.value) params['filter[client_id]'] = clientFilter.value
+    const { data } = await api.get('/projects', { params })
     projects.value = data.data
     meta.value = data.meta ?? null
   } finally {
@@ -40,12 +52,14 @@ async function fetchProjects() {
   }
 }
 
-watch(perPage, () => {
-  page.value = 1
-  fetchProjects()
-})
-
+watch(perPage, () => { page.value = 1; fetchProjects() })
 watch(page, fetchProjects)
+watch(sort, () => { page.value = 1; fetchProjects() })
+watch(clientFilter, () => { page.value = 1; fetchProjects() })
+watch(search, () => {
+  if (searchTimer) clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => { page.value = 1; fetchProjects() }, 300)
+})
 
 function openCreate() {
   editingProject.value = null
@@ -89,12 +103,25 @@ onMounted(async () => {
 
     <!-- Toolbar -->
     <div class="toolbar">
-      <span class="text-muted">
-        <template v-if="meta">
-          {{ meta.total }} {{ $t('projects.title').toLowerCase() }}
-        </template>
-      </span>
+      <div class="toolbar-filters">
+        <input
+          v-model="search"
+          type="search"
+          class="form-input search-input"
+          :placeholder="$t('projects.search')"
+        />
+        <select v-model="clientFilter" class="form-select">
+          <option :value="null">{{ $t('projects.allClients') }}</option>
+          <option v-for="c in clients" :key="c.id" :value="c.id">{{ c.name }}</option>
+        </select>
+        <select v-model="sort" class="form-select">
+          <option v-for="o in sortOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
+        </select>
+      </div>
       <div class="toolbar-right">
+        <span class="text-muted">
+          <template v-if="meta">{{ meta.total }} {{ $t('projects.title').toLowerCase() }}</template>
+        </span>
         <label class="form-label">{{ $t('common.perPage') }}</label>
         <select v-model="perPage" class="form-select per-page-select">
           <option v-for="n in perPageOptions" :key="n" :value="n">{{ n }}</option>
@@ -218,11 +245,19 @@ onMounted(async () => {
 }
 
 .toolbar {
-  @apply flex items-center justify-between mb-4;
+  @apply flex flex-wrap items-center justify-between gap-3 mb-4;
+}
+
+.toolbar-filters {
+  @apply flex flex-wrap items-center gap-2;
 }
 
 .toolbar-right {
   @apply flex items-center gap-2;
+}
+
+.search-input {
+  @apply w-52;
 }
 
 .per-page-select {

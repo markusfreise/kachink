@@ -55,7 +55,6 @@ async function handleLogout() {
     <!-- Sidebar -->
     <aside class="app-sidebar">
       <div class="sidebar-brand">
-        <ClockIcon class="sidebar-brand-icon" />
         <span class="sidebar-brand-text">kaCHINK!</span>
       </div>
 
@@ -132,10 +131,6 @@ async function handleLogout() {
 
 .sidebar-brand {
   @apply flex items-center gap-3 px-6 py-5 border-b border-gray-200;
-}
-
-.sidebar-brand-icon {
-  @apply h-8 w-8 text-primary-600;
 }
 
 .sidebar-brand-text {

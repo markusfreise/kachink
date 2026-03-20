@@ -155,6 +155,13 @@ export default {
     rate: 'Stundensatz',
     tasks: 'Aufgaben',
     archiveConfirm: '"{name}" archivieren?',
+    search: 'Projekte suchen...',
+    sortBy: 'Sortierung',
+    sortName: 'Name (A–Z)',
+    sortNameDesc: 'Name (Z–A)',
+    sortNewest: 'Neueste',
+    sortOldest: '\xC4lteste',
+    allClients: 'Alle Kunden',
   },
 
   // Project Form
@@ -196,6 +203,12 @@ export default {
     status: 'Status',
     nameRequired: 'Name *',
     archiveConfirm: '"{name}" archivieren? Der Kunde wird aus aktiven Listen ausgeblendet.',
+    search: 'Kunden suchen...',
+    sortBy: 'Sortierung',
+    sortName: 'Name (A–Z)',
+    sortNameDesc: 'Name (Z–A)',
+    sortNewest: 'Neueste',
+    sortOldest: '\xC4lteste',
   },
 
   // Tags

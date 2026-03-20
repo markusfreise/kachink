@@ -22,6 +22,10 @@ class ClientController extends Controller
             $query->where('is_active', $request->boolean('filter.is_active'));
         }
 
+        if ($request->filled('filter.name')) {
+            $query->where('name', 'like', '%' . $request->input('filter.name') . '%');
+        }
+
         $sort = $request->input('sort', 'name');
         $direction = str_starts_with($sort, '-') ? 'desc' : 'asc';
         $column = ltrim($sort, '-');
