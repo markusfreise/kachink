@@ -361,6 +361,22 @@ const summaryLabelHeading = computed(() => {
   }
 })
 
+type ReportScopeKey = 'project' | 'client' | 'user'
+const scopeRoute: Record<ReportScopeKey, string> = { project: 'projects', client: 'clients', user: 'users' }
+
+/** Route to an entity report, keeping the current period. */
+function reportLink(scope: ReportScopeKey, id: string | null | undefined) {
+  if (!id) return null
+  return { name: 'report-detail', params: { scope: scopeRoute[scope], id }, query: { from: dateFrom.value, to: dateTo.value } }
+}
+
+function summaryLink(row: SummaryRow) {
+  if (row.project_id) return reportLink('project', row.project_id)
+  if (row.client_id) return reportLink('client', row.client_id)
+  if (row.user_id && auth.isAdmin) return reportLink('user', row.user_id)
+  return null
+}
+
 function summaryLabel(row: SummaryRow): string {
   if (row.period) {
     if (groupBy.value === 'day') return formatDate(row.period + 'T00:00:00')
@@ -573,10 +589,10 @@ onMounted(() => {
               <h3 class="reports__chart-title">{{ chart.title }}</h3>
               <div class="reports__chart-rows">
                 <div v-for="row in chart.rows" :key="row.key" class="reports__chart-row">
-                  <span class="reports__chart-label">
+                  <component :is="chart.key === 'user' && !auth.isAdmin ? 'span' : 'RouterLink'" :to="reportLink(chart.key, row.key) ?? undefined" class="reports__chart-label" :class="{ 'reports__link': chart.key !== 'user' || auth.isAdmin }">
                     <span v-if="row.color" class="color-dot" :style="{ backgroundColor: row.color }"></span>
                     <span class="reports__chart-name">{{ row.label }}</span>
-                  </span>
+                  </component>
                   <span class="reports__chart-value">
                     <span class="bar bar--block reports__bar">
                       <span class="bar__fill" :style="{ width: (row.billable / chart.max) * 100 + '%' }"></span>
@@ -610,10 +626,10 @@ onMounted(() => {
             <tbody>
               <tr v-for="(row, i) in summaryData" :key="i" class="table__row">
                 <td>
-                  <span class="cell">
+                  <component :is="summaryLink(row) ? 'RouterLink' : 'span'" :to="summaryLink(row) ?? undefined" class="cell" :class="{ 'reports__link': summaryLink(row) }">
                     <span v-if="row.color" class="color-dot" :style="{ backgroundColor: row.color }"></span>
                     <span class="cell__title">{{ summaryLabel(row) }}</span>
-                  </span>
+                  </component>
                 </td>
                 <td class="table__num">{{ hours(row.total_hours) }}</td>
                 <td class="table__num">{{ hours(row.billable_hours) }}</td>
@@ -672,12 +688,15 @@ onMounted(() => {
                     <td class="table__time">
                       {{ formatTime(entry.started_at) }}<template v-if="entry.stopped_at"> - {{ formatTime(entry.stopped_at) }}</template>
                     </td>
-                    <td class="reports__col-client">{{ entry.project?.client?.name ?? '-' }}</td>
+                    <td class="reports__col-client">
+                      <RouterLink v-if="entry.project?.client" :to="reportLink('client', entry.project.client_id ?? entry.project.client.id) ?? {}" class="reports__link">{{ entry.project.client.name }}</RouterLink>
+                      <template v-else>-</template>
+                    </td>
                     <td v-if="showProjectCol">
-                      <span class="cell">
+                      <RouterLink :to="reportLink('project', entry.project_id) ?? {}" class="cell reports__link">
                         <span v-if="entry.project?.color" class="color-dot" :style="{ backgroundColor: entry.project.color }"></span>
                         <span class="cell__title">{{ entry.project?.name }}</span>
-                      </span>
+                      </RouterLink>
                     </td>
                     <td class="table__muted">{{ entry.task?.name ?? '-' }}</td>
                     <td class="reports__desc">

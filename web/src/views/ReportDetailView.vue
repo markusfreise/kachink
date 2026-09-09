@@ -62,6 +62,13 @@ const showAmount = computed(() => (report.value?.totals.amount ?? 0) > 0)
 const showUserCol = computed(() => auth.isAdmin && scope.value !== 'user')
 const dayColspan = computed(() => 3 + (showUserCol.value ? 1 : 0) + (showProjects.value ? 1 : 0))
 
+type LinkScope = 'clients' | 'projects' | 'users'
+function entityLink(target: LinkScope, id: string | null | undefined) {
+  if (!id) return null
+  if (target === 'users' && !auth.isAdmin) return null
+  return { name: 'report-detail', params: { scope: target, id }, query: { from: range.value.from, to: range.value.to } }
+}
+
 function share(row: ReportGroupRow): number {
   const total = report.value?.totals.total_seconds ?? 0
   return total > 0 ? Math.round((row.total_seconds / total) * 100) : 0
@@ -248,10 +255,10 @@ onMounted(load)
                 <tbody>
                   <tr v-for="row in report.by_client" :key="row.id ?? 'none'" class="table__row">
                     <td>
-                      <span class="cell">
+                      <component :is="entityLink('clients', row.id) ? 'RouterLink' : 'span'" :to="entityLink('clients', row.id) ?? undefined" class="cell" :class="{ 'report-detail__link': entityLink('clients', row.id) }">
                         <span v-if="row.color" class="color-dot" :style="{ backgroundColor: row.color }"></span>
                         <span class="cell__title">{{ row.name }}</span>
-                      </span>
+                      </component>
                     </td>
                     <td class="table__num">
                       <span class="share"><span class="bar"><span class="bar__fill" :style="{ width: share(row) + '%' }"></span></span>{{ share(row) }}%</span>
@@ -391,12 +398,17 @@ onMounted(load)
                   </tr>
                   <tr v-for="e in day.entries" :key="e.id" class="table__row">
                     <td class="table__time">{{ e.start_time }}<template v-if="e.end_time"> - {{ e.end_time }}</template></td>
-                    <td v-if="showUserCol" class="report-detail__col-user">{{ e.user_name }}</td>
+                    <td v-if="showUserCol" class="report-detail__col-user">
+                      <component :is="entityLink('users', e.user_id) ? 'RouterLink' : 'span'" :to="entityLink('users', e.user_id) ?? undefined" :class="{ 'report-detail__link': entityLink('users', e.user_id) }">{{ e.user_name }}</component>
+                    </td>
                     <td v-if="showProjects">
                       <span class="cell">
                         <span v-if="e.project_color" class="color-dot" :style="{ backgroundColor: e.project_color }"></span>
                         <span class="cell__title">
-                          <span v-if="scope !== 'client' && e.client_name" class="table__muted">{{ e.client_name }} / </span>{{ e.project_name }}
+                          <template v-if="scope !== 'client' && e.client_name">
+                            <RouterLink :to="entityLink('clients', e.client_id) ?? {}" class="table__muted report-detail__link">{{ e.client_name }}</RouterLink><span class="table__muted"> / </span>
+                          </template>
+                          <RouterLink :to="entityLink('projects', e.project_id) ?? {}" class="report-detail__link">{{ e.project_name }}</RouterLink>
                         </span>
                       </span>
                     </td>
