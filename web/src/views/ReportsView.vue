@@ -270,7 +270,7 @@ async function downloadPdf() {
       date_from: dateFrom.value,
       date_to: dateTo.value,
       rounding: settings.roundingInterval,
-      locale: locale.value,
+      locale: settings.pdfLocale,
       format: 'pdf',
     })
   } catch (e) {

@@ -8,6 +8,9 @@
         : 'EUR ' . number_format($amount, 2, '.', ',');
     $fmtDate = fn (string $date) => CarbonImmutable::parse($date)->locale($locale)->isoFormat('dd, L');
     $pct = fn (int $part, int $whole) => $whole > 0 ? round($part / $whole * 100) : 0;
+    // Emojis are drawn as inline images (see App\Support\EmojiPdf); dompdf has no emoji glyphs.
+    $emoji = app(App\Support\EmojiPdf::class);
+    $txt = fn (?string $text) => $emoji->html($text);
 
     $scope = $report['scope'];
     $totals = $report['totals'];
@@ -25,6 +28,7 @@
 <meta charset="utf-8">
 <title>{{ $title }} {{ $subject }} {{ $report['period']['label'] }}</title>
 <style>
+    img.emoji { width: 9pt; height: 9pt; vertical-align: -1.5pt; margin: 0 1pt; }
     @page { margin: 18mm 16mm 20mm 16mm; }
     * { box-sizing: border-box; }
     body { font-family: Helvetica, Arial, sans-serif; font-size: 9.5pt; color: #1a1a1a; margin: 0; line-height: 1.35; }
@@ -70,7 +74,7 @@
 </div>
 
 <div class="org">{{ $scope['organization_name'] }}</div>
-<h1>{{ $subject }}</h1>
+<h1>{!! $txt($subject) !!}</h1>
 <div class="subtitle">
     {{ $title }}
     @if($scope['type'] === 'project' && $scope['client_name']) &middot; {{ $scope['client_name'] }} @endif
@@ -106,7 +110,7 @@
         <tbody>
         @foreach($report['by_client'] as $row)
             <tr>
-                <td>@if($row['color'])<span class="dot" style="background: {{ $row['color'] }}"></span>@endif{{ $row['name'] }}</td>
+                <td>@if($row['color'])<span class="dot" style="background: {{ $row['color'] }}"></span>@endif{!! $txt($row['name']) !!}</td>
                 <td class="share"><span class="bar-wrap"><span class="bar" style="width: {{ $pct($row['total_seconds'], $totals['total_seconds']) * 0.6 }}pt"></span></span>{{ $pct($row['total_seconds'], $totals['total_seconds']) }}%</td>
                 <td class="num">{{ $fmtH($row['total_seconds']) }}</td>
                 <td class="num">{{ $fmtH($row['billable_seconds']) }}</td>
@@ -124,8 +128,8 @@
         <tbody>
         @foreach($report['by_project'] as $row)
             <tr>
-                <td>@if($row['color'])<span class="dot" style="background: {{ $row['color'] }}"></span>@endif{{ $row['name'] }}</td>
-                @if($scope['type'] !== 'client')<td class="muted">{{ $row['subtitle'] }}</td>@endif
+                <td>@if($row['color'])<span class="dot" style="background: {{ $row['color'] }}"></span>@endif{!! $txt($row['name']) !!}</td>
+                @if($scope['type'] !== 'client')<td class="muted">{!! $txt($row['subtitle']) !!}</td>@endif
                 <td class="share"><span class="bar-wrap"><span class="bar" style="width: {{ $pct($row['total_seconds'], $totals['total_seconds']) * 0.6 }}pt"></span></span>{{ $pct($row['total_seconds'], $totals['total_seconds']) }}%</td>
                 <td class="num">{{ $fmtH($row['total_seconds']) }}</td>
                 <td class="num">{{ $fmtH($row['billable_seconds']) }}</td>
@@ -149,7 +153,7 @@
         <tbody>
         @foreach($report['by_task'] as $row)
             <tr>
-                <td>{{ $row['name'] !== '' ? $row['name'] : '-' }}</td>
+                <td>{!! $row['name'] !== '' ? $txt($row['name']) : '-' !!}</td>
                 <td class="share"><span class="bar-wrap"><span class="bar" style="width: {{ $pct($row['total_seconds'], $totals['total_seconds']) * 0.6 }}pt"></span></span>{{ $pct($row['total_seconds'], $totals['total_seconds']) }}%</td>
                 <td class="num">{{ $fmtH($row['total_seconds']) }}</td>
                 <td class="num">{{ $fmtH($row['billable_seconds']) }}</td>
@@ -181,7 +185,6 @@
     <table class="data">
         <thead>
             <tr>
-                <th style="width: 58pt">{{ __('reports.time') }}</th>
                 @if($showUsers)<th>{{ __('reports.user') }}</th>@endif
                 @if($showProjects)<th>{{ __('reports.project') }}</th>@endif
                 <th>{{ __('reports.task') }}</th>
@@ -190,7 +193,7 @@
             </tr>
         </thead>
         <tbody>
-        @php $detailCols = 3 + ($showUsers ? 1 : 0) + ($showProjects ? 1 : 0); @endphp
+        @php $detailCols = 2 + ($showUsers ? 1 : 0) + ($showProjects ? 1 : 0); @endphp
         @foreach($report['days'] as $day)
             <tr class="day">
                 <td colspan="{{ $detailCols }}">{{ $fmtDate($day['date']) }}</td>
@@ -198,11 +201,10 @@
             </tr>
             @foreach($day['entries'] as $e)
             <tr>
-                <td class="time">{{ $e['start_time'] }}@if($e['end_time']) - {{ $e['end_time'] }}@endif</td>
                 @if($showUsers)<td>{{ $e['user_name'] }}</td>@endif
-                @if($showProjects)<td>@if($scope['type'] !== 'client' && $e['client_name'])<span class="muted">{{ $e['client_name'] }} / </span>@endif{{ $e['project_name'] }}</td>@endif
-                <td>{{ $e['task_name'] !== '' ? $e['task_name'] : '-' }}</td>
-                <td class="desc">{{ $e['description'] }}@if(! $e['is_billable']) <span class="muted">({{ __('reports.non_billable') }})</span>@endif</td>
+                @if($showProjects)<td>@if($scope['type'] !== 'client' && $e['client_name'])<span class="muted">{!! $txt($e['client_name']) !!} / </span>@endif{!! $txt($e['project_name']) !!}</td>@endif
+                <td>{!! $e['task_name'] !== '' ? $txt($e['task_name']) : '-' !!}</td>
+                <td class="desc">{!! $txt($e['description']) !!}@if(! $e['is_billable']) <span class="muted">({{ __('reports.non_billable') }})</span>@endif</td>
                 <td class="num">{{ $fmtH($e['rounded_seconds']) }}</td>
             </tr>
             @endforeach

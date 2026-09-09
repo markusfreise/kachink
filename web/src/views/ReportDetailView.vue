@@ -79,7 +79,7 @@ function queryParams(): Record<string, string | number> {
     date_from: range.value.from,
     date_to: range.value.to,
     rounding: rounding.value,
-    locale: locale.value,
+    locale: settings.pdfLocale,
   }
 }
 
@@ -155,6 +155,11 @@ onMounted(load)
       </div>
 
       <div class="page__actions report-detail__actions">
+        <label class="sr-only" for="report-pdf-locale">{{ $t('settings.pdfLanguage') }}</label>
+        <select id="report-pdf-locale" v-model="settings.pdfLocale" class="form__select form__select--inline report-detail__pdf-locale" :title="$t('settings.pdfLanguage')">
+          <option value="de">{{ $t('settings.pdfLanguageDe') }}</option>
+          <option value="en">{{ $t('settings.pdfLanguageEn') }}</option>
+        </select>
         <button type="button" class="btn btn--secondary" :disabled="loading || downloading !== null" @click="download('csv')">
           <ArrowDownTrayIcon class="btn__icon" />
           {{ downloading === 'csv' ? $t('reportDetail.preparing') : 'CSV' }}

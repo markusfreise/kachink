@@ -2,6 +2,10 @@
 export default {
   en: {
     settings: {
+      pdfLanguage: 'PDF language',
+      pdfLanguageHint: 'Language of downloaded PDF reports, independent of the app language.',
+      pdfLanguageDe: 'German',
+      pdfLanguageEn: 'English',
       roundingExample: 'Example: {from} is reported as {to}.',
       reportingIntro: 'How durations are presented in timesheets and reports.',
       languageIntro: 'Language of the interface. "Auto" follows your browser setting.',
@@ -27,6 +31,10 @@ export default {
   },
   de: {
     settings: {
+      pdfLanguage: 'PDF-Sprache',
+      pdfLanguageHint: 'Sprache der heruntergeladenen PDF-Berichte, unabhängig von der App-Sprache.',
+      pdfLanguageDe: 'Deutsch',
+      pdfLanguageEn: 'Englisch',
       roundingExample: 'Beispiel: {from} wird als {to} ausgewiesen.',
       reportingIntro: 'So werden Dauern in Zeitnachweisen und Berichten dargestellt.',
       languageIntro: 'Sprache der Oberfläche. "Automatisch" folgt deiner Browser-Einstellung.',

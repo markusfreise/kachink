@@ -70,7 +70,7 @@ class ReportController extends Controller
         ]);
 
         $rounding = (int) ($validated['rounding'] ?? config('reports.default_rounding'));
-        $locale = $validated['locale'] ?? 'en';
+        $locale = $validated['locale'] ?? 'de';
         $format = $validated['format'] ?? 'json';
 
         $report = $this->reports->build(
@@ -94,10 +94,11 @@ class ReportController extends Controller
     {
         app()->setLocale($locale);
 
-        $pdf = Pdf::loadView('reports.pdf', ['report' => $report, 'locale' => $locale])
-            ->setPaper('a4', 'portrait')
-            ->setOption('isRemoteEnabled', false)
+        $pdf = Pdf::setOption('isRemoteEnabled', false)
+            ->setOption('isFontSubsettingEnabled', true)
             ->setOption('defaultFont', 'Helvetica');
+
+        $pdf->loadView('reports.pdf', ['report' => $report, 'locale' => $locale])->setPaper('a4', 'portrait');
 
         return $pdf->download($this->filename($report, 'pdf'));
     }

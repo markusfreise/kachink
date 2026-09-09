@@ -163,6 +163,14 @@ fetchTokens()
               <option :value="60">{{ $t('settings.hour1') }}</option>
             </select>
             <p class="form__hint">{{ $t('settings.roundingHint') }}</p>
+          </div>
+          <div class="form__group">
+            <label class="form__label" for="settings-pdf-locale">{{ $t('settings.pdfLanguage') }}</label>
+            <select id="settings-pdf-locale" v-model="settings.pdfLocale" class="form__select settings__select">
+              <option value="de">{{ $t('settings.pdfLanguageDe') }}</option>
+              <option value="en">{{ $t('settings.pdfLanguageEn') }}</option>
+            </select>
+            <p class="form__hint">{{ $t('settings.pdfLanguageHint') }}</p>
             <p class="settings__example">
               <i18n-t keypath="settings.roundingExample" tag="span" scope="global">
                 <template #from><strong>{{ roundingExample.from }}</strong></template>

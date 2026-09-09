@@ -15,6 +15,13 @@ export const useSettingsStore = defineStore('settings', () => {
   // Language: 'auto', 'en', or 'de'
   const locale = ref<string>(load('locale', 'auto'))
 
+  // Language of generated PDF reports
+  const pdfLocale = ref<'de' | 'en'>(load('pdfLocale', 'de'))
+
+  watch(pdfLocale, (val) => {
+    localStorage.setItem('setting:pdfLocale', JSON.stringify(val))
+  })
+
   watch(roundingInterval, (val) => {
     localStorage.setItem('setting:roundingInterval', JSON.stringify(val))
   })
@@ -40,5 +47,5 @@ export const useSettingsStore = defineStore('settings', () => {
     return Math.ceil(seconds / intervalSec) * intervalSec
   }
 
-  return { roundingInterval, locale, roundUpSeconds }
+  return { roundingInterval, locale, pdfLocale, roundUpSeconds }
 })
