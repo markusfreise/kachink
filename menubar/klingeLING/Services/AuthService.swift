@@ -17,6 +17,23 @@ struct OrganizationDTO: Codable, Identifiable, Hashable {
     let role: String?
 }
 
+struct DeviceStartRequest: Encodable {
+    let deviceName: String
+}
+
+struct DeviceStartResponse: Decodable {
+    let code: String
+    let expiresIn: Int
+    let pollInterval: Int
+}
+
+struct DevicePollResponse: Decodable {
+    let status: String
+    let token: String?
+    let organizationId: String?
+    let user: UserDTO?
+}
+
 final class AuthService: Sendable {
     private let apiClient: APIClient
 
@@ -35,6 +52,21 @@ final class AuthService: Sendable {
     func me() async throws -> UserDTO {
         let response: APIResponse<UserDTO> = try await apiClient.get("/auth/me")
         return response.data
+    }
+
+    func startDeviceLogin(deviceName: String) async throws -> DeviceStartResponse {
+        let response: APIResponse<DeviceStartResponse> = try await apiClient.post("/auth/device/start", body: DeviceStartRequest(deviceName: deviceName))
+        return response.data
+    }
+
+    /// Returns nil while the browser has not approved yet.
+    func pollDeviceLogin(code: String) async throws -> DevicePollResponse? {
+        do {
+            let response: APIResponse<DevicePollResponse> = try await apiClient.get("/auth/device/\(code)")
+            return response.data
+        } catch APIError.httpError(let status, _) where status == 202 {
+            return nil
+        }
     }
 
     func organizations() async throws -> [OrganizationDTO] {

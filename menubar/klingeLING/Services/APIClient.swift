@@ -116,6 +116,9 @@ final class APIClient: @unchecked Sendable {
             if let handler = onUnauthorized { Task { @MainActor in handler() } }
             throw APIError.unauthorized
         }
+        if http.statusCode == 202 {
+            throw APIError.httpError(statusCode: 202, message: nil)
+        }
         guard (200...299).contains(http.statusCode) else {
             let message = (try? JSONDecoder().decode(ErrorBody.self, from: data))?.message
             throw APIError.httpError(statusCode: http.statusCode, message: message)

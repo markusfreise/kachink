@@ -13,16 +13,41 @@ struct LoginView: View {
             Text("Kachink")
                 .font(.title3.bold())
 
-            VStack(alignment: .leading, spacing: 8) {
-                TextField("Server, e.g. time.example.com", text: $vm.serverURL)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Server")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                TextField("kachink.croeso.de", text: $vm.serverURL)
                     .textFieldStyle(.roundedBorder)
-                TextField("Email", text: $vm.email)
-                    .textFieldStyle(.roundedBorder)
-                    .textContentType(.username)
-                SecureField("Password", text: $vm.password)
-                    .textFieldStyle(.roundedBorder)
-                    .textContentType(.password)
-                    .onSubmit { if vm.canSubmit { Task { await vm.login(appState: appState) } } }
+                    .disabled(vm.isWaiting)
+                    .onSubmit { if vm.canSubmit { vm.signInWithBrowser(appState: appState) } }
+            }
+
+            if vm.isWaiting {
+                VStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text("Waiting for approval in your browser...")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                    Button("Cancel") { vm.cancel() }
+                        .buttonStyle(.plain)
+                        .font(.caption)
+                }
+            } else {
+                Button {
+                    vm.signInWithBrowser(appState: appState)
+                } label: {
+                    Label("Sign in with browser", systemImage: "safari")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(!vm.canSubmit)
+
+                Text("Opens the web app, where you allow this Mac. No password is entered here.")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .multilineTextAlignment(.center)
             }
 
             if let error = vm.error {
@@ -31,18 +56,6 @@ struct LoginView: View {
                     .foregroundStyle(.red)
                     .multilineTextAlignment(.center)
             }
-
-            Button {
-                Task { await vm.login(appState: appState) }
-            } label: {
-                if vm.isLoading {
-                    ProgressView().controlSize(.small).frame(maxWidth: .infinity)
-                } else {
-                    Text("Sign in").frame(maxWidth: .infinity)
-                }
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(!vm.canSubmit)
 
             HStack {
                 Spacer()

@@ -78,6 +78,11 @@ const router = createRouter({
           name: 'settings',
           component: () => import('@/views/SettingsView.vue'),
         },
+        {
+          path: 'connect',
+          name: 'connect',
+          component: () => import('@/views/ConnectDeviceView.vue'),
+        },
       ],
     },
     {
@@ -96,7 +101,7 @@ router.beforeEach(async (to) => {
   }
 
   if (to.meta.requiresAuth && !auth.isAuthenticated) {
-    return { name: 'login' }
+    return { name: 'login', query: to.fullPath !== '/' ? { redirect: to.fullPath } : {} }
   }
 
   if (to.meta.guest && auth.isAuthenticated) {

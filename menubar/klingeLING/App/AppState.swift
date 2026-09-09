@@ -82,6 +82,30 @@ final class AppState {
         startBackgroundWork()
     }
 
+    /// Browser-approved sign-in: the token and organization come from the device flow.
+    func completeDeviceLogin(serverURL: URL, token: String, organizationId: String?, user: UserDTO?) async {
+        apiClient.baseURL = serverURL
+        apiClient.token = token
+        KeychainHelper.save(token, service: "klingeling", account: "api-token")
+        Preferences.serverURL = serverURL.absoluteString.replacingOccurrences(of: "/api", with: "")
+        if let organizationId {
+            Preferences.organizationId = organizationId
+            apiClient.organizationId = organizationId
+        }
+        currentUser = user
+        do {
+            if currentUser == nil { currentUser = try await authService.me() }
+            try await loadOrganizations()
+            isAuthenticated = true
+            await loadWorkspace()
+            startBackgroundWork()
+        } catch {
+            lastSyncError = error.localizedDescription
+            isAuthenticated = true
+            startBackgroundWork()
+        }
+    }
+
     private func restoreSession() async {
         defer { isRestoringSession = false }
         do {

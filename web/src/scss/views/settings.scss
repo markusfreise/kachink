@@ -279,3 +279,44 @@
     user-select: all;
   }
 }
+
+// Device connect page (menubar app authorization)
+.connect {
+  display: flex;
+  justify-content: center;
+  padding-top: var(--gap-3x);
+
+  &__card {
+    width: 100%;
+    max-width: pxtorem(460);
+  }
+
+  &__body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--gap);
+    text-align: center;
+  }
+
+  &__icon {
+    width: pxtorem(40);
+    height: pxtorem(40);
+    color: var(--c-corporate);
+  }
+
+  &__text {
+    color: var(--c-copy);
+  }
+
+  &__org {
+    width: 100%;
+    text-align: left;
+  }
+
+  &__actions {
+    display: flex;
+    gap: var(--gap-05x);
+    margin-top: var(--gap-05x);
+  }
+}

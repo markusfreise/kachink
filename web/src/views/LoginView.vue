@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { errorMessage } from '@/stores/toast'
@@ -8,6 +8,7 @@ import { errorMessage } from '@/stores/toast'
 const { t } = useI18n()
 const auth = useAuthStore()
 const router = useRouter()
+const route = useRoute()
 
 const email = ref('')
 const password = ref('')
@@ -19,7 +20,8 @@ async function handleLogin() {
   loading.value = true
   try {
     await auth.login(email.value, password.value)
-    router.push({ name: 'dashboard' })
+    const redirect = typeof route.query.redirect === 'string' && route.query.redirect.startsWith('/') ? route.query.redirect : null
+    router.push(redirect ?? { name: 'dashboard' })
   } catch (e) {
     error.value = errorMessage(e, t('auth.invalidCredentials'))
   } finally {

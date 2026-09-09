@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ClientController;
+use App\Http\Controllers\Api\DeviceAuthController;
 use App\Http\Controllers\Api\OrganizationController;
 use App\Http\Controllers\Api\PasswordResetController;
 use App\Http\Controllers\Api\ProjectController;
@@ -16,6 +17,12 @@ use Illuminate\Support\Facades\Route;
 Route::get('/health', fn () => response()->json(['status' => 'ok']));
 
 // Auth
+// Device sign-in for the menubar app (browser approves, app polls)
+Route::middleware('throttle:60,1')->group(function () {
+    Route::post('/auth/device/start', [DeviceAuthController::class, 'start']);
+    Route::get('/auth/device/{code}', [DeviceAuthController::class, 'poll']);
+});
+
 Route::middleware('throttle:10,1')->group(function () {
     Route::post('/auth/login', [AuthController::class, 'login']);
     Route::post('/auth/forgot-password', [PasswordResetController::class, 'forgotPassword']);
@@ -29,6 +36,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/auth/token', [AuthController::class, 'createToken']);
     Route::get('/auth/tokens', [AuthController::class, 'listTokens']);
     Route::delete('/auth/tokens/{token}', [AuthController::class, 'revokeToken']);
+    Route::get('/auth/device/{code}/info', [DeviceAuthController::class, 'show']);
+    Route::post('/auth/device/{code}/approve', [DeviceAuthController::class, 'approve']);
+    Route::post('/auth/device/{code}/deny', [DeviceAuthController::class, 'deny']);
 
     // Organizations (no org context needed)
     Route::apiResource('organizations', OrganizationController::class);
