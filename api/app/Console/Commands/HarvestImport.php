@@ -48,9 +48,9 @@ class HarvestImport extends Command
             return 1;
         }
 
-        $this->organization = Organization::where('id', $orgOption)
-            ->orWhere('slug', $orgOption)
-            ->first();
+        $this->organization = Str::isUuid($orgOption)
+            ? Organization::find($orgOption)
+            : Organization::where('slug', $orgOption)->first();
 
         if (!$this->organization) {
             $this->error("Organization '{$orgOption}' not found.");
@@ -98,9 +98,8 @@ class HarvestImport extends Command
         $users = $this->fetchAll('/users', 'users');
 
         foreach ($users as $hu) {
-            if (!$hu['is_active']) {
-                continue;
-            }
+            // Inactive Harvest users are imported as deactivated accounts so
+            // their historical time entries keep an owner.
 
             $isAdmin = in_array('administrator', $hu['access_roles'] ?? []);
             $orgRole = $isAdmin ? 'admin' : 'member';
@@ -111,7 +110,7 @@ class HarvestImport extends Command
                 'harvest_id' => (string) $hu['id'],
                 'name' => $hu['first_name'] . ' ' . $hu['last_name'],
                 'email' => $hu['email'],
-                'is_active' => true,
+                'is_active' => (bool) $hu['is_active'],
             ])->save();
             $this->organization->users()->syncWithoutDetaching([
                 $user->id => ['role' => $orgRole],
