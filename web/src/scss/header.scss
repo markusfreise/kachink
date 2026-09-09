@@ -1,0 +1,275 @@
+@use "functions" as *;
+@use "mixins" as *;
+
+// Application shell: sidebar + main column. On small screens the sidebar
+// becomes an off-canvas drawer toggled from the top bar.
+
+.app {
+  display: flex;
+  min-height: 100vh;
+
+  &__main {
+    flex: 1;
+    min-width: 0;
+
+    @include desktop {
+      margin-left: var(--width-sidebar);
+    }
+  }
+
+  &__backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 35;
+    background: rgba(17, 24, 39, 0.5);
+    animation: fade-in 0.15s ease-out;
+
+    @include desktop {
+      display: none;
+    }
+  }
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: var(--gap-05x);
+  height: pxtorem(56);
+  padding: 0 var(--gap);
+  background: var(--c-surface);
+  border-bottom: 1px solid var(--c-border);
+
+  @include desktop {
+    display: none;
+  }
+
+  &__brand {
+    font-weight: 700;
+    color: var(--c-head);
+  }
+
+  &__timer {
+    margin-left: auto;
+    font-family: var(--ff-fixed);
+    font-size: var(--fs-small);
+    color: var(--c-accent);
+    @include tabular;
+  }
+}
+
+.sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  width: var(--width-sidebar);
+  background: var(--c-sidebar);
+  color: var(--c-sidebar-copy);
+  transform: translateX(-100%);
+  transition: transform 0.2s ease-out;
+
+  @include desktop {
+    transform: none;
+  }
+
+  &--open {
+    transform: none;
+  }
+
+  &__brand {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--gap-15x) var(--gap-15x) var(--gap);
+  }
+
+  &__brand-text {
+    font-size: var(--fs-large);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--c-sidebar-head);
+  }
+
+  .sidebar__close {
+    color: var(--c-sidebar-copy);
+
+    @include desktop {
+      display: none;
+    }
+  }
+
+  &__org {
+    display: flex;
+    align-items: center;
+    gap: var(--gap-05x);
+    margin: 0 var(--gap) var(--gap);
+    padding: var(--gap-05x) var(--gap-075x);
+    font-size: var(--fs-small);
+    border: 1px solid var(--c-sidebar-border);
+    border-radius: var(--radius-small);
+  }
+
+  &__org-icon {
+    width: pxtorem(16);
+    height: pxtorem(16);
+    flex-shrink: 0;
+    opacity: 0.7;
+  }
+
+  &__org-name {
+    @include truncate;
+  }
+
+  &__org-select {
+    flex: 1;
+    min-width: 0;
+    background: transparent;
+    border: 0;
+    color: inherit;
+    font-size: var(--fs-small);
+    cursor: pointer;
+
+    option {
+      color: var(--c-copy);
+    }
+  }
+
+  &__nav {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 0 var(--gap-05x);
+    overflow-y: auto;
+  }
+
+  &__link {
+    display: flex;
+    align-items: center;
+    gap: var(--gap-075x);
+    padding: pxtorem(9) var(--gap-075x);
+    border-radius: var(--radius-small);
+    font-size: var(--fs-copy);
+    font-weight: 500;
+    color: var(--c-sidebar-copy);
+    transition: background 0.12s, color 0.12s;
+
+    &:hover {
+      background: var(--c-sidebar-hover);
+      color: var(--c-sidebar-head);
+    }
+
+    &--active,
+    &--active:hover {
+      background: var(--c-sidebar-active);
+      color: var(--c-sidebar-head);
+    }
+  }
+
+  &__icon {
+    width: pxtorem(18);
+    height: pxtorem(18);
+    flex-shrink: 0;
+  }
+
+  &__timer {
+    display: flex;
+    align-items: center;
+    gap: var(--gap-05x);
+    margin: var(--gap) var(--gap) 0;
+    padding: var(--gap-05x) var(--gap-075x);
+    background: rgba(31, 157, 85, 0.14);
+    border-radius: var(--radius-small);
+    color: var(--c-sidebar-head);
+  }
+
+  &__timer-dot {
+    width: pxtorem(8);
+    height: pxtorem(8);
+    border-radius: 50%;
+    background: var(--c-accent);
+    animation: pulse 1.6s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+
+  &__timer-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  &__timer-time {
+    font-family: var(--ff-fixed);
+    font-size: var(--fs-small);
+    @include tabular;
+  }
+
+  &__timer-project {
+    font-size: var(--fs-mini);
+    color: var(--c-sidebar-copy);
+    @include truncate;
+  }
+
+  &__footer {
+    display: flex;
+    align-items: center;
+    gap: var(--gap-05x);
+    padding: var(--gap);
+    border-top: 1px solid var(--c-sidebar-border);
+  }
+
+  &__user {
+    display: flex;
+    align-items: center;
+    gap: var(--gap-05x);
+    min-width: 0;
+    flex: 1;
+  }
+
+  &__avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: pxtorem(32);
+    height: pxtorem(32);
+    border-radius: 50%;
+    background: var(--c-corporate);
+    color: var(--c-white);
+    font-weight: 600;
+    font-size: var(--fs-small);
+    flex-shrink: 0;
+  }
+
+  &__user-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  &__user-name {
+    font-size: var(--fs-small);
+    font-weight: 500;
+    color: var(--c-sidebar-head);
+    @include truncate;
+  }
+
+  &__user-role {
+    font-size: var(--fs-mini);
+    color: var(--c-sidebar-copy);
+  }
+
+  &__logout {
+    color: var(--c-sidebar-copy);
+    padding: var(--gap-025x);
+    border-radius: var(--radius-small);
+
+    &:hover {
+      background: var(--c-sidebar-hover);
+      color: var(--c-sidebar-head);
+    }
+  }
+}

@@ -1,0 +1,56 @@
+@use "functions" as *;
+
+body {
+  font-family: var(--ff-copy);
+  font-size: var(--fs-copy);
+  color: var(--c-copy);
+}
+
+.heading-1,
+.heading-2,
+.heading-3 {
+  font-family: var(--ff-head);
+  color: var(--c-head);
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+.heading-1 {
+  font-size: var(--fs-hl-medium);
+  font-weight: 700;
+}
+
+.heading-2 {
+  font-size: var(--fs-hl-small);
+  font-weight: 600;
+}
+
+.heading-3 {
+  font-size: var(--fs-medium);
+  font-weight: 600;
+}
+
+.kicker {
+  display: block;
+  font-size: var(--fs-mini);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--c-copy-light);
+}
+
+.muted {
+  color: var(--c-copy-light);
+}
+
+.small {
+  font-size: var(--fs-small);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.mono {
+  font-family: var(--ff-fixed);
+}

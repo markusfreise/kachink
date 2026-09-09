@@ -1,0 +1,21 @@
+@use "mixins" as *;
+
+.pr { position: relative; }
+.pa { position: absolute; }
+.fxc { display: flex; align-items: center; }
+.fxsb { display: flex; align-items: center; justify-content: space-between; }
+.fxw { flex-wrap: wrap; }
+.txc { text-align: center; }
+.txr { text-align: right; }
+.g05 { gap: var(--gap-05x); }
+.g1 { gap: var(--gap); }
+.mt05 { margin-top: var(--gap-05x); }
+.mt1 { margin-top: var(--gap); }
+.mb05 { margin-bottom: var(--gap-05x); }
+.mb1 { margin-bottom: var(--gap); }
+.mb2 { margin-bottom: var(--gap-2x); }
+.w100 { width: 100%; }
+.nowrap { white-space: nowrap; }
+.sr-only { @include sr-only; }
+.hide-mobile { @include below-tablet { display: none !important; } }
+.hide-desktop { @include desktop { display: none !important; } }

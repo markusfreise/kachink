@@ -1,4 +1,5 @@
 import './assets/main.css'
+import './scss/site.scss'
 
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'

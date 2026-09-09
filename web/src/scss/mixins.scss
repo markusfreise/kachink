@@ -1,0 +1,38 @@
+@use "functions" as *;
+
+$bp-tablet: 768px;
+$bp-desktop: 1024px;
+$bp-wide: 1280px;
+
+@mixin tablet { @media (min-width: $bp-tablet) { @content; } }
+@mixin desktop { @media (min-width: $bp-desktop) { @content; } }
+@mixin wide { @media (min-width: $bp-wide) { @content; } }
+@mixin below-desktop { @media (max-width: ($bp-desktop - 1px)) { @content; } }
+@mixin below-tablet { @media (max-width: ($bp-tablet - 1px)) { @content; } }
+
+@mixin focus-ring {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--c-focus);
+}
+
+@mixin truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@mixin tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@mixin sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

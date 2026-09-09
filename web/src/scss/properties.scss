@@ -1,0 +1,83 @@
+@use "functions" as *;
+
+:root {
+  // Colors
+  --c-copy: #1f2328;
+  --c-copy-light: #6b7280;
+  --c-copy-lighter: #9ca3af;
+  --c-head: #111827;
+  --c-corporate: #6d4fc2;
+  --c-corporate-hover: #5b3fae;
+  --c-corporate-soft: #efeafb;
+  --c-accent: #1f9d55;
+  --c-accent-soft: #e6f6ec;
+  --c-danger: #d23f3f;
+  --c-danger-soft: #fdecec;
+  --c-warning: #c47a12;
+  --c-warning-soft: #fdf3e2;
+  --c-info: #2563eb;
+  --c-info-soft: #e8efff;
+  --c-background: #f5f5f7;
+  --c-surface: #ffffff;
+  --c-surface-2: #f3f4f6;
+  --c-surface-3: #e9eaee;
+  --c-white: #ffffff;
+  --c-border: #e5e7eb;
+  --c-border-strong: #d1d5db;
+  --c-focus: rgba(109, 79, 194, 0.28);
+  --c-sidebar: #17161d;
+  --c-sidebar-copy: #b9b6c6;
+  --c-sidebar-head: #ffffff;
+  --c-sidebar-hover: rgba(255, 255, 255, 0.06);
+  --c-sidebar-active: rgba(255, 255, 255, 0.1);
+  --c-sidebar-border: rgba(255, 255, 255, 0.08);
+
+  // Fonts
+  --ff-copy: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --ff-head: var(--ff-copy);
+  --ff-fixed: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+
+  // Font sizes
+  --fs-mini: #{pxtorem(11)};
+  --fs-small: #{pxtorem(13)};
+  --fs-copy: #{pxtorem(14)};
+  --fs-medium: #{pxtorem(16)};
+  --fs-large: #{pxtorem(18)};
+  --fs-hl-small: #{pxtorem(20)};
+  --fs-hl-medium: #{pxtorem(24)};
+  --fs-hl-large: #{pxtorem(30)};
+  --fs-clock: #{pxtorem(40)};
+
+  // Spacing
+  --gap: #{pxtorem(16)};
+  --gap-025x: calc(var(--gap) * 0.25);
+  --gap-05x: calc(var(--gap) * 0.5);
+  --gap-075x: calc(var(--gap) * 0.75);
+  --gap-15x: calc(var(--gap) * 1.5);
+  --gap-2x: calc(var(--gap) * 2);
+  --gap-3x: calc(var(--gap) * 3);
+  --m-vert: var(--gap-15x);
+  --m-vert-slim: var(--gap);
+  --m-vert-2x: var(--gap-2x);
+
+  // Widths
+  --max-width: #{pxtorem(1280)};
+  --width-margin: calc(50vw - var(--max-width) * 0.5);
+  --article-width: #{pxtorem(720)};
+  --width-sidebar: #{pxtorem(240)};
+
+  // Radius and shadow
+  --radius: #{pxtorem(12)};
+  --radius-medium: #{pxtorem(8)};
+  --radius-small: #{pxtorem(6)};
+  --shadow: 0 10px 30px rgba(17, 24, 39, 0.12);
+  --shadow-flat: 0 1px 2px rgba(17, 24, 39, 0.05);
+
+  // Controls
+  --control-height: #{pxtorem(38)};
+  --control-height-sm: #{pxtorem(30)};
+
+  @media (min-width: 1440px) {
+    --gap: #{pxtorem(18)};
+  }
+}

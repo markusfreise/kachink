@@ -1,0 +1,15 @@
+@use "sass:math";
+
+$base-font-size: 16;
+
+@function pxtorem($px, $base: $base-font-size) {
+  @return math.div($px, $base) * 1rem;
+}
+
+@function pxtoem($px, $context: $base-font-size) {
+  @return math.div($px, $context) * 1em;
+}
+
+@function pxtovw($px, $viewport: 1440) {
+  @return math.div($px, $viewport) * 100vw;
+}

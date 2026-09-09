@@ -1,0 +1,137 @@
+@use "functions" as *;
+@use "mixins" as *;
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+
+  &__group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-025x);
+    min-width: 0;
+  }
+
+  &__row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--gap);
+
+    @include tablet {
+      grid-template-columns: repeat(auto-fit, minmax(pxtorem(160), 1fr));
+    }
+  }
+
+  &__label {
+    font-size: var(--fs-small);
+    font-weight: 500;
+    color: var(--c-copy);
+  }
+
+  &__hint {
+    font-size: var(--fs-mini);
+    color: var(--c-copy-light);
+  }
+
+  &__error {
+    font-size: var(--fs-small);
+    color: var(--c-danger);
+  }
+
+  &__alert {
+    padding: var(--gap-075x) var(--gap);
+    border-radius: var(--radius-medium);
+    font-size: var(--fs-small);
+    background: var(--c-danger-soft);
+    color: var(--c-danger);
+
+    &--success {
+      background: var(--c-accent-soft);
+      color: var(--c-accent);
+    }
+  }
+
+  &__input,
+  &__select,
+  &__textarea {
+    display: block;
+    width: 100%;
+    min-height: var(--control-height);
+    padding: pxtorem(8) pxtorem(12);
+    background: var(--c-surface);
+    border: 1px solid var(--c-border-strong);
+    border-radius: var(--radius-medium);
+    font-size: var(--fs-copy);
+    color: var(--c-copy);
+    transition: border-color 0.12s, box-shadow 0.12s;
+
+    &::placeholder {
+      color: var(--c-copy-lighter);
+    }
+
+    &:focus {
+      border-color: var(--c-corporate);
+      @include focus-ring;
+    }
+
+    &:disabled {
+      background: var(--c-surface-2);
+      color: var(--c-copy-light);
+      cursor: not-allowed;
+    }
+
+    &--sm {
+      min-height: var(--control-height-sm);
+      padding: pxtorem(4) pxtorem(10);
+      font-size: var(--fs-small);
+    }
+
+    &--inline {
+      width: auto;
+    }
+  }
+
+  &__select {
+    padding-right: pxtorem(34);
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+    background-position: right pxtorem(10) center;
+    background-repeat: no-repeat;
+    background-size: pxtorem(18);
+    appearance: none;
+    cursor: pointer;
+  }
+
+  &__textarea {
+    min-height: pxtorem(90);
+    resize: vertical;
+  }
+
+  &__color {
+    width: pxtorem(56);
+    height: var(--control-height);
+    padding: pxtorem(4);
+    cursor: pointer;
+  }
+
+  &__check {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--gap-05x);
+    font-size: var(--fs-copy);
+    cursor: pointer;
+
+    input {
+      width: pxtorem(16);
+      height: pxtorem(16);
+      accent-color: var(--c-corporate);
+    }
+  }
+
+  &__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--gap-05x);
+    padding-top: var(--gap-05x);
+  }
+}

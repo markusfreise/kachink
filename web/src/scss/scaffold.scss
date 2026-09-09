@@ -1,0 +1,65 @@
+@use "functions" as *;
+@use "mixins" as *;
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  background: var(--c-background);
+
+  &.is-scroll-locked {
+    overflow: hidden;
+  }
+}
+
+#app {
+  min-height: 100vh;
+}
+
+.page {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: var(--gap-15x) var(--gap);
+
+  @include desktop {
+    padding: var(--gap-2x) var(--gap-2x);
+  }
+
+  &__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--gap);
+    margin-bottom: var(--m-vert);
+  }
+
+  &__title {
+    display: flex;
+    align-items: center;
+    gap: var(--gap-05x);
+  }
+
+  &__subtitle {
+    margin-top: var(--gap-025x);
+    color: var(--c-copy-light);
+  }
+
+  &__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--gap-05x);
+  }
+
+  &__section {
+    margin-bottom: var(--m-vert);
+  }
+}
+
+.wrap {
+  max-width: var(--max-width);
+  margin: 0 auto;
+}

@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useTimerStore } from '@/stores/timer'
 import { useOrgStore } from '@/stores/org'
 import {
+  Squares2X2Icon,
   ClockIcon,
-  HomeIcon,
   FolderIcon,
   UsersIcon,
   UserGroupIcon,
@@ -16,6 +16,8 @@ import {
   Cog6ToothIcon,
   ArrowRightStartOnRectangleIcon,
   BuildingOfficeIcon,
+  Bars3Icon,
+  XMarkIcon,
 } from '@heroicons/vue/24/outline'
 
 const { t } = useI18n()
@@ -23,6 +25,8 @@ const auth = useAuthStore()
 const org = useOrgStore()
 const timer = useTimerStore()
 const route = useRoute()
+
+const menuOpen = ref(false)
 
 onMounted(() => {
   timer.fetchRunning()
@@ -33,8 +37,10 @@ onUnmounted(() => {
   timer.stopPolling()
 })
 
+watch(() => route.fullPath, () => { menuOpen.value = false })
+
 const navItems = computed(() => [
-  { to: '/', label: t('nav.dashboard'), icon: null },
+  { to: '/', label: t('nav.dashboard'), icon: Squares2X2Icon },
   { to: '/time-entries', label: t('nav.timeEntries'), icon: ClockIcon },
   { to: '/projects', label: t('nav.projects'), icon: FolderIcon },
   { to: '/clients', label: t('nav.clients'), icon: UsersIcon },
@@ -49,6 +55,8 @@ function isActive(path: string) {
   return route.path.startsWith(path)
 }
 
+const roleLabel = computed(() => (auth.user?.role === 'admin' ? t('users.roleAdmin') : t('users.roleMember')))
+
 async function handleLogout() {
   await auth.logout()
   window.location.href = '/'
@@ -56,145 +64,78 @@ async function handleLogout() {
 </script>
 
 <template>
-  <div class="app-layout">
-    <!-- Sidebar -->
-    <aside class="app-sidebar">
-      <div class="sidebar-brand">
-        <span class="sidebar-brand-text">kaCHINK!</span>
+  <div class="app">
+    <div v-if="menuOpen" class="app__backdrop" @click="menuOpen = false"></div>
+
+    <aside class="sidebar" :class="{ 'sidebar--open': menuOpen }" :aria-label="$t('nav.menu')">
+      <div class="sidebar__brand">
+        <span class="sidebar__brand-text">kaCHINK!</span>
+        <button type="button" class="btn btn--icon btn--sm sidebar__close" :aria-label="$t('common.close')" @click="menuOpen = false">
+          <XMarkIcon class="btn__icon" />
+        </button>
       </div>
 
-      <!-- Organization switcher -->
-      <div v-if="org.organizations.length > 0" class="sidebar-org">
-        <BuildingOfficeIcon class="sidebar-org-icon" />
-        <template v-if="org.organizations.length === 1">
-          <span class="sidebar-org-name">{{ org.currentOrg?.name }}</span>
-        </template>
-        <template v-else>
-          <select
-            class="sidebar-org-select"
-            :value="org.currentOrgId ?? ''"
-            @change="org.setCurrentOrg(($event.target as any).value)"
-          >
-            <option v-for="o in org.organizations" :key="o.id" :value="o.id">{{ o.name }}</option>
-          </select>
-        </template>
+      <div v-if="org.organizations.length > 0" class="sidebar__org">
+        <BuildingOfficeIcon class="sidebar__org-icon" aria-hidden="true" />
+        <span v-if="org.organizations.length === 1" class="sidebar__org-name">{{ org.currentOrg?.name }}</span>
+        <select
+          v-else
+          class="sidebar__org-select"
+          :aria-label="$t('nav.organization')"
+          :value="org.currentOrgId ?? ''"
+          @change="org.setCurrentOrg(($event.target as HTMLSelectElement).value)"
+        >
+          <option v-for="o in org.organizations" :key="o.id" :value="o.id">{{ o.name }}</option>
+        </select>
       </div>
 
-      <nav class="sidebar-nav">
+      <nav class="sidebar__nav">
         <RouterLink
           v-for="item in navItems"
           :key="item.to"
           :to="item.to"
-          :class="isActive(item.to) ? 'sidebar-link-active' : 'sidebar-link'"
+          class="sidebar__link"
+          :class="{ 'sidebar__link--active': isActive(item.to) }"
+          :aria-current="isActive(item.to) ? 'page' : undefined"
         >
-          <component :is="item.icon" v-if="item.icon" class="sidebar-icon" />
+          <component :is="item.icon" class="sidebar__icon" aria-hidden="true" />
           {{ item.label }}
         </RouterLink>
       </nav>
 
-      <!-- Timer indicator in sidebar -->
-      <div v-if="timer.isRunning" class="sidebar-timer">
-        <div class="sidebar-timer-dot"></div>
-        <div class="sidebar-timer-info">
-          <span class="sidebar-timer-time">{{ timer.elapsedFormatted }}</span>
-          <span class="sidebar-timer-project">{{ timer.runningEntry?.project?.name }}</span>
-        </div>
-      </div>
+      <RouterLink v-if="timer.isRunning" to="/" class="sidebar__timer" aria-live="off">
+        <span class="sidebar__timer-dot"></span>
+        <span class="sidebar__timer-info">
+          <span class="sidebar__timer-time">{{ timer.elapsedFormatted }}</span>
+          <span class="sidebar__timer-project">{{ timer.runningEntry?.project?.name }}</span>
+        </span>
+      </RouterLink>
 
-      <div class="sidebar-footer">
-        <div class="sidebar-user">
-          <div class="sidebar-user-avatar">
-            {{ auth.user?.name?.charAt(0) ?? '?' }}
-          </div>
-          <div class="sidebar-user-info">
-            <span class="sidebar-user-name">{{ auth.user?.name }}</span>
-            <span class="sidebar-user-role">{{ auth.user?.role }}</span>
-          </div>
-        </div>
-        <button class="btn-ghost btn-sm" @click="handleLogout">
-          <ArrowRightStartOnRectangleIcon class="sidebar-icon" />
+      <div class="sidebar__footer">
+        <RouterLink to="/settings" class="sidebar__user">
+          <span class="sidebar__avatar" aria-hidden="true">{{ auth.user?.name?.charAt(0) ?? '?' }}</span>
+          <span class="sidebar__user-info">
+            <span class="sidebar__user-name">{{ auth.user?.name }}</span>
+            <span class="sidebar__user-role">{{ roleLabel }}</span>
+          </span>
+        </RouterLink>
+        <button type="button" class="sidebar__logout" :aria-label="$t('nav.logout')" :title="$t('nav.logout')" @click="handleLogout">
+          <ArrowRightStartOnRectangleIcon class="sidebar__icon" aria-hidden="true" />
         </button>
       </div>
     </aside>
 
-    <!-- Main content -->
-    <main class="app-main">
-      <RouterView />
-    </main>
+    <div class="app__main">
+      <header class="topbar">
+        <button type="button" class="btn btn--ghost btn--icon" :aria-label="$t('nav.menu')" @click="menuOpen = true">
+          <Bars3Icon class="btn__icon" />
+        </button>
+        <span class="topbar__brand">kaCHINK!</span>
+        <span v-if="timer.isRunning" class="topbar__timer">{{ timer.elapsedFormatted }}</span>
+      </header>
+      <main>
+        <RouterView />
+      </main>
+    </div>
   </div>
 </template>
-
-<style scoped>
-@reference "../assets/main.css";
-.app-layout {
-  @apply flex min-h-screen;
-}
-
-.app-sidebar {
-  @apply fixed inset-y-0 left-0 z-30 flex w-64 flex-col bg-white border-r border-gray-200;
-}
-
-.sidebar-brand {
-  @apply flex items-center gap-3 px-6 py-5 border-b border-gray-200;
-}
-
-.sidebar-brand-text {
-  @apply text-lg font-bold text-gray-900;
-}
-
-.sidebar-nav {
-  @apply flex-1 space-y-1 px-3 py-4 overflow-y-auto;
-}
-
-.sidebar-icon {
-  @apply h-5 w-5 shrink-0;
-}
-
-.sidebar-timer {
-  @apply flex items-center gap-3 mx-3 rounded-lg bg-green-50 px-3 py-2 border border-green-200;
-}
-
-.sidebar-timer-dot {
-  @apply h-2.5 w-2.5 rounded-full bg-green-500 animate-pulse shrink-0;
-}
-
-.sidebar-timer-info {
-  @apply flex flex-col min-w-0;
-}
-
-.sidebar-timer-time {
-  @apply font-mono text-sm font-semibold text-green-700 tabular-nums;
-}
-
-.sidebar-timer-project {
-  @apply text-xs text-green-600 truncate;
-}
-
-.sidebar-footer {
-  @apply flex items-center justify-between border-t border-gray-200 px-4 py-3;
-}
-
-.sidebar-user {
-  @apply flex items-center gap-3 min-w-0;
-}
-
-.sidebar-user-avatar {
-  @apply flex h-8 w-8 items-center justify-center rounded-full bg-primary-100 text-sm font-medium text-primary-700 shrink-0;
-}
-
-.sidebar-user-info {
-  @apply flex flex-col min-w-0;
-}
-
-.sidebar-user-name {
-  @apply text-sm font-medium text-gray-900 truncate;
-}
-
-.sidebar-user-role {
-  @apply text-xs text-gray-500 capitalize;
-}
-
-.app-main {
-  @apply flex-1 ml-64;
-}
-</style>

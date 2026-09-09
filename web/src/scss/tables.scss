@@ -1,0 +1,130 @@
+@use "functions" as *;
+@use "mixins" as *;
+
+.table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table {
+  width: 100%;
+  font-size: var(--fs-copy);
+
+  th,
+  td {
+    padding: pxtorem(10) var(--gap);
+    text-align: left;
+    vertical-align: middle;
+  }
+
+  th {
+    font-size: var(--fs-mini);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--c-copy-light);
+    background: var(--c-surface-2);
+    border-bottom: 1px solid var(--c-border);
+    white-space: nowrap;
+  }
+
+  td {
+    border-bottom: 1px solid var(--c-border);
+    color: var(--c-copy);
+  }
+
+  tbody tr:last-child td {
+    border-bottom: 0;
+  }
+
+  &__row {
+    transition: background 0.1s;
+
+    &:hover td {
+      background: var(--c-surface-2);
+    }
+
+    &--clickable {
+      cursor: pointer;
+    }
+  }
+
+  &__num {
+    text-align: right;
+    white-space: nowrap;
+    @include tabular;
+  }
+
+  &__time {
+    white-space: nowrap;
+    color: var(--c-copy-light);
+    @include tabular;
+  }
+
+  &__muted {
+    color: var(--c-copy-light);
+  }
+
+  &__truncate {
+    max-width: pxtorem(320);
+    @include truncate;
+  }
+
+  &__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--gap-025x);
+    white-space: nowrap;
+  }
+
+  &__group td {
+    background: var(--c-surface-2);
+    font-weight: 600;
+    color: var(--c-head);
+    padding-top: pxtorem(8);
+    padding-bottom: pxtorem(8);
+  }
+
+  &__total td {
+    font-weight: 600;
+    background: var(--c-surface);
+    border-top: 2px solid var(--c-border-strong);
+  }
+
+  &--compact {
+    th,
+    td {
+      padding: pxtorem(7) var(--gap-075x);
+    }
+  }
+
+  &--sticky-head th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+}
+
+.cell {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-05x);
+  min-width: 0;
+
+  &__title {
+    font-weight: 500;
+    @include truncate;
+  }
+
+  &__sub {
+    font-size: var(--fs-small);
+    color: var(--c-copy-light);
+    @include truncate;
+  }
+
+  &__stack {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+}

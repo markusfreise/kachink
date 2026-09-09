@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ChevronDownIcon, XMarkIcon } from '@heroicons/vue/24/outline'
 
@@ -18,12 +18,16 @@ const props = withDefaults(defineProps<{
   clearable?: boolean
   allowCreate?: boolean
   disabled?: boolean
+  size?: 'default' | 'sm'
+  id?: string
 }>(), {
-  placeholder: 'Select...',
-  clearLabel: 'All',
+  placeholder: '',
+  clearLabel: '',
   clearable: false,
   allowCreate: false,
   disabled: false,
+  size: 'default',
+  id: undefined,
 })
 
 const { t } = useI18n()
@@ -33,198 +37,217 @@ const emit = defineEmits<{
   'create': [label: string]
 }>()
 
+const uid = `combobox-${Math.random().toString(36).slice(2, 8)}`
+const listId = `${uid}-list`
+
 const query = ref('')
 const isOpen = ref(false)
+const activeIndex = ref(-1)
 const inputRef = ref<HTMLInputElement>()
+const listRef = ref<HTMLElement>()
 
 const selectedOption = computed(() =>
-  props.modelValue ? props.options.find(o => o.id === props.modelValue) ?? null : null
+  props.modelValue ? props.options.find((o) => o.id === props.modelValue) ?? null : null
 )
 
 const filteredOptions = computed(() => {
-  if (!query.value) return props.options
-  const q = query.value.toLowerCase()
-  return props.options.filter(o =>
-    o.label.toLowerCase().includes(q) ||
-    (o.subtitle?.toLowerCase().includes(q) ?? false)
+  const q = query.value.trim().toLowerCase()
+  if (!q) return props.options
+  return props.options.filter(
+    (o) => o.label.toLowerCase().includes(q) || (o.subtitle?.toLowerCase().includes(q) ?? false)
   )
 })
 
-const showCreate = computed(() =>
-  props.allowCreate &&
-  query.value.trim().length > 0 &&
-  !filteredOptions.value.some(o => o.label.toLowerCase() === query.value.trim().toLowerCase())
+const showCreate = computed(
+  () =>
+    props.allowCreate &&
+    query.value.trim().length > 0 &&
+    !filteredOptions.value.some((o) => o.label.toLowerCase() === query.value.trim().toLowerCase())
 )
 
-function onFocus() {
-  isOpen.value = true
-  query.value = ''
+/** Rows in the listbox in visual order: clear, options, create. */
+type Row = { kind: 'clear' } | { kind: 'option'; option: ComboOption } | { kind: 'create' }
+const rows = computed<Row[]>(() => {
+  const list: Row[] = []
+  if (props.clearable && !query.value) list.push({ kind: 'clear' })
+  for (const option of filteredOptions.value) list.push({ kind: 'option', option })
+  if (showCreate.value) list.push({ kind: 'create' })
+  return list
+})
+
+function rowId(index: number) {
+  return `${uid}-row-${index}`
 }
 
-function onBlur() {
-  setTimeout(() => {
-    isOpen.value = false
-    query.value = ''
-  }, 150)
+function open() {
+  if (props.disabled || isOpen.value) return
+  isOpen.value = true
+  query.value = ''
+  const current = rows.value.findIndex((r) => r.kind === 'option' && r.option.id === props.modelValue)
+  activeIndex.value = current >= 0 ? current : rows.value.length > 0 ? 0 : -1
+}
+
+function close() {
+  isOpen.value = false
+  query.value = ''
+  activeIndex.value = -1
 }
 
 function select(id: string) {
   emit('update:modelValue', id)
-  isOpen.value = false
-  query.value = ''
-  inputRef.value?.blur()
+  close()
 }
 
-function onInput(event: Event) {
-  query.value = (event.target as HTMLInputElement).value
+function activate(row: Row) {
+  if (row.kind === 'clear') select('')
+  else if (row.kind === 'option') select(row.option.id)
+  else requestCreate()
 }
 
 function requestCreate() {
   const label = query.value.trim()
   if (label) emit('create', label)
-  isOpen.value = false
-  query.value = ''
+  close()
+}
+
+function onInput(event: Event) {
+  query.value = (event.target as HTMLInputElement).value
+  if (!isOpen.value) isOpen.value = true
+  activeIndex.value = rows.value.length > 0 ? 0 : -1
+}
+
+function onKeydown(e: KeyboardEvent) {
+  if (props.disabled) return
+  switch (e.key) {
+    case 'ArrowDown':
+      e.preventDefault()
+      if (!isOpen.value) open()
+      else moveActive(1)
+      break
+    case 'ArrowUp':
+      e.preventDefault()
+      if (!isOpen.value) open()
+      else moveActive(-1)
+      break
+    case 'Home':
+      if (isOpen.value) { e.preventDefault(); activeIndex.value = 0 }
+      break
+    case 'End':
+      if (isOpen.value) { e.preventDefault(); activeIndex.value = rows.value.length - 1 }
+      break
+    case 'Enter':
+      if (isOpen.value) {
+        e.preventDefault()
+        const row = rows.value[activeIndex.value]
+        if (row) activate(row)
+      }
+      break
+    case 'Escape':
+      if (isOpen.value) {
+        e.preventDefault()
+        e.stopPropagation()
+        close()
+      }
+      break
+    case 'Tab':
+      if (isOpen.value) close()
+      break
+    case 'Backspace':
+      if (!isOpen.value && props.clearable && props.modelValue) {
+        select('')
+      }
+      break
+  }
+}
+
+function moveActive(delta: number) {
+  const count = rows.value.length
+  if (count === 0) return
+  activeIndex.value = (activeIndex.value + delta + count) % count
+}
+
+watch(activeIndex, async (index) => {
+  await nextTick()
+  const el = listRef.value?.querySelector<HTMLElement>(`#${rowId(index)}`)
+  el?.scrollIntoView({ block: 'nearest' })
+})
+
+function onBlur(e: FocusEvent) {
+  const next = e.relatedTarget as Node | null
+  if (next && listRef.value?.contains(next)) return
+  close()
+}
+
+function focusInput() {
+  if (!props.disabled) inputRef.value?.focus()
 }
 </script>
 
 <template>
-  <div class="combobox" :class="{ 'combobox-disabled': disabled }">
-    <div class="combobox-control" @click="!disabled && inputRef?.focus()">
+  <div class="combobox" :class="{ 'combobox--disabled': disabled, 'combobox--open': isOpen, 'combobox--sm': size === 'sm' }">
+    <div class="combobox__control" @mousedown.prevent="focusInput(); isOpen ? close() : open()">
       <span
         v-if="!isOpen && selectedOption?.color"
         class="color-dot"
         :style="{ backgroundColor: selectedOption.color }"
       ></span>
       <input
+        :id="id"
         ref="inputRef"
-        class="combobox-input"
+        class="combobox__input"
+        role="combobox"
+        aria-autocomplete="list"
+        :aria-expanded="isOpen"
+        :aria-controls="listId"
+        :aria-activedescendant="isOpen && activeIndex >= 0 ? rowId(activeIndex) : undefined"
         :value="isOpen ? query : (selectedOption?.label ?? '')"
-        :placeholder="isOpen ? t('common.typeToSearch') : placeholder"
+        :placeholder="isOpen ? t('common.typeToSearch') : (placeholder || t('common.select'))"
         :disabled="disabled"
         autocomplete="off"
         @input="onInput"
-        @focus="onFocus"
+        @focus="open"
         @blur="onBlur"
+        @keydown="onKeydown"
       />
+      <span v-if="!isOpen && selectedOption?.subtitle" class="combobox__subtitle">{{ selectedOption.subtitle }}</span>
       <button
-        v-if="clearable && modelValue && !isOpen"
-        class="combobox-clear"
-        @mousedown.prevent="select('')"
+        v-if="clearable && modelValue && !isOpen && !disabled"
+        type="button"
+        class="combobox__clear"
+        :aria-label="$t('common.clear')"
+        @mousedown.prevent.stop="select('')"
       >
-        <XMarkIcon class="combobox-icon-sm" />
+        <XMarkIcon class="combobox__icon" />
       </button>
-      <ChevronDownIcon
-        class="combobox-chevron"
-        :class="{ 'combobox-chevron-open': isOpen }"
-      />
+      <ChevronDownIcon class="combobox__chevron" aria-hidden="true" />
     </div>
-    <div v-if="isOpen" class="combobox-dropdown">
-      <div
-        v-if="clearable"
-        class="combobox-option combobox-option-clear"
-        @mousedown.prevent="select('')"
+
+    <ul v-if="isOpen" :id="listId" ref="listRef" class="combobox__list" role="listbox" tabindex="-1">
+      <li
+        v-for="(row, index) in rows"
+        :id="rowId(index)"
+        :key="row.kind === 'option' ? row.option.id : row.kind"
+        class="combobox__option"
+        :class="{
+          'combobox__option--active': index === activeIndex,
+          'combobox__option--selected': row.kind === 'option' && row.option.id === modelValue,
+          'combobox__option--muted': row.kind === 'clear',
+          'combobox__option--create': row.kind === 'create',
+        }"
+        role="option"
+        :aria-selected="row.kind === 'option' && row.option.id === modelValue"
+        @mousedown.prevent="activate(row)"
+        @mousemove="activeIndex = index"
       >
-        {{ clearLabel }}
-      </div>
-      <div
-        v-for="opt in filteredOptions"
-        :key="opt.id"
-        class="combobox-option"
-        :class="{ 'combobox-option-selected': opt.id === modelValue }"
-        @mousedown.prevent="select(opt.id)"
-      >
-        <span v-if="opt.color" class="color-dot" :style="{ backgroundColor: opt.color }"></span>
-        <div class="combobox-option-text">
-          <div class="combobox-option-label">{{ opt.label }}</div>
-          <div v-if="opt.subtitle" class="combobox-option-subtitle">{{ opt.subtitle }}</div>
-        </div>
-      </div>
-      <div
-        v-if="showCreate"
-        class="combobox-option combobox-option-create"
-        @mousedown.prevent="requestCreate"
-      >
-        {{ $t('common.create', { name: query.trim() }) }}
-      </div>
-      <div v-if="!filteredOptions.length && !showCreate" class="combobox-empty">
-        {{ $t('common.noResults') }}
-      </div>
-    </div>
+        <template v-if="row.kind === 'clear'">{{ clearLabel || $t('common.all') }}</template>
+        <template v-else-if="row.kind === 'option'">
+          <span v-if="row.option.color" class="color-dot" :style="{ backgroundColor: row.option.color }"></span>
+          <span class="combobox__label">{{ row.option.label }}</span>
+          <span v-if="row.option.subtitle" class="combobox__subtitle">{{ row.option.subtitle }}</span>
+        </template>
+        <template v-else>{{ $t('common.create', { name: query.trim() }) }}</template>
+      </li>
+      <li v-if="rows.length === 0" class="combobox__empty">{{ $t('common.noResults') }}</li>
+    </ul>
   </div>
 </template>
-
-<style scoped>
-@reference "../assets/main.css";
-
-.combobox {
-  @apply relative;
-}
-
-.combobox-disabled {
-  @apply opacity-50 pointer-events-none;
-}
-
-.combobox-control {
-  @apply flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 h-10 cursor-text;
-}
-
-.combobox-control:focus-within {
-  @apply ring-2 ring-primary-500 border-primary-500;
-}
-
-.combobox-input {
-  @apply flex-1 min-w-0 bg-transparent text-sm text-gray-900 outline-none placeholder-gray-400;
-}
-
-.combobox-clear {
-  @apply text-gray-400 hover:text-gray-600 shrink-0;
-}
-
-.combobox-icon-sm {
-  @apply h-3.5 w-3.5;
-}
-
-.combobox-chevron {
-  @apply h-4 w-4 text-gray-400 shrink-0 transition-transform;
-}
-
-.combobox-chevron-open {
-  @apply rotate-180;
-}
-
-.combobox-dropdown {
-  @apply absolute z-50 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg max-h-60 overflow-y-auto;
-}
-
-.combobox-option {
-  @apply flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-gray-50;
-}
-
-.combobox-option-selected {
-  @apply bg-primary-50 text-primary-700;
-}
-
-.combobox-option-clear {
-  @apply text-gray-500 border-b border-gray-100;
-}
-
-.combobox-option-create {
-  @apply text-primary-600 font-medium border-t border-gray-100;
-}
-
-.combobox-option-text {
-  @apply flex-1 min-w-0;
-}
-
-.combobox-option-label {
-  @apply truncate;
-}
-
-.combobox-option-subtitle {
-  @apply text-xs text-gray-500 truncate;
-}
-
-.combobox-empty {
-  @apply px-3 py-2 text-sm text-gray-500 text-center;
-}
-</style>
