@@ -10,7 +10,7 @@ class TimeEntryFactory extends Factory
 {
     public function definition(): array
     {
-        $started = fake()->dateTimeBetween('-30 days', 'now');
+        $started = fake()->dateTimeBetween('-75 days', 'now');
         $duration = fake()->numberBetween(900, 14400); // 15 min to 4 hours
 
         return [

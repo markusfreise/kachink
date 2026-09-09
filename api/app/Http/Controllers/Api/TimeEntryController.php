@@ -64,8 +64,10 @@ class TimeEntryController extends Controller
 
         // Duration-only manual entry: compute started_at/stopped_at from date + duration
         if (isset($data['duration_seconds']) && !isset($data['started_at'])) {
-            $date = $data['date'] ?? now()->toDateString();
-            $data['started_at'] = \Carbon\Carbon::parse($date)->startOfDay();
+            // Interpret the date in the report timezone, store in app timezone
+            $tz = config('reports.timezone');
+            $date = $data['date'] ?? now($tz)->toDateString();
+            $data['started_at'] = \Carbon\Carbon::parse($date, $tz)->startOfDay()->addHours(9)->setTimezone(config('app.timezone'));
             $data['stopped_at'] = $data['started_at']->copy()->addSeconds($data['duration_seconds']);
             $data['is_running'] = false;
         } elseif (isset($data['stopped_at']) && !isset($data['duration_seconds'])) {
@@ -92,8 +94,12 @@ class TimeEntryController extends Controller
         ], 201);
     }
 
-    public function show(TimeEntry $timeEntry): JsonResponse
+    public function show(Request $request, TimeEntry $timeEntry): JsonResponse
     {
+        if (!$request->user()->isAdmin() && $timeEntry->user_id !== $request->user()->id) {
+            abort(403);
+        }
+
         $timeEntry->load(['project.client', 'task', 'tags', 'user']);
 
         return response()->json([
@@ -179,7 +185,11 @@ class TimeEntryController extends Controller
     {
         $entry = TimeEntry::where('user_id', $request->user()->id)
             ->where('is_running', true)
-            ->firstOrFail();
+            ->first();
+
+        if (!$entry) {
+            return response()->json(['message' => 'No timer is running.', 'data' => null], 409);
+        }
 
         $entry->stop();
         $entry->load(['project.client', 'task', 'tags', 'user']);

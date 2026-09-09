@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Project;
 
+use App\Rules\InOrganization;
 use Illuminate\Foundation\Http\FormRequest;
 
 class UpdateProjectRequest extends FormRequest
@@ -14,7 +15,7 @@ class UpdateProjectRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'client_id' => ['sometimes', 'uuid', 'exists:clients,id'],
+            'client_id' => ['sometimes', 'uuid', InOrganization::exists('clients')],
             'name' => ['sometimes', 'string', 'max:255'],
             'color' => ['sometimes', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'budget_hours' => ['nullable', 'numeric', 'min:0'],

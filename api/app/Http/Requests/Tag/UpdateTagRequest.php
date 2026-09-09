@@ -15,7 +15,7 @@ class UpdateTagRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => ['sometimes', 'string', 'max:255', Rule::unique('tags')->ignore($this->route('tag'))],
+            'name' => ['sometimes', 'string', 'max:255', Rule::unique('tags', 'name')->where('organization_id', app('current_organization')->getKey())->ignore($this->route('tag'))],
             'color' => ['sometimes', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
         ];
     }

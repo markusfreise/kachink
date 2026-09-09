@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\TimeEntry;
 
+use App\Rules\InOrganization;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StoreTimeEntryRequest extends FormRequest
@@ -14,8 +15,8 @@ class StoreTimeEntryRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'project_id' => ['required', 'uuid', 'exists:projects,id'],
-            'task_id' => ['nullable', 'uuid', 'exists:tasks,id'],
+            'project_id' => ['required', 'uuid', InOrganization::exists('projects')],
+            'task_id' => ['nullable', 'uuid', InOrganization::exists('tasks')],
             'description' => ['nullable', 'string'],
             'date' => ['nullable', 'date'],
             'started_at' => ['nullable', 'date'],
@@ -24,7 +25,7 @@ class StoreTimeEntryRequest extends FormRequest
             'is_billable' => ['sometimes', 'boolean'],
             'source' => ['sometimes', 'string'],
             'tag_ids' => ['sometimes', 'array'],
-            'tag_ids.*' => ['uuid', 'exists:tags,id'],
+            'tag_ids.*' => ['uuid', InOrganization::exists('tags')],
         ];
     }
 }

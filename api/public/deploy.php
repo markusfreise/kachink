@@ -10,8 +10,10 @@ $envContents = @file_get_contents(dirname(__DIR__) . '/.env');
 preg_match('/^DEPLOY_SECRET=(.+)$/m', $envContents ?: '', $m);
 $secret = trim($m[1] ?? '');
 
-// Validate secret from query string: /deploy.php?secret=xxx
-if (!$secret || ($_GET['secret'] ?? '') !== $secret) {
+// Validate secret: prefer the X-Deploy-Secret header, fall back to ?secret= for
+// existing webhook configurations. Constant-time comparison.
+$provided = $_SERVER['HTTP_X_DEPLOY_SECRET'] ?? ($_GET['secret'] ?? '');
+if (!$secret || !hash_equals($secret, (string) $provided)) {
     http_response_code(403);
     exit('Forbidden');
 }
@@ -56,5 +58,6 @@ $log[] = run("cd $api && php artisan config:cache && php artisan route:cache && 
 $output = implode("\n", array_filter($log));
 file_put_contents($logFile, $output . "\n\n", FILE_APPEND);
 
+// Do not echo shell output to the caller; it is in deploy.log on the server.
 http_response_code(200);
-echo $output;
+echo 'OK';

@@ -16,9 +16,11 @@ use Illuminate\Support\Facades\Route;
 Route::get('/health', fn () => response()->json(['status' => 'ok']));
 
 // Auth
-Route::post('/auth/login', [AuthController::class, 'login']);
-Route::post('/auth/forgot-password', [PasswordResetController::class, 'forgotPassword']);
-Route::post('/auth/reset-password', [PasswordResetController::class, 'resetPassword']);
+Route::middleware('throttle:10,1')->group(function () {
+    Route::post('/auth/login', [AuthController::class, 'login']);
+    Route::post('/auth/forgot-password', [PasswordResetController::class, 'forgotPassword']);
+    Route::post('/auth/reset-password', [PasswordResetController::class, 'resetPassword']);
+});
 
 Route::middleware('auth:sanctum')->group(function () {
     // Auth
@@ -69,6 +71,12 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/budget', [ReportController::class, 'budget']);
             Route::get('/utilization', [ReportController::class, 'utilization']);
             Route::get('/export', [ReportController::class, 'export']);
+
+            // Scoped reports: ?date_from&date_to&rounding&format=json|pdf|csv&locale=de|en
+            Route::get('/organization', [ReportController::class, 'organization']);
+            Route::get('/clients/{client}', [ReportController::class, 'client']);
+            Route::get('/projects/{project}', [ReportController::class, 'project']);
+            Route::get('/users/{user}', [ReportController::class, 'user']);
         });
     });
 });

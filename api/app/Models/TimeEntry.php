@@ -62,7 +62,7 @@ class TimeEntry extends Model
 
     public function getDurationForHumansAttribute(): string
     {
-        $seconds = $this->duration_seconds ?? $this->started_at->diffInSeconds(now());
+        $seconds = (int) ($this->duration_seconds ?? abs($this->started_at->diffInSeconds(now())));
         $hours = intdiv($seconds, 3600);
         $minutes = intdiv($seconds % 3600, 60);
         $secs = $seconds % 60;
@@ -73,7 +73,7 @@ class TimeEntry extends Model
     public function stop(): void
     {
         $this->stopped_at = now();
-        $this->duration_seconds = $this->started_at->diffInSeconds($this->stopped_at);
+        $this->duration_seconds = (int) abs($this->started_at->diffInSeconds($this->stopped_at));
         $this->is_running = false;
         $this->save();
     }

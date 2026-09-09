@@ -15,6 +15,13 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'resolve.organization' => \App\Http\Middleware\ResolveOrganization::class,
         ]);
+
+        // The organization must be resolved BEFORE implicit route model binding,
+        // otherwise {client}/{project}/... are looked up without the tenant scope.
+        $middleware->prependToPriorityList(
+            \Illuminate\Routing\Middleware\SubstituteBindings::class,
+            \App\Http\Middleware\ResolveOrganization::class,
+        );
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

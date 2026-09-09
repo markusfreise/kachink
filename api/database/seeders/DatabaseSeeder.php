@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Client;
+use App\Models\Organization;
 use App\Models\Project;
 use App\Models\Tag;
 use App\Models\Task;
@@ -14,17 +15,26 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        // Admin user
+        $organization = Organization::create([
+            'name' => 'freise design+digital',
+            'slug' => 'freise',
+            'is_active' => true,
+        ]);
+
+        // Scoped models pick up organization_id from the bound instance.
+        app()->instance('current_organization', $organization);
+
         $admin = User::factory()->admin()->create([
             'name' => 'Markus Freise',
             'email' => 'markus@freise.design',
         ]);
 
-        // Team members
         $members = User::factory(3)->create();
         $allUsers = collect([$admin])->merge($members);
 
-        // Tags
+        $organization->users()->attach($admin->id, ['role' => 'owner']);
+        $members->each(fn (User $u) => $organization->users()->attach($u->id, ['role' => 'member']));
+
         $tags = collect([
             ['name' => 'Development', 'color' => '#3B82F6'],
             ['name' => 'Design', 'color' => '#8B5CF6'],
@@ -33,20 +43,19 @@ class DatabaseSeeder extends Seeder
             ['name' => 'Planning', 'color' => '#10B981'],
         ])->map(fn ($data) => Tag::create($data));
 
-        // Clients with projects and tasks
+        // Tasks are global per organization (not per project).
+        $tasks = collect(['Konzeption', 'Design', 'Entwicklung', 'Projektmanagement', 'Meeting', 'Support'])
+            ->map(fn ($name) => Task::create(['name' => $name, 'is_active' => true]));
+
         $clients = Client::factory(4)->create();
 
-        $clients->each(function (Client $client) use ($allUsers, $tags) {
+        $clients->each(function (Client $client) use ($allUsers, $tags, $tasks) {
             $projects = Project::factory(rand(1, 3))->create([
                 'client_id' => $client->id,
+                'hourly_rate' => collect([85, 95, 110, 120])->random(),
             ]);
 
-            $projects->each(function (Project $project) use ($allUsers, $tags) {
-                $tasks = Task::factory(rand(3, 6))->create([
-                    'project_id' => $project->id,
-                ]);
-
-                // Create time entries for each user
+            $projects->each(function (Project $project) use ($allUsers, $tags, $tasks) {
                 $allUsers->each(function (User $user) use ($project, $tasks, $tags) {
                     TimeEntry::factory(rand(5, 15))->create([
                         'user_id' => $user->id,

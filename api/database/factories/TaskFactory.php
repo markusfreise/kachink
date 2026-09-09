@@ -2,7 +2,6 @@
 
 namespace Database\Factories;
 
-use App\Models\Project;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 class TaskFactory extends Factory
@@ -10,8 +9,10 @@ class TaskFactory extends Factory
     public function definition(): array
     {
         return [
-            'project_id' => Project::factory(),
-            'name' => fake()->sentence(3),
+            'name' => fake()->randomElement([
+                'Konzeption', 'Design', 'Entwicklung', 'Projektmanagement',
+                'Meeting', 'Support', 'Content', 'QA',
+            ]) . ' ' . fake()->unique()->numberBetween(1, 999),
             'is_active' => true,
         ];
     }

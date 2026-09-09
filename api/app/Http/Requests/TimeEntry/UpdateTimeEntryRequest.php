@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\TimeEntry;
 
+use App\Rules\InOrganization;
 use Illuminate\Foundation\Http\FormRequest;
 
 class UpdateTimeEntryRequest extends FormRequest
@@ -14,15 +15,15 @@ class UpdateTimeEntryRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'project_id' => ['sometimes', 'uuid', 'exists:projects,id'],
-            'task_id' => ['nullable', 'uuid', 'exists:tasks,id'],
+            'project_id' => ['sometimes', 'uuid', InOrganization::exists('projects')],
+            'task_id' => ['nullable', 'uuid', InOrganization::exists('tasks')],
             'description' => ['nullable', 'string'],
             'started_at' => ['sometimes', 'date'],
             'stopped_at' => ['nullable', 'date', 'after:started_at'],
             'duration_seconds' => ['nullable', 'integer', 'min:0'],
             'is_billable' => ['sometimes', 'boolean'],
             'tag_ids' => ['sometimes', 'array'],
-            'tag_ids.*' => ['uuid', 'exists:tags,id'],
+            'tag_ids.*' => ['uuid', InOrganization::exists('tags')],
         ];
     }
 }

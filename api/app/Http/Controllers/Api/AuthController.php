@@ -21,6 +21,13 @@ class AuthController extends Controller
         }
 
         $user = Auth::user();
+
+        if (!$user->is_active) {
+            throw ValidationException::withMessages([
+                'email' => ['This account has been deactivated.'],
+            ]);
+        }
+
         $token = $user->createToken('spa')->plainTextToken;
 
         return response()->json([
