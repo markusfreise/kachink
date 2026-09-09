@@ -19,11 +19,15 @@ return new class extends Migration
             $table->index(['organization_id', 'project_id', 'started_at'], 'time_entries_org_project_started_idx');
         });
 
-        foreach (['clients', 'projects', 'tasks', 'tags'] as $table) {
+        foreach (['clients', 'projects', 'tasks'] as $table) {
             Schema::table($table, function (Blueprint $t) use ($table) {
                 $t->index(['organization_id', 'is_active'], "{$table}_org_active_idx");
             });
         }
+
+        Schema::table('tags', function (Blueprint $table) {
+            $table->index(['organization_id'], 'tags_org_idx');
+        });
 
         // Tag names are unique per organization, not globally.
         Schema::table('tags', function (Blueprint $table) {
@@ -39,7 +43,11 @@ return new class extends Migration
             $table->unique(['name']);
         });
 
-        foreach (['clients', 'projects', 'tasks', 'tags'] as $table) {
+        Schema::table('tags', function (Blueprint $table) {
+            $table->dropIndex('tags_org_idx');
+        });
+
+        foreach (['clients', 'projects', 'tasks'] as $table) {
             Schema::table($table, function (Blueprint $t) use ($table) {
                 $t->dropIndex("{$table}_org_active_idx");
             });
