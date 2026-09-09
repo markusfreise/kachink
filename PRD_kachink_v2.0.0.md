@@ -57,7 +57,7 @@ Ziel dieser Version: kachink ersetzt das Harvest-Abo (ca. 200 USD/Monat) fuer fr
 | Projektname | kachink (Produktname "kaCHINK!", Menubar-App "Kachink") |
 | Kurzbeschreibung | Zeiterfassung fuer die Agentur: Timer im Web und in der Mac-Menubar, Berichte pro Kunde/Projekt/Mitarbeiter mit PDF-Export. Ersetzt Harvest. |
 | Zielgruppe | Team von freise design+digital (Owner + Mitarbeitende), spaeter evtl. weitere Organisationen |
-| Projektstatus | In Entwicklung (Beta im Betrieb auf Mittwald) |
+| Projektstatus | Live auf Batcave (https://kachink.croeso.de) seit 2026-09-09 |
 | Verantwortlich | Markus Freise |
 | Sprache | Englisch (Code), UI EN/DE |
 
@@ -75,7 +75,7 @@ Nicht-Ziele: Rechnungsstellung, Asana-/Lexware-Integration, Offline-Queue in der
 | Frontend | Vue 3 (Composition API, TypeScript) + Vue Router 5 + Pinia 3 + vue-i18n 9 | vorhanden |
 | CSS | SCSS nach base_resources-Struktur, BEM; Tailwind wird entfernt | Hausstandard, keine Utility-Klassen in Produktion |
 | PDF | barryvdh/laravel-dompdf | reines PHP, laeuft auf Shared Hosting ohne Chrome |
-| Datenbank | MySQL 8 (Mittwald), lokal PostgreSQL 16 (Docker), Tests SQLite | DB-agnostische Migrationen und Queries sind Pflicht |
+| Datenbank | PostgreSQL 16 (zentrale Batcave-DB, LXC 110), lokal PostgreSQL 16 (Docker), Tests SQLite | DB-agnostische Migrationen und Queries sind Pflicht |
 | Lokale Umgebung | Docker Compose (pgsql, redis) + `php artisan serve` + Vite | vorhanden |
 | Versionierung | Git, GitHub `markusfreise/kachink` | |
 | Testing Backend | PHPUnit 11 (Feature + Unit) | |
@@ -140,19 +140,18 @@ Commit-Konvention: `typ(scope): beschreibung` mit `feat`, `fix`, `chore`, `refac
 
 ## 5. Umgebungen & .env-Konfiguration
 
-| Variable | local | prod (Mittwald) |
+| Variable | local | prod (Batcave) |
 |---|---|---|
 | APP_ENV | local | production |
 | APP_DEBUG | true | false |
-| APP_URL | http://127.0.0.1:8091 | https://[domain] |
-| FRONTEND_URL | http://localhost:5175 | https://[domain] |
-| DB_CONNECTION | pgsql (Docker) | mysql |
-| DB_HOST / DB_PORT | 127.0.0.1 / 5433 | [Mittwald-DB-Host] / 3306 |
+| APP_URL | http://127.0.0.1:8091 | https://kachink.croeso.de |
+| FRONTEND_URL | http://localhost:5175 | https://kachink.croeso.de |
+| DB_CONNECTION | pgsql (Docker) | pgsql (zentrale Batcave-Postgres, DB `kachink`, Rolle `kachink_rw`) |
+| DB_HOST / DB_PORT | 127.0.0.1 / 5433 | Datencontainer / 5432 |
 | QUEUE_CONNECTION | sync | sync |
 | CACHE_STORE / SESSION_DRIVER | file | file |
 | REPORT_TIMEZONE | Europe/Berlin | Europe/Berlin |
 | REPORT_DEFAULT_ROUNDING | 0 | 0 |
-| DEPLOY_SECRET | - | gesetzt (Webhook) |
 
 Koordinaten (Domain, DB-Zugang, SSH) stehen in `CLAUDE.local.md` (untracked). Lokal: `docker compose up -d pgsql redis`, dann `php artisan serve --port=8091` mit `DB_HOST=127.0.0.1 DB_PORT=5433` und `VITE_API_PROXY_TARGET=http://127.0.0.1:8091 npx vite --port 5175`.
 
@@ -351,17 +350,16 @@ Verteilung: ad-hoc signiert fuer das Team (`xcodebuild -scheme klingeLING -confi
 
 ## 15. Deployment
 
-Hoster: Mittwald (Shared), PHP 8.3, MySQL 8. Doc-Root `/html/_sites/kachink/api/public`, Repo `/html/_sites/kachink`.
+Hoster: Batcave, LXC 114 (`web`), nginx + php-fpm 8.3 nativ, Checkout `/var/www/kachink`, Docroot `api/public`. Davor Caddy im Edge-Container (`*.croeso.de`) und Cloudflare. Datenbank in der zentralen Postgres (LXC 110). Blueprint: Lucius. Details und Erstinstallation: `docs/betrieb.md`.
 
-Manuell (SSH):
+Manuell (auf LXC 114):
 ```bash
-cd /html/_sites/kachink && git pull origin main
-cd api && composer install --no-dev --optimize-autoloader && php artisan migrate --force && php artisan optimize
+cd /var/www/kachink && ./deploy.sh        # pull, composer, migrate, caches, fpm reload, healthcheck
 ```
 
-Webhook: `POST https://[domain]/deploy.php` mit Header `X-Deploy-Secret` (Fallback `?secret=`), Skript zieht `main`, installiert Composer-Abhaengigkeiten, migriert, cached. Frontend-Build wird lokal erzeugt und committed: `cd web && npm run build-only && rm -rf ../api/public/assets && cp -r dist/* ../api/public/`.
+Webhook: GitHub-Push auf `main` -> `https://kachink.croeso.de/__deploy/kachink-deploy` -> adnanh/webhook -> `deploy.sh` (`_bootstrap/webhook/`). Frontend-Build wird lokal erzeugt und committed: `cd web && npm run build-only && rm -rf ../api/public/assets && cp -r dist/* ../api/public/`.
 
-Erforderliche .env-Ergaenzungen nach v2: `REPORT_TIMEZONE=Europe/Berlin`, `QUEUE_CONNECTION=sync`; Composer-Update bringt dompdf.
+Der fruehere Mittwald-Betrieb (`api/public/deploy.php`) ist abgeloest.
 
 ---
 
