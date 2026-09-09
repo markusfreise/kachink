@@ -1,4 +1,86 @@
 @use "../functions" as *;
 @use "../mixins" as *;
 
-// auth-card component
+// auth-card component: shared shell for login, forgot-password and reset-password
+
+.auth {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: var(--gap-2x) var(--gap);
+  background: var(--c-background);
+
+  &__card {
+    width: 100%;
+    max-width: pxtorem(400);
+  }
+
+  &__brand {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: var(--gap-2x);
+    text-align: center;
+  }
+
+  &__logo {
+    width: pxtorem(56);
+    height: pxtorem(56);
+    border-radius: pxtorem(14);
+    box-shadow: var(--shadow-flat);
+  }
+
+  &__title {
+    margin-top: var(--gap-075x);
+    font-family: var(--ff-head);
+    font-size: var(--fs-hl-medium);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--c-head);
+  }
+
+  &__subtitle {
+    margin-top: var(--gap-025x);
+    font-size: var(--fs-small);
+    color: var(--c-copy-light);
+  }
+
+  &__form {
+    padding: var(--gap-15x);
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-flat);
+  }
+
+  &__label-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--gap-05x);
+  }
+
+  &__link {
+    font-size: var(--fs-small);
+    color: var(--c-corporate);
+    text-decoration: none;
+
+    &:hover {
+      color: var(--c-corporate-hover);
+      text-decoration: underline;
+    }
+
+    &:focus-visible {
+      border-radius: var(--radius-small);
+      @include focus-ring;
+    }
+  }
+
+  &__footer {
+    margin-top: var(--gap);
+    text-align: center;
+    font-size: var(--fs-small);
+    color: var(--c-copy-light);
+  }
+}

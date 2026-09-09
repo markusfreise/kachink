@@ -1,4 +1,41 @@
 @use "../functions" as *;
 @use "../mixins" as *;
 
-// users view
+// users (team) view
+.users {
+  &__avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: pxtorem(28);
+    height: pxtorem(28);
+    border-radius: 50%;
+    background: var(--c-corporate-soft);
+    color: var(--c-corporate);
+    font-size: var(--fs-mini);
+    font-weight: 600;
+    text-transform: uppercase;
+    flex-shrink: 0;
+  }
+
+  &__email {
+    color: var(--c-copy-light);
+  }
+
+  &__row--inactive {
+    .cell__title,
+    .users__email {
+      color: var(--c-copy-light);
+    }
+
+    .users__avatar {
+      background: var(--c-surface-3);
+      color: var(--c-copy-light);
+    }
+  }
+
+  // th.users__actions-head needs to beat .table th (0,1,1)
+  th.users__actions-head {
+    text-align: right;
+  }
+}

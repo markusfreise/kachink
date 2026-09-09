@@ -2,3 +2,264 @@
 @use "../mixins" as *;
 
 // reports view
+.reports {
+  &__tabs {
+    margin-bottom: var(--gap);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  &__filters {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-075x);
+    margin-bottom: var(--m-vert);
+  }
+
+  &__presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--gap-025x);
+  }
+
+  &__preset--active {
+    background: var(--c-corporate-soft);
+    border-color: var(--c-corporate);
+    color: var(--c-corporate);
+
+    &:hover:not(:disabled) {
+      background: var(--c-corporate-soft);
+    }
+  }
+
+  &__controls {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--gap-075x) var(--gap);
+    align-items: end;
+
+    @include tablet {
+      grid-template-columns: repeat(2, minmax(0, pxtorem(180))) minmax(pxtorem(220), 1fr) minmax(0, pxtorem(200));
+    }
+  }
+
+  &__control--wide {
+    grid-column: 1 / -1;
+
+    @include tablet {
+      grid-column: auto;
+    }
+  }
+
+  &__stats {
+    margin-bottom: var(--m-vert);
+  }
+
+  &__note {
+    margin-bottom: var(--gap);
+    font-size: var(--fs-small);
+    color: var(--c-copy-light);
+  }
+
+  &__hint {
+    font-size: var(--fs-small);
+    color: var(--c-copy-light);
+  }
+
+  // ---------------------------------------------------------------- Charts
+
+  &__charts-card {
+    margin-bottom: var(--m-vert);
+  }
+
+  &__charts {
+    display: grid;
+    gap: var(--gap-2x) var(--gap-2x);
+
+    @include desktop {
+      &--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      &--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+  }
+
+  &__chart {
+    min-width: 0;
+  }
+
+  &__chart-title {
+    margin-bottom: var(--gap-075x);
+    font-size: var(--fs-small);
+    font-weight: 600;
+    color: var(--c-head);
+  }
+
+  &__chart-rows {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-05x);
+  }
+
+  &__chart-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(pxtorem(130), 42%);
+    gap: var(--gap-05x);
+    align-items: center;
+    font-size: var(--fs-small);
+  }
+
+  &__chart-label {
+    display: flex;
+    align-items: center;
+    gap: var(--gap-05x);
+    min-width: 0;
+    color: var(--c-copy);
+  }
+
+  &__chart-name {
+    @include truncate;
+  }
+
+  &__chart-value {
+    display: flex;
+    align-items: center;
+    gap: var(--gap-05x);
+    min-width: 0;
+  }
+
+  &__chart-hours {
+    flex-shrink: 0;
+    min-width: pxtorem(44);
+    text-align: right;
+    font-weight: 500;
+    color: var(--c-head);
+    @include tabular;
+  }
+
+  &__bar {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__bar-fill--muted {
+    background: var(--c-border-strong);
+  }
+
+  &__charts-hint {
+    margin-top: var(--gap);
+    font-size: var(--fs-mini);
+    color: var(--c-copy-lighter);
+  }
+
+  &__legend {
+    display: flex;
+    gap: var(--gap);
+    font-size: var(--fs-small);
+    color: var(--c-copy-light);
+  }
+
+  &__legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: pxtorem(6);
+  }
+
+  &__legend-swatch {
+    display: inline-block;
+    width: pxtorem(12);
+    height: pxtorem(6);
+    border-radius: 999px;
+    background: var(--c-corporate);
+
+    &--muted {
+      background: var(--c-border-strong);
+    }
+  }
+
+  // ---------------------------------------------------------------- Timesheet
+
+  &__subject {
+    display: flex;
+    align-items: center;
+    gap: var(--gap-05x);
+    margin-bottom: var(--gap-05x);
+  }
+
+  &__subject-name {
+    font-size: var(--fs-medium);
+    font-weight: 600;
+    color: var(--c-head);
+  }
+
+  &__subject-sub {
+    color: var(--c-copy-light);
+
+    &::before {
+      content: "/";
+      margin-right: var(--gap-05x);
+      color: var(--c-copy-lighter);
+    }
+  }
+
+  &__timesheet {
+    min-width: pxtorem(860);
+
+    td {
+      vertical-align: top;
+    }
+  }
+
+  &__col-client {
+    white-space: nowrap;
+  }
+
+  &__col-time {
+    width: pxtorem(120);
+  }
+
+  &__desc {
+    min-width: pxtorem(240);
+    color: var(--c-copy);
+  }
+
+  &__desc-text {
+    display: inline-block;
+    max-width: pxtorem(280);
+    vertical-align: middle;
+
+    @include wide {
+      max-width: pxtorem(400);
+    }
+  }
+
+  &__desc .badge {
+    margin-left: var(--gap-05x);
+    vertical-align: middle;
+  }
+
+  &__pagination {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--gap-05x);
+
+    .pagination {
+      margin-top: 0;
+    }
+  }
+
+  // ---------------------------------------------------------------- Tables
+
+  &__link {
+    color: inherit;
+
+    &:hover {
+      color: var(--c-corporate);
+    }
+  }
+
+  &__num--danger {
+    color: var(--c-danger);
+  }
+}

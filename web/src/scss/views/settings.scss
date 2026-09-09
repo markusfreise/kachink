@@ -2,3 +2,280 @@
 @use "../mixins" as *;
 
 // settings view
+
+.settings {
+  &__stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap);
+    max-width: pxtorem(800);
+  }
+
+  &__intro {
+    margin-top: var(--gap-025x);
+    font-size: var(--fs-small);
+    color: var(--c-copy-light);
+  }
+
+  // Profile: definition list as label/value rows
+  &__profile {
+    display: grid;
+    grid-template-columns: 1fr;
+    row-gap: var(--gap-075x);
+    margin: 0;
+
+    @include tablet {
+      grid-template-columns: pxtorem(160) 1fr;
+      column-gap: var(--gap);
+    }
+  }
+
+  &__profile-label {
+    font-size: var(--fs-mini);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--c-copy-light);
+
+    @include tablet {
+      font-size: var(--fs-small);
+      font-weight: 500;
+      letter-spacing: 0;
+      text-transform: none;
+      padding-top: pxtorem(1);
+    }
+  }
+
+  &__profile-value {
+    margin: 0;
+    color: var(--c-head);
+    word-break: break-word;
+
+    @include below-tablet {
+      margin-bottom: var(--gap-025x);
+    }
+  }
+
+  // Narrow selects for single-choice settings
+  &__select {
+    @include tablet {
+      width: pxtorem(260);
+    }
+  }
+
+  &__example {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--gap-05x);
+    margin-top: var(--gap-05x);
+    padding: var(--gap-05x) var(--gap-075x);
+    border-radius: var(--radius-medium);
+    background: var(--c-surface-2);
+    font-size: var(--fs-small);
+    color: var(--c-copy-light);
+    @include tabular;
+
+    strong {
+      font-weight: 600;
+      color: var(--c-head);
+    }
+  }
+
+  // Token generation form
+  &__token-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-075x);
+
+    @include tablet {
+      flex-direction: row;
+      align-items: flex-end;
+    }
+  }
+
+  &__token-name {
+    flex: 1;
+  }
+
+  // One-time reveal box
+  &__reveal {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-075x);
+    margin-top: var(--gap);
+    padding: var(--gap);
+    border-radius: var(--radius-medium);
+    background: var(--c-accent-soft);
+  }
+
+  &__reveal-title {
+    font-size: var(--fs-small);
+    font-weight: 600;
+    color: var(--c-accent);
+  }
+
+  &__reveal-row {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-05x);
+
+    @include tablet {
+      flex-direction: row;
+      align-items: center;
+    }
+  }
+
+  &__code {
+    flex: 1;
+    min-width: 0;
+    padding: var(--gap-05x) var(--gap-075x);
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-small);
+    background: var(--c-surface);
+    font-family: var(--ff-fixed);
+    font-size: var(--fs-small);
+    color: var(--c-head);
+    word-break: break-all;
+    user-select: all;
+  }
+
+  &__steps {
+    margin: 0;
+    padding-left: pxtorem(20);
+    font-size: var(--fs-small);
+    color: var(--c-copy);
+    display: flex;
+    flex-direction: column;
+    gap: pxtorem(2);
+  }
+
+  // Existing tokens list
+  &__tokens {
+    margin-top: var(--gap-15x);
+    padding-top: var(--gap);
+    border-top: 1px solid var(--c-border);
+  }
+
+  &__tokens-title {
+    margin-bottom: var(--gap-05x);
+  }
+
+  &__token-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-05x);
+  }
+
+  &__token {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--gap);
+    padding: var(--gap-075x) var(--gap);
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-medium);
+    background: var(--c-surface);
+  }
+
+  &__token-info {
+    display: flex;
+    flex-direction: column;
+    gap: pxtorem(2);
+    min-width: 0;
+  }
+
+  &__token-title {
+    font-weight: 500;
+    color: var(--c-head);
+    @include truncate;
+  }
+
+  &__token-meta {
+    font-size: var(--fs-small);
+    color: var(--c-copy-light);
+    @include tabular;
+  }
+
+  &__token-empty {
+    font-size: var(--fs-small);
+    color: var(--c-copy-light);
+  }
+
+  // Menu bar app explainer
+  &__features {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--gap);
+    margin: 0;
+
+    @include tablet {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  &__feature {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-025x);
+    padding: var(--gap);
+    border-radius: var(--radius-medium);
+    background: var(--c-surface-2);
+  }
+
+  &__feature-icon {
+    width: pxtorem(20);
+    height: pxtorem(20);
+    margin-bottom: var(--gap-025x);
+    color: var(--c-corporate);
+  }
+
+  &__feature-title {
+    font-weight: 600;
+    color: var(--c-head);
+  }
+
+  &__feature-text {
+    margin: 0;
+    font-size: var(--fs-small);
+    color: var(--c-copy-light);
+  }
+
+  &__kbd {
+    display: inline-block;
+    padding: pxtorem(1) pxtorem(6);
+    border: 1px solid var(--c-border-strong);
+    border-bottom-width: 2px;
+    border-radius: var(--radius-small);
+    background: var(--c-surface);
+    font-family: var(--ff-fixed);
+    font-size: var(--fs-mini);
+    color: var(--c-head);
+    white-space: nowrap;
+  }
+
+  &__server {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-025x);
+    margin-top: var(--gap);
+  }
+
+  &__server-label {
+    font-size: var(--fs-small);
+    font-weight: 500;
+    color: var(--c-copy);
+  }
+
+  &__server-value {
+    display: inline-block;
+    padding: var(--gap-05x) var(--gap-075x);
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-small);
+    background: var(--c-surface-2);
+    font-family: var(--ff-fixed);
+    font-size: var(--fs-small);
+    color: var(--c-head);
+    word-break: break-all;
+    user-select: all;
+  }
+}

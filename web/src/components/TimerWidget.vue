@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useTimerStore } from '@/stores/timer'
+import { useToastStore, errorMessage } from '@/stores/toast'
+import { formatTime } from '@/utils/format'
 import type { Project, Task } from '@/types'
 import { PlayIcon, StopIcon } from '@heroicons/vue/24/solid'
+import { ArrowsRightLeftIcon } from '@heroicons/vue/24/outline'
 import ComboBox from '@/components/ComboBox.vue'
 
 const props = defineProps<{
@@ -11,15 +14,20 @@ const props = defineProps<{
   tasks: Task[]
 }>()
 
+const emit = defineEmits<{ (e: 'changed'): void }>()
+
 const { t } = useI18n()
 const timer = useTimerStore()
-const emit = defineEmits<{ (e: 'changed'): void }>()
+const toast = useToastStore()
 
 const selectedProjectId = ref('')
 const selectedTaskId = ref('')
+const description = ref('')
+const isBillable = ref(true)
+const busy = ref(false)
 
 const projectOptions = computed(() =>
-  props.projects.map(p => ({
+  props.projects.map((p) => ({
     id: p.id,
     label: p.name,
     subtitle: p.client?.name,
@@ -27,143 +35,225 @@ const projectOptions = computed(() =>
   }))
 )
 
-const taskOptions = computed(() =>
-  props.tasks.map(t => ({ id: t.id, label: t.name }))
+const taskOptions = computed(() => props.tasks.map((task) => ({ id: task.id, label: task.name })))
+
+const running = computed(() => timer.runningEntry)
+
+/** True when the form differs from the running entry, i.e. a Switch would start something new. */
+const isDirty = computed(() => {
+  const entry = running.value
+  if (!entry) return false
+  return (
+    selectedProjectId.value !== entry.project_id ||
+    (selectedTaskId.value || '') !== (entry.task_id || '') ||
+    description.value.trim() !== (entry.description || '').trim() ||
+    isBillable.value !== entry.is_billable
+  )
+})
+
+const canSwitch = computed(() => !!running.value && isDirty.value && !!selectedProjectId.value)
+
+/** Sync the form with the running entry whenever a different entry starts or the timer stops. */
+watch(
+  () => timer.runningEntry?.id ?? null,
+  () => {
+    const entry = timer.runningEntry
+    if (entry) {
+      selectedProjectId.value = entry.project_id
+      selectedTaskId.value = entry.task_id || ''
+      description.value = entry.description || ''
+      isBillable.value = entry.is_billable
+    } else {
+      description.value = ''
+      isBillable.value = defaultBillable(selectedProjectId.value)
+    }
+  },
+  { immediate: true }
 )
-const description = ref('')
+
+/** When the user picks a project while idle, default the billable flag to the project's setting. */
+watch(selectedProjectId, (projectId) => {
+  if (running.value && projectId === running.value.project_id) {
+    isBillable.value = running.value.is_billable
+    return
+  }
+  isBillable.value = defaultBillable(projectId)
+})
+
+function defaultBillable(projectId: string): boolean {
+  const project = props.projects.find((p) => p.id === projectId)
+  return project ? project.is_billable : true
+}
+
+async function startFromForm() {
+  if (!selectedProjectId.value || busy.value) return
+  busy.value = true
+  try {
+    await timer.start(
+      selectedProjectId.value,
+      selectedTaskId.value || undefined,
+      description.value.trim() || undefined,
+      isBillable.value
+    )
+    emit('changed')
+  } catch (e) {
+    toast.error(errorMessage(e, t('timer.startFailed')))
+  } finally {
+    busy.value = false
+  }
+}
 
 async function handleStart() {
-  if (!selectedProjectId.value) return
-  await timer.start(selectedProjectId.value, selectedTaskId.value || undefined, description.value || undefined)
-  description.value = ''
-  emit('changed')
+  if (running.value) return
+  await startFromForm()
+}
+
+async function handleSwitch() {
+  if (!canSwitch.value) return
+  await startFromForm()
 }
 
 async function handleStop() {
-  await timer.stop()
-  emit('changed')
+  if (busy.value) return
+  busy.value = true
+  try {
+    await timer.stop()
+    emit('changed')
+  } catch (e) {
+    toast.error(errorMessage(e, t('timer.stopFailed')))
+  } finally {
+    busy.value = false
+  }
 }
 
-onMounted(() => {
-  if (timer.runningEntry) {
-    selectedProjectId.value = timer.runningEntry.project_id
-    selectedTaskId.value = timer.runningEntry.task_id || ''
-    description.value = timer.runningEntry.description || ''
+function onDescriptionEnter() {
+  if (running.value) {
+    if (canSwitch.value) handleSwitch()
+  } else {
+    handleStart()
   }
-})
+}
 </script>
 
 <template>
-  <div :class="timer.isRunning ? 'timer-card-running' : 'timer-card'">
-    <div class="timer-top">
-      <div class="timer-clock" :class="timer.isRunning ? 'timer-running' : 'timer-idle'">
+  <section
+    class="timer-widget"
+    :class="{ 'timer-widget--running': timer.isRunning }"
+    :aria-label="$t('timer.widgetLabel')"
+  >
+    <div class="timer-widget__head">
+      <div
+        class="timer-widget__clock"
+        :class="{ 'timer-widget__clock--running': timer.isRunning }"
+        aria-live="off"
+      >
         {{ timer.isRunning ? timer.elapsedFormatted : '0:00:00' }}
       </div>
 
       <button
         v-if="timer.isRunning"
-        class="btn-danger btn-lg timer-btn"
+        type="button"
+        class="btn btn--danger btn--lg timer-widget__primary"
+        :disabled="busy"
         @click="handleStop"
       >
-        <StopIcon class="timer-btn-icon" />
+        <StopIcon class="btn__icon" aria-hidden="true" />
         {{ $t('timer.stop') }}
       </button>
       <button
         v-else
-        class="btn-success btn-lg timer-btn"
-        :disabled="!selectedProjectId"
+        type="button"
+        class="btn btn--success btn--lg timer-widget__primary"
+        :disabled="!selectedProjectId || busy"
         @click="handleStart"
       >
-        <PlayIcon class="timer-btn-icon" />
+        <PlayIcon class="btn__icon" aria-hidden="true" />
         {{ $t('timer.start') }}
       </button>
     </div>
 
-    <div v-if="timer.isRunning && timer.runningEntry" class="timer-running-info">
-      <span class="color-dot" :style="{ backgroundColor: timer.runningEntry.project?.color }"></span>
-      <span class="timer-running-project">{{ timer.runningEntry.project?.name }}</span>
-      <span v-if="timer.runningEntry.task" class="timer-running-task">
-        / {{ timer.runningEntry.task.name }}
-      </span>
+    <div v-if="running" class="timer-widget__running">
+      <span class="timer-widget__pulse" aria-hidden="true"></span>
+      <div class="timer-widget__running-body">
+        <div class="timer-widget__running-title">
+          <span class="timer-widget__running-project">
+            <span class="color-dot color-dot--lg" :style="{ backgroundColor: running.project?.color }"></span>
+            {{ running.project?.name }}
+          </span>
+          <span v-if="running.project?.client" class="timer-widget__running-client">
+            {{ running.project.client.name }}
+          </span>
+          <span v-if="running.task" class="timer-widget__running-task">{{ running.task.name }}</span>
+          <span class="badge" :class="running.is_billable ? 'badge--success' : 'badge--neutral'">
+            {{ running.is_billable ? $t('common.billable') : $t('common.nonBillable') }}
+          </span>
+        </div>
+        <p v-if="running.description" class="timer-widget__running-desc">{{ running.description }}</p>
+        <p class="timer-widget__running-since">{{ $t('timer.since', { time: formatTime(running.started_at) }) }}</p>
+      </div>
     </div>
 
-    <div v-if="!timer.isRunning" class="timer-inputs">
-      <div class="timer-row">
-        <ComboBox
-          v-model="selectedProjectId"
-          :options="projectOptions"
-          :placeholder="$t('timer.selectProject')"
-          :clearable="true"
-          :clear-label="$t('timer.noProject')"
-        />
-        <ComboBox
-          v-model="selectedTaskId"
-          :options="taskOptions"
-          :placeholder="$t('timer.selectTask')"
-          :clearable="true"
-          :clear-label="$t('timer.noTask')"
-          :disabled="tasks.length === 0"
-        />
+    <div class="timer-widget__form">
+      <p v-if="running" class="timer-widget__form-hint">{{ $t('timer.switchHint') }}</p>
+
+      <div class="timer-widget__selects">
+        <div class="form__group">
+          <label for="timer-project" class="sr-only">{{ $t('timer.project') }}</label>
+          <ComboBox
+            id="timer-project"
+            v-model="selectedProjectId"
+            :options="projectOptions"
+            :placeholder="$t('timer.selectProject')"
+            :clearable="true"
+            :clear-label="$t('timer.noProject')"
+            :disabled="busy"
+          />
+        </div>
+        <div class="form__group">
+          <label for="timer-task" class="sr-only">{{ $t('timer.task') }}</label>
+          <ComboBox
+            id="timer-task"
+            v-model="selectedTaskId"
+            :options="taskOptions"
+            :placeholder="$t('timer.selectTask')"
+            :clearable="true"
+            :clear-label="$t('timer.noTask')"
+            :disabled="busy || tasks.length === 0"
+          />
+        </div>
       </div>
 
-      <input
-        v-model="description"
-        type="text"
-        class="form-input"
-        :placeholder="$t('timer.whatAreYouWorkingOn')"
-        @keydown.enter="handleStart"
-      />
+      <div class="timer-widget__row">
+        <div class="form__group">
+          <label for="timer-description" class="sr-only">{{ $t('timer.description') }}</label>
+          <input
+            id="timer-description"
+            v-model="description"
+            type="text"
+            class="form__input"
+            :placeholder="$t('timer.whatAreYouWorkingOn')"
+            :disabled="busy"
+            autocomplete="off"
+            @keydown.enter.prevent="onDescriptionEnter"
+          />
+        </div>
+
+        <label class="form__check timer-widget__billable">
+          <input v-model="isBillable" type="checkbox" :disabled="busy" />
+          {{ $t('common.billable') }}
+        </label>
+
+        <button
+          v-if="running && canSwitch"
+          type="button"
+          class="btn btn--primary timer-widget__switch"
+          :disabled="busy"
+          @click="handleSwitch"
+        >
+          <ArrowsRightLeftIcon class="btn__icon" aria-hidden="true" />
+          {{ $t('timer.switch') }}
+        </button>
+      </div>
     </div>
-  </div>
+  </section>
 </template>
-
-<style scoped>
-@reference "../assets/main.css";
-.timer-card {
-  @apply bg-white rounded-lg border border-gray-200 shadow-sm px-6 py-4;
-}
-
-.timer-card-running {
-  @apply rounded-lg border border-green-300 shadow-sm px-6 py-4 bg-green-50;
-}
-
-.timer-top {
-  @apply flex items-center justify-between mb-4;
-}
-
-.timer-clock {
-  @apply font-mono text-3xl font-bold tabular-nums;
-}
-
-.timer-btn {
-  @apply shrink-0;
-}
-
-.timer-btn-icon {
-  @apply h-5 w-5;
-}
-
-.timer-running-info {
-  @apply flex items-center gap-2 text-sm text-green-700;
-}
-
-.timer-running-project {
-  @apply font-medium;
-}
-
-.timer-running-task {
-  @apply text-green-600;
-}
-
-.timer-inputs {
-  @apply space-y-3;
-}
-
-.timer-row {
-  @apply grid grid-cols-1 sm:grid-cols-2 gap-3;
-}
-
-.timer-select {
-  @apply w-full;
-}
-</style>

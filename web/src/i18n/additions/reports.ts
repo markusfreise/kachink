@@ -1,0 +1,41 @@
+// Reports overview and report detail additions.
+export default {
+  en: {
+    reports: {
+      lastWeek: 'Last week',
+      presets: 'Period',
+      filters: 'Filters',
+      budgetHint: 'Budgets are cumulative over the whole project lifetime and do not depend on the selected period.',
+      chartsTitle: 'Distribution',
+      chartsHint: 'Top {count} per group',
+      description: 'Description',
+      time: 'Time',
+      share: 'Share',
+      pdfHint: 'PDF report for the selected period',
+      pdfFailed: 'The PDF could not be created.',
+      csvFailed: 'The CSV export failed.',
+      noUtilization: 'No team members found.',
+      tabs: 'Report type',
+      hoursUnit: 'h',
+    },
+  },
+  de: {
+    reports: {
+      lastWeek: 'Letzte Woche',
+      presets: 'Zeitraum',
+      filters: 'Filter',
+      budgetHint: 'Budgets gelten kumuliert über die gesamte Projektlaufzeit und hängen nicht vom gewählten Zeitraum ab.',
+      chartsTitle: 'Verteilung',
+      chartsHint: 'Top {count} je Gruppe',
+      description: 'Beschreibung',
+      time: 'Zeit',
+      share: 'Anteil',
+      pdfHint: 'PDF-Bericht für den gewählten Zeitraum',
+      pdfFailed: 'Das PDF konnte nicht erstellt werden.',
+      csvFailed: 'Der CSV-Export ist fehlgeschlagen.',
+      noUtilization: 'Keine Teammitglieder gefunden.',
+      tabs: 'Berichtstyp',
+      hoursUnit: 'h',
+    },
+  },
+}

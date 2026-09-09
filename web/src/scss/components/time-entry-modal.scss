@@ -1,0 +1,32 @@
+@use "../functions" as *;
+@use "../mixins" as *;
+
+.time-entry-modal {
+  &__mode {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-025x);
+  }
+
+  &__mode-label {
+    font-size: var(--fs-small);
+    font-weight: 500;
+    color: var(--c-copy);
+  }
+
+  &__times {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--gap);
+  }
+
+  &__preview {
+    font-size: var(--fs-mini);
+    color: var(--c-copy-light);
+    @include tabular;
+  }
+
+  &__duration-input {
+    @include tabular;
+  }
+}

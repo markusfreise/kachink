@@ -1,191 +1,293 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRoute, RouterLink } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import api from '@/api/client'
-import type { Project, Task } from '@/types'
-import { PlusIcon, TrashIcon } from '@heroicons/vue/24/outline'
+import type { Project, Client, TimeEntry, PaginationMeta } from '@/types'
+import { ArrowLeftIcon, DocumentTextIcon, PencilSquareIcon, ClockIcon } from '@heroicons/vue/24/outline'
+import ProjectFormModal from '@/components/ProjectFormModal.vue'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import { useToastStore, errorMessage } from '@/stores/toast'
+import { formatDuration, formatHoursDecimal, formatCurrency, formatDate } from '@/utils/format'
+
+/** Project with the time summary the API adds on show. */
+interface ProjectWithSummary extends Project {
+  tracked_seconds?: number
+  billable_seconds?: number
+  billable_hours?: number
+}
 
 const { t } = useI18n()
 const route = useRoute()
-const project = ref<Project | null>(null)
+const toast = useToastStore()
+
+const project = ref<ProjectWithSummary | null>(null)
 const loading = ref(true)
-const newTaskName = ref('')
-const addingTask = ref(false)
+const notFound = ref(false)
+
+const entries = ref<TimeEntry[]>([])
+const entriesMeta = ref<PaginationMeta | null>(null)
+const entriesLoading = ref(true)
+
+const clients = ref<Client[]>([])
+const showForm = ref(false)
+const showArchive = ref(false)
+const archiveBusy = ref(false)
+
+const projectId = computed(() => String(route.params.id))
+
+const trackedSeconds = computed(() => project.value?.tracked_seconds ?? 0)
+const billableSeconds = computed(() => project.value?.billable_seconds ?? 0)
+const billableShare = computed(() => (trackedSeconds.value > 0 ? Math.round((billableSeconds.value / trackedSeconds.value) * 100) : 0))
+const budgetPercent = computed(() => project.value?.budget_used_percentage ?? null)
+const hourlyRate = computed(() => (project.value?.hourly_rate != null ? Number(project.value.hourly_rate) : null))
+const revenue = computed(() => (hourlyRate.value != null ? (billableSeconds.value / 3600) * hourlyRate.value : null))
+
+const budgetTone = computed(() => {
+  const p = budgetPercent.value ?? 0
+  if (p >= 100) return 'bar__fill--danger'
+  if (p >= 80) return 'bar__fill--warning'
+  return 'bar__fill--success'
+})
+const budgetWidth = computed(() => `${Math.min(Math.max(budgetPercent.value ?? 0, 0), 100)}%`)
 
 async function fetchProject() {
   loading.value = true
+  notFound.value = false
   try {
-    const { data } = await api.get(`/projects/${route.params.id}`)
+    const { data } = await api.get(`/projects/${projectId.value}`)
     project.value = data.data
+  } catch (e) {
+    project.value = null
+    notFound.value = true
+    const status = (e as { response?: { status?: number } })?.response?.status
+    if (status !== 404) toast.error(errorMessage(e, t('common.loadFailed')))
   } finally {
     loading.value = false
   }
 }
 
-async function addTask() {
-  if (!newTaskName.value.trim() || !project.value) return
-  addingTask.value = true
+async function fetchEntries() {
+  entriesLoading.value = true
   try {
-    await api.post('/tasks', {
-      project_id: project.value.id,
-      name: newTaskName.value.trim(),
+    const { data } = await api.get('/time-entries', {
+      params: {
+        'filter[project_id]': projectId.value,
+        all_users: 1,
+        per_page: 25,
+        sort: '-started_at',
+      },
     })
-    newTaskName.value = ''
-    fetchProject()
+    entries.value = data.data
+    entriesMeta.value = data.meta ?? null
+  } catch (e) {
+    toast.error(errorMessage(e, t('common.loadFailed')))
   } finally {
-    addingTask.value = false
+    entriesLoading.value = false
   }
 }
 
-async function deleteTask(task: Task) {
-  if (!confirm(t('projectDetail.deleteTaskConfirm', { name: task.name }))) return
-  await api.delete(`/tasks/${task.id}`)
+async function openEdit() {
+  if (clients.value.length === 0) {
+    try {
+      const { data } = await api.get('/clients', { params: { 'filter[is_active]': 1, per_page: 500, sort: 'name' } })
+      clients.value = data.data
+    } catch (e) {
+      toast.error(errorMessage(e, t('common.loadFailed')))
+      return
+    }
+  }
+  showForm.value = true
+}
+
+function onSaved() {
+  toast.success(t('projects.updated'))
+  showForm.value = false
   fetchProject()
 }
 
-onMounted(fetchProject)
+async function setActive(isActive: boolean) {
+  if (!project.value) return
+  archiveBusy.value = true
+  try {
+    await api.put(`/projects/${project.value.id}`, { is_active: isActive })
+    toast.success(isActive ? t('projects.restored') : t('projects.archived'))
+    showArchive.value = false
+    await fetchProject()
+  } catch (e) {
+    toast.error(errorMessage(e, t('common.failedToSave')))
+  } finally {
+    archiveBusy.value = false
+  }
+}
+
+async function load() {
+  // Entries are only requested for an existing project: an unknown id would just add a second failure.
+  await fetchProject()
+  if (project.value) fetchEntries()
+  else entriesLoading.value = false
+}
+
+onMounted(load)
+watch(projectId, load)
 </script>
 
 <template>
-  <div class="page-container">
-    <div v-if="loading" class="loading-center">
-      <div class="loading-spinner"></div>
+  <div class="page project-detail">
+    <div v-if="loading" class="loading">
+      <span class="spinner" role="status"></span>
     </div>
 
-    <template v-else-if="project">
-      <div class="detail-header">
-        <div class="detail-title-row">
-          <span class="color-dot-lg" :style="{ backgroundColor: project.color }"></span>
-          <div>
-            <h1 class="heading-1">{{ project.name }}</h1>
-            <span class="text-muted">{{ project.client?.name }}</span>
+    <div v-else-if="notFound || !project" class="empty card">
+      <p class="empty__title">{{ $t('projectDetail.notFound') }}</p>
+      <p class="empty__text">{{ $t('projectDetail.notFoundText') }}</p>
+      <RouterLink class="btn btn--secondary btn--sm" :to="{ name: 'projects' }">
+        <ArrowLeftIcon class="btn__icon" aria-hidden="true" />
+        {{ $t('projectDetail.backToProjects') }}
+      </RouterLink>
+    </div>
+
+    <template v-else>
+      <RouterLink class="project-detail__back" :to="{ name: 'projects' }">
+        <ArrowLeftIcon class="project-detail__back-icon" aria-hidden="true" />
+        {{ $t('projects.title') }}
+      </RouterLink>
+
+      <div class="page__header">
+        <div class="project-detail__ident">
+          <span class="color-dot color-dot--lg project-detail__dot" :style="{ backgroundColor: project.color }" aria-hidden="true"></span>
+          <div class="project-detail__titles">
+            <h1 class="heading-1 project-detail__name">{{ project.name }}</h1>
+            <div class="project-detail__meta">
+              <span class="project-detail__client">{{ project.client?.name }}</span>
+              <span class="badge" :class="project.is_billable ? 'badge--success' : 'badge--neutral'">
+                {{ project.is_billable ? $t('common.billable') : $t('common.nonBillable') }}
+              </span>
+              <span v-if="!project.is_active" class="badge badge--neutral">{{ $t('common.archived') }}</span>
+            </div>
           </div>
         </div>
-        <div class="detail-badges">
-          <span :class="project.is_billable ? 'badge-green' : 'badge-gray'">
-            {{ project.is_billable ? $t('common.billable') : $t('common.nonBillable') }}
+        <div class="page__actions">
+          <RouterLink class="btn btn--primary" :to="{ name: 'report-detail', params: { scope: 'projects', id: project.id } }">
+            <DocumentTextIcon class="btn__icon" aria-hidden="true" />
+            {{ $t('reportDetail.report') }}
+          </RouterLink>
+          <button type="button" class="btn btn--secondary" @click="openEdit">
+            <PencilSquareIcon class="btn__icon" aria-hidden="true" />
+            {{ $t('common.edit') }}
+          </button>
+          <button v-if="project.is_active" type="button" class="btn btn--ghost" @click="showArchive = true">
+            {{ $t('common.archive') }}
+          </button>
+          <button v-else type="button" class="btn btn--ghost" :disabled="archiveBusy" @click="setActive(true)">
+            {{ $t('projects.unarchive') }}
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid--4 page__section">
+        <div class="stat">
+          <span class="stat__label">{{ $t('projects.tracked') }}</span>
+          <span class="stat__value">{{ $t('projects.trackedValue', { hours: formatDuration(trackedSeconds) }) }}</span>
+          <span class="stat__sub">{{ $t('projectDetail.trackedAllTime') }}</span>
+        </div>
+        <div class="stat">
+          <span class="stat__label">{{ $t('projectDetail.billableHours') }}</span>
+          <span class="stat__value stat__value--accent">{{ $t('projects.trackedValue', { hours: formatDuration(billableSeconds) }) }}</span>
+          <span class="stat__sub">{{ $t('projectDetail.billableShare', { percent: billableShare }) }}</span>
+        </div>
+        <div class="stat">
+          <span class="stat__label">{{ $t('projectDetail.budgetUsage') }}</span>
+          <template v-if="project.budget_hours">
+            <span class="stat__value" :class="{ 'project-detail__stat-value--over': (budgetPercent ?? 0) >= 100 }">{{ Math.round(budgetPercent ?? 0) }}%</span>
+            <span class="stat__sub">
+              {{ $t('projects.budgetUsage', { used: formatHoursDecimal(trackedSeconds), total: formatHoursDecimal(project.budget_hours * 3600) }) }}
+            </span>
+            <div class="bar bar--block project-detail__budget-bar" role="progressbar" :aria-valuenow="Math.round(budgetPercent ?? 0)" aria-valuemin="0" aria-valuemax="100">
+              <span class="bar__fill" :class="budgetTone" :style="{ width: budgetWidth }"></span>
+            </div>
+          </template>
+          <template v-else>
+            <span class="stat__value project-detail__stat-value--muted">&ndash;</span>
+            <span class="stat__sub">{{ $t('projectDetail.budgetNone') }}</span>
+          </template>
+        </div>
+        <div class="stat">
+          <span class="stat__label">{{ $t('projectDetail.revenue') }}</span>
+          <template v-if="hourlyRate != null && revenue != null">
+            <span class="stat__value">{{ formatCurrency(revenue) }}</span>
+            <span class="stat__sub">{{ $t('projectDetail.revenueSub', { rate: formatCurrency(hourlyRate) }) }}</span>
+          </template>
+          <template v-else>
+            <span class="stat__value project-detail__stat-value--muted">&ndash;</span>
+            <span class="stat__sub">{{ $t('projectDetail.rateNone') }}</span>
+          </template>
+        </div>
+      </div>
+
+      <section class="card page__section">
+        <div class="card__header">
+          <h2 class="card__title">{{ $t('projectDetail.recentEntries') }}</h2>
+          <span v-if="entriesMeta && entries.length" class="toolbar__count">
+            {{ $t('projectDetail.recentEntriesSub', { count: entries.length, total: entriesMeta.total }) }}
           </span>
-          <span v-if="project.hourly_rate" class="badge-blue">&euro;{{ project.hourly_rate }}/h</span>
         </div>
-      </div>
-
-      <!-- Stats -->
-      <div class="detail-stats">
-        <div class="stat-card-mini">
-          <span class="stat-mini-label">{{ $t('projectDetail.tracked') }}</span>
-          <span class="stat-mini-value">{{ project.total_tracked_hours ?? 0 }}h</span>
-        </div>
-        <div v-if="project.budget_hours" class="stat-card-mini">
-          <span class="stat-mini-label">{{ $t('projectDetail.budget') }}</span>
-          <span class="stat-mini-value">{{ project.budget_hours }}h</span>
-        </div>
-        <div v-if="project.budget_used_percentage != null" class="stat-card-mini">
-          <span class="stat-mini-label">{{ $t('projectDetail.used') }}</span>
-          <span class="stat-mini-value">{{ project.budget_used_percentage }}%</span>
-        </div>
-        <div class="stat-card-mini">
-          <span class="stat-mini-label">{{ $t('projectDetail.tasks') }}</span>
-          <span class="stat-mini-value">{{ project.tasks?.length ?? 0 }}</span>
-        </div>
-      </div>
-
-      <!-- Tasks -->
-      <div class="card">
-        <div class="card-header">
-          <h2 class="heading-3">{{ $t('projectDetail.tasks') }}</h2>
-        </div>
-        <div class="card-body">
-          <div class="task-add-row">
-            <input
-              v-model="newTaskName"
-              type="text"
-              class="form-input"
-              :placeholder="$t('projectDetail.addTask')"
-              @keydown.enter="addTask"
-            />
-            <button class="btn-primary btn-sm" :disabled="addingTask || !newTaskName.trim()" @click="addTask">
-              <PlusIcon class="btn-icon-sm" />
-              {{ $t('common.add') }}
-            </button>
+        <div class="card__body card__body--flush">
+          <div v-if="entriesLoading" class="loading">
+            <span class="spinner" role="status"></span>
           </div>
-
-          <div v-if="!project.tasks?.length" class="empty-state">
-            <p class="empty-state-text">{{ $t('projectDetail.noTasks') }}</p>
+          <div v-else-if="entries.length === 0" class="empty">
+            <ClockIcon class="empty__icon" aria-hidden="true" />
+            <p class="empty__title">{{ $t('projectDetail.noEntries') }}</p>
+            <p class="empty__text">{{ $t('projectDetail.noEntriesText') }}</p>
           </div>
-          <ul v-else class="task-list">
-            <li v-for="task in project.tasks" :key="task.id" class="task-item">
-              <span class="task-name">{{ task.name }}</span>
-              <button class="btn-ghost btn-icon btn-sm" @click="deleteTask(task)">
-                <TrashIcon class="task-action-icon" />
-              </button>
-            </li>
-          </ul>
+          <div v-else class="table-wrap">
+            <table class="table table--compact project-detail__entries">
+              <thead>
+                <tr>
+                  <th scope="col">{{ $t('common.date') }}</th>
+                  <th scope="col">{{ $t('projectDetail.member') }}</th>
+                  <th scope="col">{{ $t('timeEntries.task') }}</th>
+                  <th scope="col">{{ $t('timeEntries.description') }}</th>
+                  <th scope="col" class="table__num">{{ $t('common.duration') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="entry in entries" :key="entry.id" class="table__row">
+                  <td class="table__time">{{ formatDate(entry.started_at) }}</td>
+                  <td class="project-detail__member">{{ entry.user?.name ?? '–' }}</td>
+                  <td :class="{ 'table__muted': !entry.task }">{{ entry.task?.name ?? $t('projectDetail.noTask') }}</td>
+                  <td class="table__truncate" :class="{ 'table__muted': !entry.description }" :title="entry.description ?? undefined">
+                    {{ entry.description || '–' }}
+                  </td>
+                  <td class="table__num">
+                    <span v-if="entry.is_running" class="badge badge--info">{{ $t('projectDetail.running') }}</span>
+                    <template v-else>{{ formatDuration(entry.duration_seconds) }}</template>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      </section>
     </template>
+
+    <ProjectFormModal
+      v-if="showForm && project"
+      :project="project"
+      :clients="clients"
+      @close="showForm = false"
+      @saved="onSaved"
+    />
+
+    <ConfirmDialog
+      v-if="showArchive && project"
+      :title="$t('projects.archiveTitle')"
+      :text="$t('projects.archiveText', { name: project.name })"
+      :confirm-label="$t('common.archive')"
+      :busy="archiveBusy"
+      @confirm="setActive(false)"
+      @cancel="showArchive = false"
+    />
   </div>
 </template>
-
-<style scoped>
-@reference "../assets/main.css";
-.loading-center {
-  @apply flex justify-center py-12;
-}
-
-.detail-header {
-  @apply flex items-start justify-between mb-6;
-}
-
-.detail-title-row {
-  @apply flex items-center gap-3;
-}
-
-.color-dot-lg {
-  @apply inline-block h-5 w-5 rounded-full shrink-0;
-}
-
-.detail-badges {
-  @apply flex gap-2;
-}
-
-.detail-stats {
-  @apply grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6;
-}
-
-.stat-card-mini {
-  @apply bg-white rounded-lg border border-gray-200 shadow-sm p-4 flex flex-col;
-}
-
-.stat-mini-label {
-  @apply text-xs text-gray-500;
-}
-
-.stat-mini-value {
-  @apply text-lg font-bold text-gray-900 tabular-nums;
-}
-
-.task-add-row {
-  @apply flex gap-3 mb-4;
-}
-
-.btn-icon-sm {
-  @apply h-4 w-4;
-}
-
-.task-list {
-  @apply divide-y divide-gray-100;
-}
-
-.task-item {
-  @apply flex items-center justify-between py-2;
-}
-
-.task-name {
-  @apply text-sm text-gray-900;
-}
-
-.task-action-icon {
-  @apply h-4 w-4;
-}
-</style>

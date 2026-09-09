@@ -3,8 +3,9 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import api from '@/api/client'
 import type { Project, Client } from '@/types'
-import { XMarkIcon } from '@heroicons/vue/24/outline'
+import BaseModal from '@/components/BaseModal.vue'
 import ComboBox from '@/components/ComboBox.vue'
+import { useToastStore, errorMessage } from '@/stores/toast'
 
 const props = defineProps<{
   project: Project | null
@@ -13,68 +14,82 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   close: []
-  saved: []
+  saved: [project: Project]
 }>()
 
 const { t } = useI18n()
+const toast = useToastStore()
+
 const localClients = ref<Client[]>([...props.clients])
 watch(() => props.clients, (c) => { localClients.value = [...c] })
 
 const clientOptions = computed(() =>
-  localClients.value.map(c => ({ id: c.id, label: c.name }))
+  localClients.value.map((c) => ({ id: c.id, label: c.name, color: c.color }))
 )
-
-async function handleCreateClient(clientName: string) {
-  if (!confirm(t('projectForm.createClientConfirm', { name: clientName }))) return
-  try {
-    const { data } = await api.post('/clients', { name: clientName })
-    localClients.value.push(data.data)
-    clientId.value = data.data.id
-  } catch (e: any) {
-    error.value = e.response?.data?.message || t('projectForm.failedToCreateClient')
-  }
-}
 
 const name = ref('')
 const clientId = ref('')
-const color = ref('#3B82F6')
+const color = ref('#6D4FC2')
 const budgetHours = ref<number | null>(null)
 const hourlyRate = ref<number | null>(null)
 const isBillable = ref(true)
 const saving = ref(false)
+const creatingClient = ref(false)
 const error = ref('')
+
+const title = computed(() => (props.project ? t('projectForm.editProject') : t('projectForm.newProject')))
 
 onMounted(() => {
   if (props.project) {
     name.value = props.project.name
     clientId.value = props.project.client_id
     color.value = props.project.color
-    budgetHours.value = props.project.budget_hours ? Number(props.project.budget_hours) : null
-    hourlyRate.value = props.project.hourly_rate ? Number(props.project.hourly_rate) : null
+    budgetHours.value = props.project.budget_hours != null ? Number(props.project.budget_hours) : null
+    hourlyRate.value = props.project.hourly_rate != null ? Number(props.project.hourly_rate) : null
     isBillable.value = props.project.is_billable
   }
 })
 
+async function handleCreateClient(clientName: string) {
+  const trimmed = clientName.trim()
+  if (!trimmed || creatingClient.value) return
+  creatingClient.value = true
+  error.value = ''
+  try {
+    const { data } = await api.post('/clients', { name: trimmed })
+    const client: Client = data.data
+    localClients.value.push(client)
+    clientId.value = client.id
+    toast.success(t('projectForm.clientCreated', { name: client.name }))
+  } catch (e) {
+    error.value = errorMessage(e, t('projectForm.failedToCreateClient'))
+  } finally {
+    creatingClient.value = false
+  }
+}
+
 async function handleSave() {
   error.value = ''
+  if (!clientId.value) {
+    error.value = t('projectForm.selectClient')
+    return
+  }
   saving.value = true
   try {
     const payload = {
-      name: name.value,
+      name: name.value.trim(),
       client_id: clientId.value,
       color: color.value,
-      budget_hours: budgetHours.value,
-      hourly_rate: hourlyRate.value,
+      budget_hours: budgetHours.value === null || Number.isNaN(budgetHours.value) ? null : budgetHours.value,
+      hourly_rate: hourlyRate.value === null || Number.isNaN(hourlyRate.value) ? null : hourlyRate.value,
       is_billable: isBillable.value,
     }
-    if (props.project) {
-      await api.put(`/projects/${props.project.id}`, payload)
-    } else {
-      await api.post('/projects', payload)
-    }
-    emit('saved')
-  } catch (e: any) {
-    error.value = e.response?.data?.message || t('common.failedToSave')
+    const { data } = props.project
+      ? await api.put(`/projects/${props.project.id}`, payload)
+      : await api.post('/projects', payload)
+    emit('saved', data.data as Project)
+  } catch (e) {
+    error.value = errorMessage(e, t('common.failedToSave'))
   } finally {
     saving.value = false
   }
@@ -82,109 +97,85 @@ async function handleSave() {
 </script>
 
 <template>
-  <div class="modal-overlay" @click.self="emit('close')">
-    <div class="modal-panel">
-      <div class="modal-header">
-        <h2 class="heading-2">{{ project ? $t('projectForm.editProject') : $t('projectForm.newProject') }}</h2>
-        <button class="btn-ghost btn-icon" @click="emit('close')">
-          <XMarkIcon class="modal-close-icon" />
-        </button>
+  <BaseModal :title="title" @close="emit('close')">
+    <form id="project-form" class="form" novalidate @submit.prevent="handleSave">
+      <div v-if="error" class="form__alert" role="alert">{{ error }}</div>
+
+      <div class="form__group">
+        <label class="form__label" for="project-form-name">{{ $t('projectForm.projectNameRequired') }}</label>
+        <input
+          id="project-form-name"
+          v-model="name"
+          type="text"
+          class="form__input"
+          required
+          autofocus
+          autocomplete="off"
+        />
       </div>
 
-      <form class="modal-body" @submit.prevent="handleSave">
-        <div v-if="error" class="form-error-box">{{ error }}</div>
+      <div class="form__group">
+        <label class="form__label" for="project-form-client">{{ $t('projectForm.clientRequired') }}</label>
+        <ComboBox
+          id="project-form-client"
+          v-model="clientId"
+          :options="clientOptions"
+          :placeholder="$t('projectForm.selectClient')"
+          :allow-create="true"
+          :disabled="creatingClient"
+          @create="handleCreateClient"
+        />
+      </div>
 
-        <div class="form-group">
-          <label class="form-label">{{ $t('projectForm.clientRequired') }}</label>
-          <ComboBox
-            v-model="clientId"
-            :options="clientOptions"
-            :placeholder="$t('projectForm.selectClient')"
-            :allow-create="true"
-            @create="handleCreateClient"
+      <div class="form__row">
+        <div class="form__group">
+          <label class="form__label" for="project-form-budget">{{ $t('projectForm.budgetHours') }}</label>
+          <input
+            id="project-form-budget"
+            v-model.number="budgetHours"
+            type="number"
+            step="0.5"
+            min="0"
+            inputmode="decimal"
+            class="form__input"
+            :placeholder="$t('projectForm.budgetPlaceholder')"
           />
         </div>
-
-        <div class="form-group">
-          <label class="form-label">{{ $t('projectForm.projectNameRequired') }}</label>
-          <input v-model="name" type="text" class="form-input" required />
+        <div class="form__group">
+          <label class="form__label" for="project-form-rate">{{ $t('projectForm.hourlyRate') }}</label>
+          <input
+            id="project-form-rate"
+            v-model.number="hourlyRate"
+            type="number"
+            step="0.01"
+            min="0"
+            inputmode="decimal"
+            class="form__input"
+            :placeholder="$t('projectForm.ratePlaceholder')"
+          />
         </div>
+      </div>
 
-        <div class="form-row-2">
-          <div class="form-group">
-            <label class="form-label">{{ $t('common.color') }}</label>
-            <input v-model="color" type="color" class="form-input form-color" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">{{ $t('projectForm.billable') }}</label>
-            <label class="form-checkbox-label">
-              <input v-model="isBillable" type="checkbox" class="form-checkbox" />
-              <span>{{ $t('projectForm.billableLabel') }}</span>
-            </label>
-          </div>
+      <div class="form__row project-form__meta">
+        <div class="form__group">
+          <label class="form__label" for="project-form-color">{{ $t('common.color') }}</label>
+          <input id="project-form-color" v-model="color" type="color" class="form__input form__color" />
         </div>
+        <div class="form__group">
+          <span class="form__label">{{ $t('projectForm.billable') }}</span>
+          <label class="form__check project-form__check">
+            <input v-model="isBillable" type="checkbox" />
+            <span>{{ $t('projectForm.billableLabel') }}</span>
+          </label>
+        </div>
+      </div>
+    </form>
 
-        <div class="form-row-2">
-          <div class="form-group">
-            <label class="form-label">{{ $t('projectForm.budgetHours') }}</label>
-            <input v-model.number="budgetHours" type="number" step="0.5" min="0" class="form-input" :placeholder="$t('projectForm.budgetPlaceholder')" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">{{ $t('projectForm.hourlyRate') }}</label>
-            <input v-model.number="hourlyRate" type="number" step="0.01" min="0" class="form-input" :placeholder="$t('projectForm.ratePlaceholder')" />
-          </div>
-        </div>
-
-        <div class="modal-actions">
-          <button type="button" class="btn-secondary" @click="emit('close')">{{ $t('common.cancel') }}</button>
-          <button type="submit" class="btn-primary" :disabled="saving">
-            {{ saving ? $t('common.saving') : $t('common.save') }}
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
+    <template #footer>
+      <button type="button" class="btn btn--secondary" @click="emit('close')">{{ $t('common.cancel') }}</button>
+      <button type="submit" form="project-form" class="btn btn--primary" :disabled="saving || !name.trim()">
+        {{ saving ? $t('common.saving') : $t('common.save') }}
+      </button>
+    </template>
+  </BaseModal>
 </template>
-
-<style scoped>
-@reference "../assets/main.css";
-.modal-overlay {
-  @apply fixed inset-0 z-50 flex items-center justify-center bg-black/50;
-}
-
-.modal-panel {
-  @apply w-full max-w-lg rounded-xl bg-white shadow-xl;
-}
-
-.modal-header {
-  @apply flex items-center justify-between px-6 py-4 border-b border-gray-200;
-}
-
-.modal-close-icon {
-  @apply h-5 w-5;
-}
-
-.modal-body {
-  @apply space-y-4 px-6 py-4;
-}
-
-.form-error-box {
-  @apply rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 border border-red-200;
-}
-
-.form-row-2 {
-  @apply grid grid-cols-2 gap-4;
-}
-
-.form-color {
-  @apply h-10 p-1 cursor-pointer;
-}
-
-.form-checkbox-label {
-  @apply flex items-center gap-2 text-sm text-gray-700 mt-2;
-}
-
-.modal-actions {
-  @apply flex justify-end gap-3 pt-2;
-}
-</style>

@@ -6,8 +6,9 @@ import api from '@/api/client'
 import { downloadFile } from '@/api/download'
 import { useSettingsStore } from '@/stores/settings'
 import { useAuthStore } from '@/stores/auth'
+import { useToastStore, errorMessage } from '@/stores/toast'
 import type { ScopedReport, ReportScope, ReportGroupRow } from '@/types'
-import { monthlyReportRange, shiftMonths, isFullMonth, type DateRange } from '@/composables/useReportPeriod'
+import { monthlyReportRange, monthRange, shiftMonths, isFullMonth, type DateRange } from '@/composables/useReportPeriod'
 import { formatDuration, formatHoursDecimal, formatCurrency, formatDateLong, formatMonth, formatDate } from '@/utils/format'
 import {
   ArrowLeftIcon,
@@ -22,6 +23,7 @@ const router = useRouter()
 const { t, locale } = useI18n()
 const settings = useSettingsStore()
 const auth = useAuthStore()
+const toast = useToastStore()
 
 type RouteScope = 'clients' | 'projects' | 'users'
 const scopeMap: Record<RouteScope, ReportScope> = { clients: 'client', projects: 'project', users: 'user' }
@@ -57,6 +59,8 @@ const showClients = computed(() => scope.value === 'user' && (report.value?.by_c
 const showUsers = computed(() => auth.isAdmin && (report.value?.by_user.length ?? 0) > 0 && scope.value !== 'user')
 const showTasks = computed(() => (report.value?.by_task ?? []).some((row) => row.name !== ''))
 const showAmount = computed(() => (report.value?.totals.amount ?? 0) > 0)
+const showUserCol = computed(() => auth.isAdmin && scope.value !== 'user')
+const dayColspan = computed(() => 3 + (showUserCol.value ? 1 : 0) + (showProjects.value ? 1 : 0))
 
 function share(row: ReportGroupRow): number {
   const total = report.value?.totals.total_seconds ?? 0
@@ -80,7 +84,8 @@ async function load() {
     report.value = data.data
   } catch (e: unknown) {
     const err = e as { response?: { status?: number; data?: { message?: string } } }
-    error.value = err.response?.status === 404 ? t('reportDetail.notFound') : (err.response?.data?.message || t('reportDetail.loadFailed'))
+    error.value = err.response?.status === 404 ? t('reportDetail.notFound') : errorMessage(e, t('reportDetail.loadFailed'))
+    toast.error(error.value)
     report.value = null
   } finally {
     loading.value = false
@@ -91,8 +96,8 @@ async function download(format: 'pdf' | 'csv') {
   downloading.value = format
   try {
     await downloadFile(`/reports/${routeScope.value}/${subjectId.value}`, { ...queryParams(), format })
-  } catch {
-    error.value = t('reportDetail.downloadFailed')
+  } catch (e) {
+    toast.error(errorMessage(e, t('reportDetail.downloadFailed')))
   } finally {
     downloading.value = null
   }
@@ -104,12 +109,7 @@ function step(delta: number) {
 
 function setThisMonth() {
   const now = new Date()
-  range.value = shiftMonths({ from: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`, to: monthlyReportRange().to }, 0)
-  // ensure a proper full month for the current month
-  const y = now.getFullYear()
-  const m = now.getMonth()
-  const last = new Date(y, m + 1, 0)
-  range.value = { from: `${y}-${String(m + 1).padStart(2, '0')}-01`, to: `${y}-${String(m + 1).padStart(2, '0')}-${String(last.getDate()).padStart(2, '0')}` }
+  range.value = monthRange(now.getFullYear(), now.getMonth())
 }
 
 function setMonthlyDefault() {
@@ -127,58 +127,58 @@ watch(() => [route.params.scope, route.params.id], load)
 onMounted(load)
 </script>
 
+
 <template>
-  <div class="page-container">
-    <div class="report-back">
-      <button class="btn-ghost btn-sm" @click="router.back()">
-        <ArrowLeftIcon class="icon-sm" />
+  <div class="page report-detail">
+    <div class="report-detail__back">
+      <button type="button" class="btn btn--ghost btn--sm" @click="router.back()">
+        <ArrowLeftIcon class="btn__icon" />
         {{ $t('reportDetail.back') }}
       </button>
     </div>
 
-    <div class="report-header">
-      <div class="report-title-block">
-        <span class="report-kicker">{{ scopeTitle }}</span>
-        <h1 class="heading-1 report-title">
-          <span v-if="report?.scope.color" class="color-dot report-dot" :style="{ backgroundColor: report.scope.color }"></span>
+    <div class="page__header">
+      <div class="report-detail__title-block">
+        <span class="kicker">{{ scopeTitle }}</span>
+        <h1 class="heading-1 report-detail__name">
+          <span v-if="report?.scope.color" class="color-dot color-dot--lg" :style="{ backgroundColor: report.scope.color }"></span>
           {{ report?.scope.name ?? '' }}
         </h1>
-        <span v-if="report?.scope.client_name" class="text-muted">{{ report.scope.client_name }}</span>
+        <span v-if="report?.scope.client_name" class="report-detail__sub">{{ report.scope.client_name }}</span>
       </div>
 
-      <div class="report-actions">
-        <button class="btn-secondary" :disabled="loading || downloading !== null" @click="download('csv')">
-          <ArrowDownTrayIcon class="icon-sm" />
+      <div class="page__actions report-detail__actions">
+        <button type="button" class="btn btn--secondary" :disabled="loading || downloading !== null" @click="download('csv')">
+          <ArrowDownTrayIcon class="btn__icon" />
           {{ downloading === 'csv' ? $t('reportDetail.preparing') : 'CSV' }}
         </button>
-        <button class="btn-primary" :disabled="loading || downloading !== null" @click="download('pdf')">
-          <DocumentTextIcon class="icon-sm" />
+        <button type="button" class="btn btn--primary" :disabled="loading || downloading !== null" @click="download('pdf')">
+          <DocumentTextIcon class="btn__icon" />
           {{ downloading === 'pdf' ? $t('reportDetail.preparing') : $t('reportDetail.downloadPdf') }}
         </button>
       </div>
     </div>
 
-    <!-- Period toolbar -->
-    <div class="report-toolbar">
-      <div class="period-nav">
-        <button class="btn-secondary btn-sm" :aria-label="$t('reportDetail.previousMonth')" @click="step(-1)">
-          <ChevronLeftIcon class="icon-sm" />
+    <div class="toolbar report-detail__toolbar">
+      <div class="toolbar__group report-detail__period">
+        <button type="button" class="btn btn--secondary btn--sm btn--icon" :aria-label="$t('reportDetail.previousMonth')" @click="step(-1)">
+          <ChevronLeftIcon class="btn__icon" />
         </button>
-        <span class="period-label">{{ periodLabel }}</span>
-        <button class="btn-secondary btn-sm" :aria-label="$t('reportDetail.nextMonth')" @click="step(1)">
-          <ChevronRightIcon class="icon-sm" />
+        <span class="report-detail__period-label">{{ periodLabel }}</span>
+        <button type="button" class="btn btn--secondary btn--sm btn--icon" :aria-label="$t('reportDetail.nextMonth')" @click="step(1)">
+          <ChevronRightIcon class="btn__icon" />
         </button>
-        <button class="btn-ghost btn-sm" @click="setMonthlyDefault">{{ $t('reportDetail.monthlyDefault') }}</button>
-        <button class="btn-ghost btn-sm" @click="setThisMonth">{{ $t('reports.thisMonth') }}</button>
+        <button type="button" class="btn btn--ghost btn--sm" @click="setMonthlyDefault">{{ $t('reportDetail.monthlyDefault') }}</button>
+        <button type="button" class="btn btn--ghost btn--sm" @click="setThisMonth">{{ $t('reports.thisMonth') }}</button>
       </div>
 
-      <div class="period-custom">
-        <label class="form-label" for="report-from">{{ $t('common.from') }}</label>
-        <input id="report-from" v-model="range.from" type="date" class="form-input date-input" />
-        <label class="form-label" for="report-to">{{ $t('common.to') }}</label>
-        <input id="report-to" v-model="range.to" type="date" class="form-input date-input" :min="range.from" />
-        <label class="form-label" for="report-rounding">{{ $t('reportDetail.rounding') }}</label>
-        <select id="report-rounding" v-model="rounding" class="form-select rounding-select">
+      <div class="toolbar__group report-detail__custom">
+        <label class="toolbar__label" for="report-from">{{ $t('common.from') }}</label>
+        <input id="report-from" v-model="range.from" type="date" class="form__input form__input--sm form__input--inline report-detail__date" :max="range.to" />
+        <label class="toolbar__label" for="report-to">{{ $t('common.to') }}</label>
+        <input id="report-to" v-model="range.to" type="date" class="form__input form__input--sm form__input--inline report-detail__date" :min="range.from" />
+        <label class="toolbar__label" for="report-rounding">{{ $t('reportDetail.rounding') }}</label>
+        <select id="report-rounding" v-model="rounding" class="form__select form__select--sm form__select--inline report-detail__rounding">
           <option v-for="r in roundingOptions" :key="r" :value="r">
             {{ r === 0 ? $t('reportDetail.noRounding') : $t('reportDetail.roundingMinutes', { minutes: r }) }}
           </option>
@@ -186,196 +186,226 @@ onMounted(load)
       </div>
     </div>
 
-    <div v-if="error" class="form-error-box">{{ error }}</div>
+    <div v-if="error" class="alert">{{ error }}</div>
 
-    <div v-if="loading && !report" class="loading-center">
-      <div class="loading-spinner" role="status"></div>
+    <div v-if="loading && !report" class="loading">
+      <div class="spinner" role="status"></div>
     </div>
 
     <template v-else-if="report">
-      <!-- Totals -->
-      <div class="report-stats" :class="{ 'is-loading': loading }">
+      <div class="grid grid--5 report-detail__stats" :class="{ 'is-loading': loading }">
         <div class="stat">
-          <span class="stat-label">{{ $t('reports.total') }}</span>
-          <span class="stat-value">{{ formatDuration(report.totals.total_seconds) }} h</span>
-          <span class="stat-sub">{{ formatHoursDecimal(report.totals.total_seconds) }} h</span>
+          <span class="stat__label">{{ $t('reports.total') }}</span>
+          <span class="stat__value">{{ formatDuration(report.totals.total_seconds) }} h</span>
+          <span class="stat__sub">{{ formatHoursDecimal(report.totals.total_seconds) }} h</span>
         </div>
         <div class="stat">
-          <span class="stat-label">{{ $t('reports.billable') }}</span>
-          <span class="stat-value stat-value-billable">{{ formatDuration(report.totals.billable_seconds) }} h</span>
-          <span class="stat-sub">{{ formatHoursDecimal(report.totals.billable_seconds) }} h</span>
+          <span class="stat__label">{{ $t('reports.billable') }}</span>
+          <span class="stat__value stat__value--accent">{{ formatDuration(report.totals.billable_seconds) }} h</span>
+          <span class="stat__sub">{{ formatHoursDecimal(report.totals.billable_seconds) }} h</span>
         </div>
         <div class="stat">
-          <span class="stat-label">{{ $t('reports.nonBillable') }}</span>
-          <span class="stat-value">{{ formatDuration(report.totals.non_billable_seconds) }} h</span>
+          <span class="stat__label">{{ $t('reports.nonBillable') }}</span>
+          <span class="stat__value">{{ formatDuration(report.totals.non_billable_seconds) }} h</span>
+          <span class="stat__sub">{{ formatHoursDecimal(report.totals.non_billable_seconds) }} h</span>
         </div>
         <div class="stat">
-          <span class="stat-label">{{ $t('reports.entries') }}</span>
-          <span class="stat-value">{{ report.totals.entry_count }}</span>
-          <span class="stat-sub">{{ $t('reportDetail.daysTracked', { count: report.totals.days_tracked }) }}</span>
+          <span class="stat__label">{{ $t('reports.entries') }}</span>
+          <span class="stat__value">{{ report.totals.entry_count }}</span>
+          <span class="stat__sub">{{ $t('reportDetail.daysTracked', { count: report.totals.days_tracked }) }}</span>
         </div>
         <div v-if="showAmount" class="stat">
-          <span class="stat-label">{{ $t('reports.billableAmount') }}</span>
-          <span class="stat-value">{{ formatCurrency(report.totals.amount) }}</span>
+          <span class="stat__label">{{ $t('reports.billableAmount') }}</span>
+          <span class="stat__value">{{ formatCurrency(report.totals.amount) }}</span>
         </div>
       </div>
-      <p v-if="report.rounding_minutes > 0" class="text-muted report-note">
+      <p v-if="report.rounding_minutes > 0" class="report-detail__note">
         {{ $t('reports.roundingNote', { minutes: report.rounding_minutes }) }}
       </p>
 
       <div v-if="report.totals.entry_count === 0" class="card">
-        <div class="empty-state">
-          <p class="empty-state-text">{{ $t('reports.noEntries') }}</p>
+        <div class="empty">
+          <p class="empty__text">{{ $t('reports.noEntries') }}</p>
         </div>
       </div>
 
       <template v-else>
-        <div class="report-groups">
+        <div class="grid grid--2 report-detail__groups" :class="{ 'is-loading': loading }">
           <!-- By client -->
           <div v-if="showClients" class="card">
-            <div class="card-header"><h2 class="heading-3">{{ $t('reports.byClient') }}</h2></div>
-            <table class="table group-table">
-              <thead class="table-header">
-                <tr>
-                  <th class="table-th">{{ $t('reports.client') }}</th>
-                  <th class="table-th th-num">{{ $t('reportDetail.share') }}</th>
-                  <th class="table-th th-num">{{ $t('reports.totalHours') }}</th>
-                  <th class="table-th th-num">{{ $t('reports.billable') }}</th>
-                  <th v-if="showAmount" class="table-th th-num">{{ $t('reports.billableAmount') }}</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="row in report.by_client" :key="row.id ?? 'none'" class="table-row">
-                  <td class="table-td">
-                    <span v-if="row.color" class="color-dot" :style="{ backgroundColor: row.color }"></span>
-                    {{ row.name }}
-                  </td>
-                  <td class="table-td td-num"><span class="share-bar"><span class="share-fill" :style="{ width: share(row) + '%' }"></span></span>{{ share(row) }}%</td>
-                  <td class="table-td td-num">{{ formatDuration(row.total_seconds) }}</td>
-                  <td class="table-td td-num">{{ formatDuration(row.billable_seconds) }}</td>
-                  <td v-if="showAmount" class="table-td td-num">{{ formatCurrency(row.amount) }}</td>
-                </tr>
-              </tbody>
-            </table>
+            <div class="card__header"><h2 class="card__title">{{ $t('reports.byClient') }}</h2></div>
+            <div class="table-wrap">
+              <table class="table table--compact">
+                <thead>
+                  <tr>
+                    <th>{{ $t('reports.client') }}</th>
+                    <th class="table__num">{{ $t('reportDetail.share') }}</th>
+                    <th class="table__num">{{ $t('reports.totalHours') }}</th>
+                    <th class="table__num">{{ $t('reports.billable') }}</th>
+                    <th v-if="showAmount" class="table__num">{{ $t('reports.billableAmount') }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="row in report.by_client" :key="row.id ?? 'none'" class="table__row">
+                    <td>
+                      <span class="cell">
+                        <span v-if="row.color" class="color-dot" :style="{ backgroundColor: row.color }"></span>
+                        <span class="cell__title">{{ row.name }}</span>
+                      </span>
+                    </td>
+                    <td class="table__num">
+                      <span class="share"><span class="bar"><span class="bar__fill" :style="{ width: share(row) + '%' }"></span></span>{{ share(row) }}%</span>
+                    </td>
+                    <td class="table__num">{{ formatDuration(row.total_seconds) }}</td>
+                    <td class="table__num">{{ formatDuration(row.billable_seconds) }}</td>
+                    <td v-if="showAmount" class="table__num">{{ formatCurrency(row.amount) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <!-- By project -->
           <div v-if="showProjects" class="card">
-            <div class="card-header"><h2 class="heading-3">{{ $t('reports.byProject') }}</h2></div>
-            <table class="table group-table">
-              <thead class="table-header">
-                <tr>
-                  <th class="table-th">{{ $t('reports.project') }}</th>
-                  <th v-if="scope !== 'client'" class="table-th">{{ $t('reports.client') }}</th>
-                  <th class="table-th th-num">{{ $t('reportDetail.share') }}</th>
-                  <th class="table-th th-num">{{ $t('reports.totalHours') }}</th>
-                  <th class="table-th th-num">{{ $t('reports.billable') }}</th>
-                  <th v-if="showAmount" class="table-th th-num">{{ $t('reports.billableAmount') }}</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="row in report.by_project" :key="row.id ?? 'none'" class="table-row">
-                  <td class="table-td">
-                    <RouterLink :to="{ name: 'report-detail', params: { scope: 'projects', id: row.id }, query: { from: range.from, to: range.to } }" class="row-link">
-                      <span v-if="row.color" class="color-dot" :style="{ backgroundColor: row.color }"></span>
-                      {{ row.name }}
-                    </RouterLink>
-                  </td>
-                  <td v-if="scope !== 'client'" class="table-td text-muted">{{ row.subtitle }}</td>
-                  <td class="table-td td-num"><span class="share-bar"><span class="share-fill" :style="{ width: share(row) + '%' }"></span></span>{{ share(row) }}%</td>
-                  <td class="table-td td-num">{{ formatDuration(row.total_seconds) }}</td>
-                  <td class="table-td td-num">{{ formatDuration(row.billable_seconds) }}</td>
-                  <td v-if="showAmount" class="table-td td-num">{{ formatCurrency(row.amount) }}</td>
-                </tr>
-              </tbody>
-            </table>
+            <div class="card__header"><h2 class="card__title">{{ $t('reports.byProject') }}</h2></div>
+            <div class="table-wrap">
+              <table class="table table--compact">
+                <thead>
+                  <tr>
+                    <th>{{ $t('reports.project') }}</th>
+                    <th v-if="scope !== 'client'">{{ $t('reports.client') }}</th>
+                    <th class="table__num">{{ $t('reportDetail.share') }}</th>
+                    <th class="table__num">{{ $t('reports.totalHours') }}</th>
+                    <th class="table__num">{{ $t('reports.billable') }}</th>
+                    <th v-if="showAmount" class="table__num">{{ $t('reports.billableAmount') }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="row in report.by_project" :key="row.id ?? 'none'" class="table__row">
+                    <td>
+                      <RouterLink
+                        :to="{ name: 'report-detail', params: { scope: 'projects', id: row.id }, query: { from: range.from, to: range.to } }"
+                        class="cell report-detail__link"
+                      >
+                        <span v-if="row.color" class="color-dot" :style="{ backgroundColor: row.color }"></span>
+                        <span class="cell__title">{{ row.name }}</span>
+                      </RouterLink>
+                    </td>
+                    <td v-if="scope !== 'client'" class="table__muted">{{ row.subtitle }}</td>
+                    <td class="table__num">
+                      <span class="share"><span class="bar"><span class="bar__fill" :style="{ width: share(row) + '%' }"></span></span>{{ share(row) }}%</span>
+                    </td>
+                    <td class="table__num">{{ formatDuration(row.total_seconds) }}</td>
+                    <td class="table__num">{{ formatDuration(row.billable_seconds) }}</td>
+                    <td v-if="showAmount" class="table__num">{{ formatCurrency(row.amount) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <!-- By task -->
           <div v-if="showTasks" class="card">
-            <div class="card-header"><h2 class="heading-3">{{ $t('reportDetail.byTask') }}</h2></div>
-            <table class="table group-table">
-              <thead class="table-header">
-                <tr>
-                  <th class="table-th">{{ $t('reports.printTask') }}</th>
-                  <th class="table-th th-num">{{ $t('reportDetail.share') }}</th>
-                  <th class="table-th th-num">{{ $t('reports.totalHours') }}</th>
-                  <th class="table-th th-num">{{ $t('reports.billable') }}</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="row in report.by_task" :key="row.id ?? 'none'" class="table-row">
-                  <td class="table-td">{{ row.name || '-' }}</td>
-                  <td class="table-td td-num"><span class="share-bar"><span class="share-fill" :style="{ width: share(row) + '%' }"></span></span>{{ share(row) }}%</td>
-                  <td class="table-td td-num">{{ formatDuration(row.total_seconds) }}</td>
-                  <td class="table-td td-num">{{ formatDuration(row.billable_seconds) }}</td>
-                </tr>
-              </tbody>
-            </table>
+            <div class="card__header"><h2 class="card__title">{{ $t('reportDetail.byTask') }}</h2></div>
+            <div class="table-wrap">
+              <table class="table table--compact">
+                <thead>
+                  <tr>
+                    <th>{{ $t('reports.printTask') }}</th>
+                    <th class="table__num">{{ $t('reportDetail.share') }}</th>
+                    <th class="table__num">{{ $t('reports.totalHours') }}</th>
+                    <th class="table__num">{{ $t('reports.billable') }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="row in report.by_task" :key="row.id ?? 'none'" class="table__row">
+                    <td>{{ row.name || '-' }}</td>
+                    <td class="table__num">
+                      <span class="share"><span class="bar"><span class="bar__fill" :style="{ width: share(row) + '%' }"></span></span>{{ share(row) }}%</span>
+                    </td>
+                    <td class="table__num">{{ formatDuration(row.total_seconds) }}</td>
+                    <td class="table__num">{{ formatDuration(row.billable_seconds) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <!-- By team member -->
           <div v-if="showUsers" class="card">
-            <div class="card-header"><h2 class="heading-3">{{ $t('reports.byTeamMember') }}</h2></div>
-            <table class="table group-table">
-              <thead class="table-header">
-                <tr>
-                  <th class="table-th">{{ $t('reports.teamMember') }}</th>
-                  <th class="table-th th-num">{{ $t('reportDetail.share') }}</th>
-                  <th class="table-th th-num">{{ $t('reports.totalHours') }}</th>
-                  <th class="table-th th-num">{{ $t('reports.billable') }}</th>
-                  <th class="table-th th-num">{{ $t('reports.entries') }}</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="row in report.by_user" :key="row.id ?? 'none'" class="table-row">
-                  <td class="table-td">
-                    <RouterLink :to="{ name: 'report-detail', params: { scope: 'users', id: row.id }, query: { from: range.from, to: range.to } }" class="row-link">{{ row.name }}</RouterLink>
-                  </td>
-                  <td class="table-td td-num"><span class="share-bar"><span class="share-fill" :style="{ width: share(row) + '%' }"></span></span>{{ share(row) }}%</td>
-                  <td class="table-td td-num">{{ formatDuration(row.total_seconds) }}</td>
-                  <td class="table-td td-num">{{ formatDuration(row.billable_seconds) }}</td>
-                  <td class="table-td td-num">{{ row.entry_count }}</td>
-                </tr>
-              </tbody>
-            </table>
+            <div class="card__header"><h2 class="card__title">{{ $t('reports.byTeamMember') }}</h2></div>
+            <div class="table-wrap">
+              <table class="table table--compact">
+                <thead>
+                  <tr>
+                    <th>{{ $t('reports.teamMember') }}</th>
+                    <th class="table__num">{{ $t('reportDetail.share') }}</th>
+                    <th class="table__num">{{ $t('reports.totalHours') }}</th>
+                    <th class="table__num">{{ $t('reports.billable') }}</th>
+                    <th class="table__num">{{ $t('reports.entries') }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="row in report.by_user" :key="row.id ?? 'none'" class="table__row">
+                    <td>
+                      <RouterLink
+                        :to="{ name: 'report-detail', params: { scope: 'users', id: row.id }, query: { from: range.from, to: range.to } }"
+                        class="report-detail__link"
+                      >
+                        {{ row.name }}
+                      </RouterLink>
+                    </td>
+                    <td class="table__num">
+                      <span class="share"><span class="bar"><span class="bar__fill" :style="{ width: share(row) + '%' }"></span></span>{{ share(row) }}%</span>
+                    </td>
+                    <td class="table__num">{{ formatDuration(row.total_seconds) }}</td>
+                    <td class="table__num">{{ formatDuration(row.billable_seconds) }}</td>
+                    <td class="table__num">{{ row.entry_count }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
 
         <!-- Detail -->
-        <div class="card report-detail">
-          <div class="card-header"><h2 class="heading-3">{{ $t('reportDetail.detail') }}</h2></div>
-          <div class="table-container">
-            <table class="table">
-              <thead class="table-header">
+        <div class="card report-detail__entries" :class="{ 'is-loading': loading }">
+          <div class="card__header"><h2 class="card__title">{{ $t('reportDetail.detail') }}</h2></div>
+          <div class="table-wrap">
+            <table class="table report-detail__table">
+              <thead>
                 <tr>
-                  <th class="table-th th-time">{{ $t('reportDetail.time') }}</th>
-                  <th v-if="auth.isAdmin && scope !== 'user'" class="table-th">{{ $t('reports.teamMember') }}</th>
-                  <th v-if="showProjects" class="table-th">{{ $t('reports.project') }}</th>
-                  <th class="table-th">{{ $t('reports.printTask') }}</th>
-                  <th class="table-th">{{ $t('timeEntries.description') }}</th>
-                  <th class="table-th th-num">{{ $t('reports.printDuration') }}</th>
+                  <th class="report-detail__col-time">{{ $t('reportDetail.time') }}</th>
+                  <th v-if="showUserCol">{{ $t('reports.teamMember') }}</th>
+                  <th v-if="showProjects">{{ $t('reports.project') }}</th>
+                  <th>{{ $t('reports.printTask') }}</th>
+                  <th>{{ $t('timeEntries.description') }}</th>
+                  <th class="table__num">{{ $t('reports.printDuration') }}</th>
                 </tr>
               </thead>
               <tbody>
                 <template v-for="day in report.days" :key="day.date">
-                  <tr class="day-row">
-                    <td class="table-td" :colspan="3 + (auth.isAdmin && scope !== 'user' ? 1 : 0) + (showProjects ? 1 : 0)">{{ formatDateLong(day.date + 'T00:00:00') }}</td>
-                    <td class="table-td td-num">{{ formatDuration(day.total_seconds) }}</td>
+                  <tr class="table__group">
+                    <td :colspan="dayColspan">{{ formatDateLong(day.date + 'T00:00:00') }}</td>
+                    <td class="table__num">{{ formatDuration(day.total_seconds) }}</td>
                   </tr>
-                  <tr v-for="e in day.entries" :key="e.id" class="table-row">
-                    <td class="table-td td-time">{{ e.start_time }}<template v-if="e.end_time"> - {{ e.end_time }}</template></td>
-                    <td v-if="auth.isAdmin && scope !== 'user'" class="table-td">{{ e.user_name }}</td>
-                    <td v-if="showProjects" class="table-td">
-                      <span v-if="e.project_color" class="color-dot" :style="{ backgroundColor: e.project_color }"></span>
-                      <span v-if="scope !== 'client' && e.client_name" class="text-muted">{{ e.client_name }} / </span>{{ e.project_name }}
+                  <tr v-for="e in day.entries" :key="e.id" class="table__row">
+                    <td class="table__time">{{ e.start_time }}<template v-if="e.end_time"> - {{ e.end_time }}</template></td>
+                    <td v-if="showUserCol" class="report-detail__col-user">{{ e.user_name }}</td>
+                    <td v-if="showProjects">
+                      <span class="cell">
+                        <span v-if="e.project_color" class="color-dot" :style="{ backgroundColor: e.project_color }"></span>
+                        <span class="cell__title">
+                          <span v-if="scope !== 'client' && e.client_name" class="table__muted">{{ e.client_name }} / </span>{{ e.project_name }}
+                        </span>
+                      </span>
                     </td>
-                    <td class="table-td">{{ e.task_name || '-' }}</td>
-                    <td class="table-td td-desc">
-                      {{ e.description }}
-                      <span v-if="!e.is_billable" class="badge-gray">{{ $t('common.nonBillable') }}</span>
+                    <td class="table__muted">{{ e.task_name || '-' }}</td>
+                    <td class="report-detail__desc">
+                      {{ e.description || '-' }}
+                      <span v-if="!e.is_billable" class="badge badge--neutral">{{ $t('common.nonBillable') }}</span>
                     </td>
-                    <td class="table-td td-num">{{ formatDuration(e.rounded_seconds) }}</td>
+                    <td class="table__num">{{ formatDuration(e.rounded_seconds) }}</td>
                   </tr>
                 </template>
               </tbody>
@@ -386,45 +416,3 @@ onMounted(load)
     </template>
   </div>
 </template>
-
-<style scoped>
-@reference "../assets/main.css";
-
-.report-back { @apply mb-2; }
-.report-header { @apply flex flex-wrap items-start justify-between gap-4 mb-5; }
-.report-title-block { @apply flex flex-col gap-1; }
-.report-kicker { @apply text-xs font-semibold uppercase tracking-wider text-gray-500; }
-.report-title { @apply flex items-center gap-2; }
-.report-dot { @apply h-3 w-3; }
-.report-actions { @apply flex items-center gap-2; }
-
-.report-toolbar { @apply flex flex-wrap items-center justify-between gap-3 mb-5; }
-.period-nav { @apply flex items-center gap-2; }
-.period-label { @apply min-w-40 text-center text-base font-semibold text-gray-900; }
-.period-custom { @apply flex flex-wrap items-center gap-2; }
-.date-input { @apply w-40; }
-.rounding-select { @apply w-32; }
-
-.report-stats { @apply grid grid-cols-2 gap-3 mb-2 sm:grid-cols-3 lg:grid-cols-5 transition-opacity; }
-.report-stats.is-loading { @apply opacity-50; }
-.stat { @apply bg-white rounded-lg border border-gray-200 shadow-sm px-5 py-4 flex flex-col; }
-.stat-label { @apply text-xs font-medium uppercase tracking-wider text-gray-500; }
-.stat-value { @apply text-2xl font-bold text-gray-900 tabular-nums; }
-.stat-value-billable { @apply text-green-700; }
-.stat-sub { @apply text-xs text-gray-500 tabular-nums; }
-.report-note { @apply mb-5; }
-
-.report-groups { @apply grid grid-cols-1 gap-5 mb-5 xl:grid-cols-2; }
-.group-table { @apply w-full; }
-.th-num, .td-num { @apply text-right tabular-nums whitespace-nowrap; }
-.th-time { @apply w-32; }
-.td-time { @apply text-gray-500 tabular-nums whitespace-nowrap; }
-.td-desc { @apply text-gray-700; }
-.row-link { @apply inline-flex items-center gap-2 hover:underline; }
-.share-bar { @apply inline-block w-16 h-1.5 bg-gray-200 rounded-full mr-2 align-middle overflow-hidden; }
-.share-fill { @apply block h-full bg-primary-500 rounded-full; }
-.day-row td { @apply bg-gray-50 font-semibold text-gray-800; }
-.icon-sm { @apply h-4 w-4; }
-.loading-center { @apply flex justify-center py-12; }
-.form-error-box { @apply rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 border border-red-200 mb-4; }
-</style>

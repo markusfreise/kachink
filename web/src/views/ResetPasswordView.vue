@@ -2,8 +2,8 @@
 import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { ClockIcon } from '@heroicons/vue/24/outline'
 import api from '@/api/client'
+import { errorMessage } from '@/stores/toast'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -36,17 +36,17 @@ async function handleSubmit() {
     })
     success.value = true
     setTimeout(() => router.push({ name: 'login' }), 2500)
-  } catch (e: any) {
-    const data = e.response?.data
+  } catch (e) {
+    const data = (e as { response?: { data?: { message?: string; errors?: Record<string, string[]> } } }).response?.data
     if (data?.errors) {
-      // Map Laravel validation errors
+      // Map Laravel validation errors to their fields
       const errs: Record<string, string> = {}
-      for (const [key, messages] of Object.entries(data.errors as Record<string, string[]>)) {
-        errs[key] = (messages as string[])[0] ?? ''
+      for (const [key, messages] of Object.entries(data.errors)) {
+        errs[key] = messages[0] ?? ''
       }
       fieldErrors.value = errs
     } else {
-      error.value = data?.message || t('resetPassword.error')
+      error.value = errorMessage(e, t('resetPassword.error'))
     }
   } finally {
     loading.value = false
@@ -55,120 +55,77 @@ async function handleSubmit() {
 </script>
 
 <template>
-  <div class="login-page">
-    <div class="login-card">
-      <div class="login-header">
-        <ClockIcon class="login-logo" />
-        <h1 class="login-title">kaCHINK!</h1>
-        <p class="login-subtitle">{{ $t('resetPassword.title') }}</p>
+  <div class="auth">
+    <div class="auth__card">
+      <div class="auth__brand">
+        <img src="/appicon.png" alt="" class="auth__logo" />
+        <h1 class="auth__title">kaCHINK!</h1>
+        <p class="auth__subtitle">{{ $t('resetPassword.title') }}</p>
       </div>
 
-      <div v-if="success" class="login-form">
-        <div class="success-box">
+      <div v-if="success" class="form auth__form">
+        <div class="form__alert form__alert--success" role="status">
           {{ $t('resetPassword.successMessage') }}
         </div>
       </div>
 
-      <form v-else class="login-form" @submit.prevent="handleSubmit">
-        <div v-if="error" class="login-error">{{ error }}</div>
+      <form v-else class="form auth__form" novalidate @submit.prevent="handleSubmit">
+        <div v-if="error" class="form__alert" role="alert">{{ error }}</div>
 
-        <div class="form-group">
-          <label class="form-label" for="email">{{ $t('auth.email') }}</label>
+        <div class="form__group">
+          <label class="form__label" for="reset-email">{{ $t('auth.email') }}</label>
           <input
-            id="email"
+            id="reset-email"
             v-model="email"
             type="email"
-            class="form-input"
+            class="form__input"
+            autocomplete="email"
+            :aria-invalid="fieldErrors.email ? 'true' : undefined"
+            :aria-describedby="fieldErrors.email ? 'reset-email-error' : undefined"
             required
           />
-          <span v-if="fieldErrors.email" class="field-error">{{ fieldErrors.email }}</span>
+          <span v-if="fieldErrors.email" id="reset-email-error" class="form__error">{{ fieldErrors.email }}</span>
         </div>
 
-        <div class="form-group">
-          <label class="form-label" for="password">{{ $t('resetPassword.newPassword') }}</label>
+        <div class="form__group">
+          <label class="form__label" for="reset-password">{{ $t('resetPassword.newPassword') }}</label>
           <input
-            id="password"
+            id="reset-password"
             v-model="password"
             type="password"
-            class="form-input"
+            class="form__input"
             :placeholder="$t('resetPassword.minChars')"
+            autocomplete="new-password"
+            :aria-invalid="fieldErrors.password ? 'true' : undefined"
+            :aria-describedby="fieldErrors.password ? 'reset-password-error' : undefined"
             required
             autofocus
           />
-          <span v-if="fieldErrors.password" class="field-error">{{ fieldErrors.password }}</span>
+          <span v-if="fieldErrors.password" id="reset-password-error" class="form__error">{{ fieldErrors.password }}</span>
         </div>
 
-        <div class="form-group">
-          <label class="form-label" for="password_confirmation">{{ $t('resetPassword.confirmPassword') }}</label>
+        <div class="form__group">
+          <label class="form__label" for="reset-password-confirmation">{{ $t('resetPassword.confirmPassword') }}</label>
           <input
-            id="password_confirmation"
+            id="reset-password-confirmation"
             v-model="passwordConfirmation"
             type="password"
-            class="form-input"
+            class="form__input"
             :placeholder="$t('resetPassword.repeatPassword')"
+            autocomplete="new-password"
             required
           />
         </div>
 
-        <button type="submit" class="btn-primary login-submit" :disabled="loading">
+        <button type="submit" class="btn btn--primary btn--block" :disabled="loading">
+          <span v-if="loading" class="spinner" aria-hidden="true"></span>
           {{ loading ? $t('common.saving') : $t('resetPassword.setNewPassword') }}
         </button>
-
-        <router-link :to="{ name: 'login' }" class="back-link">
-          {{ $t('auth.backToSignInArrow') }}
-        </router-link>
       </form>
+
+      <p v-if="!success" class="auth__footer">
+        <RouterLink :to="{ name: 'login' }" class="auth__link">{{ $t('auth.backToSignIn') }}</RouterLink>
+      </p>
     </div>
   </div>
 </template>
-
-<style scoped>
-@reference "../assets/main.css";
-.login-page {
-  @apply flex min-h-screen items-center justify-center bg-gray-50 px-4;
-}
-
-.login-card {
-  @apply w-full max-w-sm;
-}
-
-.login-header {
-  @apply flex flex-col items-center mb-8;
-}
-
-.login-logo {
-  @apply h-12 w-12 text-primary-600;
-}
-
-.login-title {
-  @apply mt-3 text-2xl font-bold text-gray-900;
-}
-
-.login-subtitle {
-  @apply mt-1 text-sm text-gray-500;
-}
-
-.login-form {
-  @apply bg-white rounded-lg border border-gray-200 shadow-sm px-6 py-4 space-y-4;
-}
-
-.login-error {
-  @apply rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 border border-red-200;
-}
-
-.success-box {
-  @apply rounded-lg bg-green-50 px-4 py-3 text-sm text-green-700 border border-green-200;
-}
-
-.login-submit {
-  @apply w-full;
-}
-
-.back-link {
-  @apply block text-center text-sm text-gray-500 hover:text-gray-700;
-}
-
-.field-error {
-  @apply text-xs text-red-600 mt-1;
-}
-</style>

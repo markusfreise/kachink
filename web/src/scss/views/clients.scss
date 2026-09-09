@@ -2,3 +2,29 @@
 @use "../mixins" as *;
 
 // clients view
+.clients {
+  &__notes {
+    max-width: pxtorem(280);
+    color: var(--c-copy-light);
+    @include truncate;
+  }
+
+  &__row--archived {
+    .cell__title {
+      color: var(--c-copy-light);
+    }
+
+    .color-dot {
+      opacity: 0.5;
+    }
+  }
+
+  // th.clients__actions-head needs to beat .table th (0,1,1)
+  th.clients__actions-head {
+    text-align: right;
+  }
+
+  &__per-page {
+    width: pxtorem(84);
+  }
+}

@@ -5,241 +5,395 @@ import api from '@/api/client'
 import { downloadFile } from '@/api/download'
 import { useAuthStore } from '@/stores/auth'
 import { useSettingsStore } from '@/stores/settings'
-import type { SummaryRow, ReportTotals, BudgetRow, UtilizationRow, Project, TimeEntry } from '@/types'
-import { ArrowDownTrayIcon, PrinterIcon } from '@heroicons/vue/24/outline'
+import { useToastStore, errorMessage } from '@/stores/toast'
+import type { SummaryRow, ReportTotals, BudgetRow, UtilizationRow, Project, TimeEntry, PaginationMeta } from '@/types'
+import { formatDuration, formatHoursDecimal, formatCurrency, formatDate, formatDateLong, formatTime, formatMonth, toDateString } from '@/utils/format'
+import { ArrowDownTrayIcon, DocumentTextIcon } from '@heroicons/vue/24/outline'
 import ComboBox from '@/components/ComboBox.vue'
+import AppPagination from '@/components/AppPagination.vue'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const auth = useAuthStore()
 const settings = useSettingsStore()
+const toast = useToastStore()
 
-type ReportType = 'summary' | 'budget' | 'utilization' | 'timesheet'
+type ReportType = 'summary' | 'timesheet' | 'budget' | 'utilization'
+type GroupBy = 'project' | 'client' | 'user' | 'day' | 'week' | 'month'
+type ChartGroup = 'project' | 'client' | 'user'
+type Preset = 'this_week' | 'last_week' | 'this_month' | 'last_month' | 'this_quarter' | 'this_year'
+
+const CHART_GROUPS: readonly ChartGroup[] = ['project', 'client', 'user']
+const CHART_LIMIT = 8
+const TIMESHEET_PER_PAGE = 100
+
 const reportType = ref<ReportType>('summary')
-const groupBy = ref('project')
-const dateFrom = ref(getFirstOfMonth())
-const dateTo = ref(new Date().toISOString().split('T')[0]!)
+const groupBy = ref<GroupBy>('project')
+const dateFrom = ref('')
+const dateTo = ref('')
 const filterProjectId = ref('')
+const activePreset = ref<Preset | null>(null)
 
 const summaryData = ref<SummaryRow[]>([])
 const totals = ref<ReportTotals | null>(null)
+const chartData = ref<Record<ChartGroup, SummaryRow[]>>({ project: [], client: [], user: [] })
 const budgetData = ref<BudgetRow[]>([])
 const utilizationData = ref<UtilizationRow[]>([])
 const timesheetEntries = ref<TimeEntry[]>([])
-const timesheetMeta = ref<{ current_page: number; last_page: number; total: number; totals: ReportTotals | null } | null>(null)
+const timesheetMeta = ref<PaginationMeta | null>(null)
 const timesheetPage = ref(1)
-
-const chartProjectData = ref<SummaryRow[]>([])
-const chartClientData = ref<SummaryRow[]>([])
-const chartUserData = ref<SummaryRow[]>([])
 
 const projects = ref<Project[]>([])
 const loading = ref(false)
+const downloading = ref<'pdf' | 'csv' | null>(null)
 
-function fmt(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
+// Cache keys so tab switches and group-by changes do not refetch unchanged data.
+const summaryKey = ref('')
+const utilizationKey = ref('')
+const timesheetKey = ref('')
+const budgetLoaded = ref(false)
 
-function getFirstOfMonth(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
-}
-
-function formatDuration(seconds: number | null): string {
-  if (!seconds) return '0:00'
-  const h = Math.floor(seconds / 3600)
-  const m = Math.floor((seconds % 3600) / 60)
-  return `${h}:${String(m).padStart(2, '0')}`
-}
-
-function formatTotalTime(hours: number): string {
-  const totalSeconds = Math.round(hours * 3600)
-  const h = Math.floor(totalSeconds / 3600)
-  const m = Math.floor((totalSeconds % 3600) / 60)
-  const parts: string[] = []
-  if (h > 0) parts.push(`${h}h`)
-  if (m > 0 || parts.length === 0) parts.push(`${m}min`)
-  return parts.join(' ')
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })
-}
-
-function formatDateLong(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })
-}
-
-function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
-}
-
-function formatCurrency(amount: number): string {
-  return amount.toLocaleString(undefined, { style: 'currency', currency: 'EUR' })
-}
-
-// Billable amount computed from project-level summary + hourly rates
-const billableAmount = computed(() => {
-  let total = 0
-  for (const row of chartProjectData.value) {
-    if (!row.project_id) continue
-    const project = projects.value.find(p => p.id === row.project_id)
-    if (project?.hourly_rate && row.billable_hours > 0) {
-      total += row.billable_hours * project.hourly_rate
-    }
-  }
-  return total
+const tabs = computed(() => {
+  const list: { key: ReportType; label: string }[] = [
+    { key: 'summary', label: t('reports.summary') },
+    { key: 'timesheet', label: t('reports.timesheet') },
+    { key: 'budget', label: t('reports.budget') },
+  ]
+  if (auth.isAdmin) list.push({ key: 'utilization', label: t('reports.utilization') })
+  return list
 })
 
-// Chart data: top 8 entries by total_hours for each grouping
-const topChartProjects = computed(() =>
-  [...chartProjectData.value].sort((a, b) => b.total_hours - a.total_hours).slice(0, 8)
-)
-const topChartClients = computed(() =>
-  [...chartClientData.value].sort((a, b) => b.total_hours - a.total_hours).slice(0, 8)
-)
-const topChartUsers = computed(() =>
-  [...chartUserData.value].sort((a, b) => b.total_hours - a.total_hours).slice(0, 8)
-)
-const maxProjectHours = computed(() => Math.max(...topChartProjects.value.map(r => r.total_hours), 1))
-const maxClientHours = computed(() => Math.max(...topChartClients.value.map(r => r.total_hours), 1))
-const maxUserHours = computed(() => Math.max(...topChartUsers.value.map(r => r.total_hours), 1))
-
-// Resolved filter context
-const selectedProject = computed(() =>
-  filterProjectId.value ? projects.value.find(p => p.id === filterProjectId.value) ?? null : null
-)
-// Hide project column when filtered by project (shown in title instead)
-const showProjectCol = computed(() => !filterProjectId.value)
-
-type DateRange = 'this_week' | 'this_month' | 'last_month' | 'this_quarter' | 'this_year'
-const activeRange = ref<DateRange | null>('this_month')
-const dateRangeOptions = computed(() => [
-  { key: 'this_week' as DateRange, label: t('reports.thisWeek') },
-  { key: 'this_month' as DateRange, label: t('reports.thisMonth') },
-  { key: 'last_month' as DateRange, label: t('reports.lastMonth') },
-  { key: 'this_quarter' as DateRange, label: t('reports.thisQuarter') },
-  { key: 'this_year' as DateRange, label: t('reports.thisYear') },
+const presets = computed<{ key: Preset; label: string }[]>(() => [
+  { key: 'this_week', label: t('reports.thisWeek') },
+  { key: 'last_week', label: t('reports.lastWeek') },
+  { key: 'this_month', label: t('reports.thisMonth') },
+  { key: 'last_month', label: t('reports.lastMonth') },
+  { key: 'this_quarter', label: t('reports.thisQuarter') },
+  { key: 'this_year', label: t('reports.thisYear') },
 ])
 
-function setRange(range: DateRange) {
-  activeRange.value = range
+const groupOptions = computed<{ value: GroupBy; label: string }[]>(() => [
+  { value: 'project', label: t('reports.groupProject') },
+  { value: 'client', label: t('reports.groupClient') },
+  { value: 'user', label: t('reports.groupUser') },
+  { value: 'day', label: t('reports.groupDay') },
+  { value: 'week', label: t('reports.groupWeek') },
+  { value: 'month', label: t('reports.groupMonth') },
+])
+
+function setPreset(preset: Preset) {
+  activePreset.value = preset
   const today = new Date()
   const y = today.getFullYear()
   const m = today.getMonth()
-
-  if (range === 'this_week') {
-    const dow = today.getDay()
-    const monday = new Date(today)
-    monday.setDate(today.getDate() - ((dow + 6) % 7))
-    dateFrom.value = fmt(monday)
-    dateTo.value = fmt(today)
-  } else if (range === 'this_month') {
-    dateFrom.value = `${y}-${String(m + 1).padStart(2, '0')}-01`
-    dateTo.value = fmt(today)
-  } else if (range === 'last_month') {
-    dateFrom.value = fmt(new Date(y, m - 1, 1))
-    dateTo.value = fmt(new Date(y, m, 0))
-  } else if (range === 'this_quarter') {
-    const q = Math.floor(m / 3)
-    dateFrom.value = fmt(new Date(y, q * 3, 1))
-    dateTo.value = fmt(today)
-  } else if (range === 'this_year') {
-    dateFrom.value = `${y}-01-01`
-    dateTo.value = fmt(today)
+  const mondayOf = (d: Date) => {
+    const monday = new Date(d)
+    monday.setDate(d.getDate() - ((d.getDay() + 6) % 7))
+    return monday
   }
+
+  let from: Date
+  let to: Date = today
+  switch (preset) {
+    case 'this_week':
+      from = mondayOf(today)
+      break
+    case 'last_week': {
+      const monday = mondayOf(today)
+      from = new Date(monday)
+      from.setDate(monday.getDate() - 7)
+      to = new Date(monday)
+      to.setDate(monday.getDate() - 1)
+      break
+    }
+    case 'last_month':
+      from = new Date(y, m - 1, 1)
+      to = new Date(y, m, 0)
+      break
+    case 'this_quarter':
+      from = new Date(y, Math.floor(m / 3) * 3, 1)
+      break
+    case 'this_year':
+      from = new Date(y, 0, 1)
+      break
+    default:
+      from = new Date(y, m, 1)
+  }
+  dateFrom.value = toDateString(from)
+  dateTo.value = toDateString(to)
 }
 
-async function fetchReport() {
-  if (reportType.value === 'timesheet') {
-    await fetchTimesheet()
+function onDateInput() {
+  activePreset.value = null
+}
+
+const rangeValid = computed(() => !!dateFrom.value && !!dateTo.value && dateFrom.value <= dateTo.value)
+
+function baseParams(): Record<string, string> {
+  const params: Record<string, string> = { date_from: dateFrom.value, date_to: dateTo.value }
+  if (filterProjectId.value) params['filter[project_id]'] = filterProjectId.value
+  return params
+}
+
+function rangeKey(): string {
+  return `${dateFrom.value}|${dateTo.value}|${filterProjectId.value}`
+}
+
+function isChartGroup(g: GroupBy): g is ChartGroup {
+  return (CHART_GROUPS as readonly string[]).includes(g)
+}
+
+async function fetchSummary() {
+  if (!rangeValid.value) return
+  const key = rangeKey()
+  const cached = summaryKey.value === key
+  const group = groupBy.value
+
+  if (cached && isChartGroup(group)) {
+    summaryData.value = chartData.value[group]
     return
   }
 
   loading.value = true
   try {
-    if (reportType.value === 'summary') {
-      const baseParams: Record<string, string> = {
-        date_from: dateFrom.value,
-        date_to: dateTo.value,
-      }
-      if (filterProjectId.value) baseParams['filter[project_id]'] = filterProjectId.value
-
-      const chartGroupings = ['project', 'client', 'user'] as const
-      const fetches = chartGroupings.map(g =>
-        api.get('/reports/summary', { params: { ...baseParams, group_by: g } })
-      )
-      const needsExtra = !(chartGroupings as readonly string[]).includes(groupBy.value)
-      if (needsExtra) {
-        fetches.push(api.get('/reports/summary', { params: { ...baseParams, group_by: groupBy.value } }))
-      }
-
-      const results = await Promise.all(fetches)
-      chartProjectData.value = results[0]!.data.data
-      chartClientData.value = results[1]!.data.data
-      chartUserData.value = results[2]!.data.data
-      totals.value = results[0]!.data.meta?.totals
-
-      if (groupBy.value === 'project') summaryData.value = chartProjectData.value
-      else if (groupBy.value === 'client') summaryData.value = chartClientData.value
-      else if (groupBy.value === 'user') summaryData.value = chartUserData.value
-      else summaryData.value = results[3]!.data.data
-    } else if (reportType.value === 'budget') {
-      const { data } = await api.get('/reports/budget')
-      budgetData.value = data.data
-    } else if (reportType.value === 'utilization') {
-      const { data } = await api.get('/reports/utilization', {
-        params: { date_from: dateFrom.value, date_to: dateTo.value },
-      })
-      utilizationData.value = data.data
+    if (cached) {
+      // Only the non-chart grouping (day/week/month) is missing.
+      const { data } = await api.get('/reports/summary', { params: { ...baseParams(), group_by: group } })
+      summaryData.value = data.data
+      return
     }
+
+    const fetches = CHART_GROUPS.map((g) => api.get('/reports/summary', { params: { ...baseParams(), group_by: g } }))
+    if (!isChartGroup(group)) {
+      fetches.push(api.get('/reports/summary', { params: { ...baseParams(), group_by: group } }))
+    }
+    const results = await Promise.all(fetches)
+    chartData.value = {
+      project: results[0]!.data.data,
+      client: results[1]!.data.data,
+      user: results[2]!.data.data,
+    }
+    totals.value = results[0]!.data.meta?.totals ?? null
+    summaryData.value = isChartGroup(group) ? chartData.value[group] : results[3]!.data.data
+    summaryKey.value = key
+  } catch (e) {
+    toast.error(errorMessage(e, t('common.loadFailed')))
   } finally {
     loading.value = false
   }
 }
 
 async function fetchTimesheet() {
+  if (!rangeValid.value) return
+  const key = `${rangeKey()}|${timesheetPage.value}`
+  if (timesheetKey.value === key) return
+
   loading.value = true
   try {
-    const params: Record<string, string | number> = {
-      date_from: dateFrom.value,
-      date_to: dateTo.value,
-      per_page: 100,
-      page: timesheetPage.value,
-    }
-    if (filterProjectId.value) params['filter[project_id]'] = filterProjectId.value
-    const { data } = await api.get('/reports/detailed', { params })
+    const { data } = await api.get('/reports/detailed', {
+      params: { ...baseParams(), per_page: TIMESHEET_PER_PAGE, page: timesheetPage.value },
+    })
     timesheetEntries.value = data.data
-    timesheetMeta.value = data.meta
+    timesheetMeta.value = {
+      current_page: data.meta.current_page,
+      last_page: data.meta.last_page,
+      per_page: data.meta.per_page ?? TIMESHEET_PER_PAGE,
+      total: data.meta.total,
+    }
     totals.value = data.meta?.totals ?? null
+    timesheetKey.value = key
+  } catch (e) {
+    toast.error(errorMessage(e, t('common.loadFailed')))
   } finally {
     loading.value = false
   }
 }
 
+async function fetchBudget() {
+  if (budgetLoaded.value) return
+  loading.value = true
+  try {
+    const { data } = await api.get('/reports/budget')
+    budgetData.value = data.data
+    budgetLoaded.value = true
+  } catch (e) {
+    toast.error(errorMessage(e, t('common.loadFailed')))
+  } finally {
+    loading.value = false
+  }
+}
+
+async function fetchUtilization() {
+  if (!rangeValid.value) return
+  const key = `${dateFrom.value}|${dateTo.value}`
+  if (utilizationKey.value === key) return
+
+  loading.value = true
+  try {
+    const { data } = await api.get('/reports/utilization', { params: { date_from: dateFrom.value, date_to: dateTo.value } })
+    utilizationData.value = data.data
+    utilizationKey.value = key
+  } catch (e) {
+    toast.error(errorMessage(e, t('common.loadFailed')))
+  } finally {
+    loading.value = false
+  }
+}
+
+function fetchReport() {
+  switch (reportType.value) {
+    case 'summary':
+      return fetchSummary()
+    case 'timesheet':
+      return fetchTimesheet()
+    case 'budget':
+      return fetchBudget()
+    case 'utilization':
+      return fetchUtilization()
+  }
+}
+
+async function fetchProjects() {
+  try {
+    const { data } = await api.get('/projects', { params: { 'filter[is_active]': true, per_page: 500 } })
+    projects.value = data.data
+  } catch (e) {
+    toast.error(errorMessage(e, t('common.loadFailed')))
+  }
+}
+
+async function downloadPdf() {
+  if (!rangeValid.value) return
+  downloading.value = 'pdf'
+  try {
+    const url = filterProjectId.value ? `/reports/projects/${filterProjectId.value}` : '/reports/organization'
+    await downloadFile(url, {
+      date_from: dateFrom.value,
+      date_to: dateTo.value,
+      rounding: settings.roundingInterval,
+      locale: locale.value,
+      format: 'pdf',
+    })
+  } catch (e) {
+    toast.error(errorMessage(e, t('reports.pdfFailed')))
+  } finally {
+    downloading.value = null
+  }
+}
+
+async function exportCsv() {
+  if (!rangeValid.value) return
+  downloading.value = 'csv'
+  try {
+    await downloadFile('/reports/export', { ...baseParams(), format: 'csv' })
+  } catch (e) {
+    toast.error(errorMessage(e, t('reports.csvFailed')))
+  } finally {
+    downloading.value = null
+  }
+}
+
+// ---------------------------------------------------------------- Derived
+
 const projectOptions = computed(() =>
-  projects.value.map(p => ({
-    id: p.id,
-    label: p.name,
-    subtitle: p.client?.name,
-    color: p.color,
-  }))
+  projects.value.map((p) => ({ id: p.id, label: p.name, subtitle: p.client?.name, color: p.color }))
 )
 
-// Group timesheet entries by date for display
-const timesheetByDate = computed(() => {
-  const map = new Map<string, { entries: TimeEntry[]; totalSeconds: number }>()
+const selectedProject = computed(() =>
+  filterProjectId.value ? projects.value.find((p) => p.id === filterProjectId.value) ?? null : null
+)
 
+const showProjectCol = computed(() => !filterProjectId.value)
+const showFilters = computed(() => reportType.value !== 'budget')
+const showProjectFilter = computed(() => reportType.value === 'summary' || reportType.value === 'timesheet')
+const showPdf = computed(() => reportType.value === 'summary' || reportType.value === 'timesheet')
+
+/** Billable amount computed from the project grouping and the project hourly rates. */
+const billableAmount = computed(() => {
+  let total = 0
+  for (const row of chartData.value.project) {
+    if (!row.project_id) continue
+    const project = projects.value.find((p) => p.id === row.project_id)
+    if (project?.hourly_rate && row.billable_hours > 0) total += row.billable_hours * project.hourly_rate
+  }
+  return total
+})
+
+interface ChartRow {
+  key: string
+  label: string
+  color?: string
+  total: number
+  billable: number
+}
+
+interface Chart {
+  key: ChartGroup
+  title: string
+  rows: ChartRow[]
+  max: number
+}
+
+function toChartRows(rows: SummaryRow[], label: (r: SummaryRow) => string, key: (r: SummaryRow) => string): ChartRow[] {
+  return [...rows]
+    .sort((a, b) => b.total_hours - a.total_hours)
+    .slice(0, CHART_LIMIT)
+    .map((r) => ({ key: key(r), label: label(r), color: r.color, total: r.total_hours, billable: r.billable_hours }))
+}
+
+const charts = computed<Chart[]>(() => {
+  const list: Chart[] = [
+    { key: 'project', title: t('reports.byProject'), rows: toChartRows(chartData.value.project, (r) => r.project_name ?? '', (r) => r.project_id ?? ''), max: 1 },
+    { key: 'client', title: t('reports.byClient'), rows: toChartRows(chartData.value.client, (r) => r.client_name ?? '', (r) => r.client_id ?? ''), max: 1 },
+    { key: 'user', title: t('reports.byTeamMember'), rows: toChartRows(chartData.value.user, (r) => r.user_name ?? '', (r) => r.user_id ?? ''), max: 1 },
+  ]
+  for (const chart of list) chart.max = Math.max(...chart.rows.map((r) => r.total), 1)
+  return list.filter((c) => c.rows.length > 0)
+})
+
+const chartsTotal = computed(() => charts.value.reduce((n, c) => n + c.rows.length, 0))
+
+const summaryLabelHeading = computed(() => {
+  switch (groupBy.value) {
+    case 'project': return t('reports.project')
+    case 'client': return t('reports.client')
+    case 'user': return t('reports.user')
+    default: return t('reports.period')
+  }
+})
+
+function summaryLabel(row: SummaryRow): string {
+  if (row.period) {
+    if (groupBy.value === 'day') return formatDate(row.period + 'T00:00:00')
+    if (groupBy.value === 'month') return formatMonth(row.period + '-01')
+    return row.period
+  }
+  return row.project_name || row.client_name || row.user_name || '-'
+}
+
+/** Decimal hours -> "h:mm". */
+function hours(h: number | null | undefined): string {
+  return formatDuration(Math.round((h ?? 0) * 3600))
+}
+
+interface TimesheetDay {
+  date: string
+  entries: TimeEntry[]
+  totalSeconds: number
+}
+
+const timesheetByDate = computed<TimesheetDay[]>(() => {
+  const map = new Map<string, TimesheetDay>()
   for (const entry of timesheetEntries.value) {
     const date = entry.started_at.split('T')[0]!
-    if (!map.has(date)) map.set(date, { entries: [], totalSeconds: 0 })
-    const g = map.get(date)!
-    g.entries.push(entry)
-    g.totalSeconds += settings.roundUpSeconds(entry.duration_seconds)
+    let day = map.get(date)
+    if (!day) {
+      day = { date, entries: [], totalSeconds: 0 }
+      map.set(date, day)
+    }
+    day.entries.push(entry)
+    day.totalSeconds += settings.roundUpSeconds(entry.duration_seconds)
   }
-
-  return [...map.entries()]
-    .sort(([a], [b]) => b.localeCompare(a))
-    .map(([date, val]) => ({ date, ...val }))
+  return [...map.values()].sort((a, b) => b.date.localeCompare(a.date))
 })
 
 const roundedTimesheetTotals = computed<ReportTotals | null>(() => {
@@ -252,10 +406,10 @@ const roundedTimesheetTotals = computed<ReportTotals | null>(() => {
     if (e.is_billable) billableSec += r
   }
   return {
-    total_hours: Math.round((totalSec / 3600) * 100) / 100,
-    billable_hours: Math.round((billableSec / 3600) * 100) / 100,
-    non_billable_hours: Math.round(((totalSec - billableSec) / 3600) * 100) / 100,
-    entry_count: timesheetEntries.value.length,
+    total_hours: totalSec / 3600,
+    billable_hours: billableSec / 3600,
+    non_billable_hours: (totalSec - billableSec) / 3600,
+    entry_count: timesheetMeta.value?.total ?? timesheetEntries.value.length,
   }
 })
 
@@ -263,227 +417,103 @@ const displayTotals = computed(() =>
   reportType.value === 'timesheet' ? (roundedTimesheetTotals.value ?? totals.value) : totals.value
 )
 
-async function printTimesheet() {
-  loading.value = true
-  try {
-    const params: Record<string, string | number> = {
-      date_from: dateFrom.value,
-      date_to: dateTo.value,
-      per_page: 2000,
-      page: 1,
-    }
-    if (filterProjectId.value) params['filter[project_id]'] = filterProjectId.value
+const timesheetColspan = computed(() => (showProjectCol.value ? 5 : 4))
 
-    const { data } = await api.get('/reports/detailed', { params })
-    const entries: TimeEntry[] = data.data
-    const reportTotals: ReportTotals = data.meta?.totals
-
-    const byDate = new Map<string, TimeEntry[]>()
-    for (const e of entries) {
-      const d = e.started_at.split('T')[0]!
-      if (!byDate.has(d)) byDate.set(d, [])
-      byDate.get(d)!.push(e)
-    }
-    const sortedDates = [...byDate.keys()].sort()
-
-    const roundFn = (s: number | null) => settings.roundUpSeconds(s)
-
-    // Determine if filtering by project
-    const proj = selectedProject.value
-    const hideProject = !!proj
-    const colCount = hideProject ? 4 : 5
-    const dateColspan = colCount - 1
-
-    const rows = sortedDates.map((date) => {
-      const dayEntries = byDate.get(date)!
-      const daySeconds = dayEntries.reduce((s, e) => s + roundFn(e.duration_seconds), 0)
-      const dateLabel = formatDateLong(date + 'T00:00:00')
-
-      const entryRows = dayEntries.map(e => `
-        <tr>
-          <td></td>
-          <td>${e.project?.client?.name ?? ''}</td>
-          ${hideProject ? '' : `<td>${e.project?.name ?? ''}</td>`}
-          <td>${e.task?.name ?? ''}</td>
-          <td class="dur">${formatDuration(roundFn(e.duration_seconds))}</td>
-        </tr>`).join('')
-
-      return `
-        <tr class="date-row">
-          <td colspan="${dateColspan}">${dateLabel}</td>
-          <td class="dur">${formatDuration(daySeconds)}</td>
-        </tr>${entryRows}`
-    }).join('')
-
-    // Header title
-    const reportTitle = proj ? proj.name : t('reports.timesheet')
-    const reportSubtitle = proj
-      ? `${proj.client?.name ? proj.client.name + ' · ' : ''}${dateFrom.value} – ${dateTo.value}`
-      : `${dateFrom.value} – ${dateTo.value}`
-
-    // Use rounded totals if rounding is active, else server totals
-    let printTotalHours = reportTotals?.total_hours ?? 0
-    let printBillableHours = reportTotals?.billable_hours ?? 0
-    if (settings.roundingInterval) {
-      const rTotalSec = entries.reduce((s, e) => s + roundFn(e.duration_seconds), 0)
-      const rBillSec = entries.filter(e => e.is_billable).reduce((s, e) => s + roundFn(e.duration_seconds), 0)
-      printTotalHours = Math.round((rTotalSec / 3600) * 100) / 100
-      printBillableHours = Math.round((rBillSec / 3600) * 100) / 100
-    }
-    const totalFormatted = formatTotalTime(printTotalHours)
-    const billableFormatted = formatTotalTime(printBillableHours)
-
-    // Calculate billable amount for print
-    let printBillableAmount = 0
-    for (const e of entries) {
-      if (e.is_billable && e.project?.hourly_rate && e.duration_seconds) {
-        const roundedSec = settings.roundUpSeconds(e.duration_seconds)
-        printBillableAmount += (roundedSec / 3600) * e.project.hourly_rate
-      }
-    }
-    const amountNote = printBillableAmount > 0 ? `<div class="stat"><label>${t('reports.billableAmount')}</label><span class="green">${formatCurrency(printBillableAmount)}</span></div>` : ''
-    const roundingNote = settings.roundingInterval ? `<div class="stat"><label>${t('reports.printRounding')}</label><span>↑${settings.roundingInterval}m</span></div>` : ''
-
-    const projectColHeader = hideProject ? '' : `<th>${t('reports.project')}</th>`
-
-    const html = `<!DOCTYPE html>
-<html><head><meta charset="UTF-8"><title>${reportTitle} ${dateFrom.value} – ${dateTo.value}</title>
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,Helvetica,Arial,sans-serif;font-size:11px;color:#111}
-.header{padding:24px 32px 16px;border-bottom:2px solid #111;margin-bottom:0}
-.header-agency{font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
-.header h1{font-size:22px;font-weight:700;margin-bottom:2px}
-.header-sub{font-size:12px;color:#555;margin-bottom:12px}
-.header-stats{display:flex;gap:0;border-top:1px solid #e5e7eb;padding-top:12px;margin-top:4px}
-.stat{padding-right:24px;margin-right:24px;border-right:1px solid #e5e7eb}
-.stat:last-child{border-right:none}
-.stat label{display:block;font-size:9px;color:#888;text-transform:uppercase;letter-spacing:.08em;margin-bottom:2px}
-.stat span{font-size:14px;font-weight:700}
-.stat span.green{color:#16a34a}
-table{width:100%;border-collapse:collapse;margin-top:12px}
-thead th{background:#f3f4f6;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;padding:5px 8px;text-align:left;color:#666;border-bottom:1px solid #e5e7eb}
-tbody td{padding:3px 8px;border-bottom:1px solid #f3f4f6;vertical-align:top;font-size:10px}
-.date-row td{background:#eff6ff;font-weight:600;font-size:10px;padding:5px 8px;border-top:1px solid #dbeafe;border-bottom:1px solid #dbeafe}
-.dur{font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:600;text-align:right}
-@media print{@page{margin:16mm;size:A4 portrait}body{font-size:10px}}
-</style></head>
-<body>
-<div class="header">
-  <div class="header-agency">freise design+digital</div>
-  <h1>${reportTitle}</h1>
-  <div class="header-sub">${reportSubtitle}</div>
-  <div class="header-stats">
-    <div class="stat"><label>${t('reports.printTotal')}</label><span>${totalFormatted}</span></div>
-    <div class="stat"><label>${t('reports.printBillable')}</label><span class="green">${billableFormatted}</span></div>
-    <div class="stat"><label>${t('reports.printEntries')}</label><span>${reportTotals?.entry_count ?? 0}</span></div>
-    ${amountNote}
-    ${roundingNote}
-  </div>
-</div>
-<table>
-<thead><tr>
-  <th style="width:130px">${t('reports.printDate')}</th>
-  <th>${t('reports.printClient')}</th>
-  ${projectColHeader}
-  <th>${t('reports.printTask')}</th>
-  <th style="width:52px;text-align:right">${t('reports.printDuration')}</th>
-</tr></thead>
-<tbody>${rows}</tbody>
-</table>
-<script>window.onload=function(){window.print()}<\/script>
-<\/body><\/html>`
-
-    const w = window.open('', '_blank')
-    if (w) { w.document.write(html); w.document.close() }
-  } finally {
-    loading.value = false
-  }
+function budgetBadge(status: BudgetRow['status']): string {
+  return status === 'on_track' ? 'badge--success' : status === 'at_risk' ? 'badge--warning' : 'badge--danger'
 }
 
-async function exportCsv() {
-  const params: Record<string, string> = {
-    date_from: dateFrom.value,
-    date_to: dateTo.value,
-    format: 'csv',
-  }
-  if (filterProjectId.value) params['filter[project_id]'] = filterProjectId.value
-  loading.value = true
-  try {
-    await downloadFile('/reports/export', params)
-  } finally {
-    loading.value = false
-  }
+function budgetFill(status: BudgetRow['status']): string {
+  return status === 'on_track' ? 'bar__fill--success' : status === 'at_risk' ? 'bar__fill--warning' : 'bar__fill--danger'
 }
 
-watch(timesheetPage, fetchTimesheet)
+function budgetLabel(status: BudgetRow['status']): string {
+  return status === 'on_track' ? t('reports.onTrack') : status === 'at_risk' ? t('reports.atRisk') : t('reports.overBudget')
+}
 
-watch([reportType, groupBy, dateFrom, dateTo, filterProjectId], () => {
+// ---------------------------------------------------------------- Watchers
+
+watch([dateFrom, dateTo, filterProjectId], () => {
+  summaryKey.value = ''
+  utilizationKey.value = ''
+  timesheetKey.value = ''
   timesheetPage.value = 1
   fetchReport()
 })
 
-function onDateInput() {
-  activeRange.value = null
-}
+watch(reportType, fetchReport)
+watch(groupBy, () => {
+  if (reportType.value === 'summary') fetchSummary()
+})
+watch(timesheetPage, fetchTimesheet)
 
-onMounted(async () => {
-  const [, projectsRes] = await Promise.all([
-    fetchReport(),
-    api.get('/projects', { params: { 'filter[is_active]': true, per_page: 500 } }),
-  ])
-  projects.value = projectsRes.data.data
+onMounted(() => {
+  setPreset('this_month')
+  fetchProjects()
 })
 </script>
 
 <template>
-  <div class="page-container">
-    <div class="page-header">
+  <div class="page reports">
+    <div class="page__header">
       <h1 class="heading-1">{{ $t('reports.title') }}</h1>
-      <div class="header-actions">
-        <button v-if="reportType === 'timesheet'" class="btn-secondary" :disabled="loading" @click="printTimesheet">
-          <PrinterIcon class="btn-icon-sm" />
-          {{ $t('reports.printPdf') }}
+      <div class="page__actions">
+        <button type="button" class="btn btn--secondary" :disabled="downloading !== null || !rangeValid" @click="exportCsv">
+          <ArrowDownTrayIcon class="btn__icon" />
+          {{ downloading === 'csv' ? $t('reportDetail.preparing') : $t('reports.exportCsv') }}
         </button>
-        <button class="btn-secondary" @click="exportCsv">
-          <ArrowDownTrayIcon class="btn-icon-sm" />
-          {{ $t('reports.exportCsv') }}
+        <button v-if="showPdf" type="button" class="btn btn--primary" :disabled="downloading !== null || !rangeValid" :title="$t('reports.pdfHint')" @click="downloadPdf">
+          <DocumentTextIcon class="btn__icon" />
+          {{ downloading === 'pdf' ? $t('reportDetail.preparing') : $t('reportDetail.downloadPdf') }}
         </button>
       </div>
     </div>
 
-    <!-- Report type tabs -->
-    <div class="report-tabs">
-      <button :class="reportType === 'summary' ? 'report-tab-active' : 'report-tab'" @click="reportType = 'summary'">{{ $t('reports.summary') }}</button>
-      <button :class="reportType === 'timesheet' ? 'report-tab-active' : 'report-tab'" @click="reportType = 'timesheet'">{{ $t('reports.timesheet') }}</button>
-      <button :class="reportType === 'budget' ? 'report-tab-active' : 'report-tab'" @click="reportType = 'budget'">{{ $t('reports.budget') }}</button>
-      <button v-if="auth.isAdmin" :class="reportType === 'utilization' ? 'report-tab-active' : 'report-tab'" @click="reportType = 'utilization'">{{ $t('reports.utilization') }}</button>
-    </div>
-
-    <!-- Filters -->
-    <div v-if="reportType !== 'budget'" class="filters-section">
-      <div class="date-ranges">
+    <div class="reports__tabs">
+      <div class="segmented" role="tablist" :aria-label="$t('reports.tabs')">
         <button
-          v-for="r in dateRangeOptions"
-          :key="r.key"
-          :class="activeRange === r.key ? 'range-btn-active' : 'range-btn'"
-          @click="setRange(r.key)"
+          v-for="tab in tabs"
+          :key="tab.key"
+          type="button"
+          role="tab"
+          class="segmented__item"
+          :class="{ 'segmented__item--active': reportType === tab.key }"
+          :aria-selected="reportType === tab.key"
+          @click="reportType = tab.key"
         >
-          {{ r.label }}
+          {{ tab.label }}
         </button>
       </div>
-      <div class="filters-bar">
-        <div class="form-group">
-          <label class="form-label">{{ $t('common.from') }}</label>
-          <input v-model="dateFrom" type="date" class="form-input" @change="onDateInput" />
+    </div>
+
+    <div v-if="showFilters" class="reports__filters">
+      <div class="reports__presets" role="group" :aria-label="$t('reports.presets')">
+        <button
+          v-for="preset in presets"
+          :key="preset.key"
+          type="button"
+          class="btn btn--sm reports__preset"
+          :class="activePreset === preset.key ? 'reports__preset--active' : 'btn--secondary'"
+          :aria-pressed="activePreset === preset.key"
+          @click="setPreset(preset.key)"
+        >
+          {{ preset.label }}
+        </button>
+      </div>
+
+      <div class="reports__controls">
+        <div class="form__group">
+          <label class="form__label" for="reports-from">{{ $t('common.from') }}</label>
+          <input id="reports-from" v-model="dateFrom" type="date" class="form__input" :max="dateTo || undefined" @change="onDateInput" />
         </div>
-        <div class="form-group">
-          <label class="form-label">{{ $t('common.to') }}</label>
-          <input v-model="dateTo" type="date" class="form-input" @change="onDateInput" />
+        <div class="form__group">
+          <label class="form__label" for="reports-to">{{ $t('common.to') }}</label>
+          <input id="reports-to" v-model="dateTo" type="date" class="form__input" :min="dateFrom || undefined" @change="onDateInput" />
         </div>
-        <div v-if="reportType === 'summary' || reportType === 'timesheet'" class="form-group">
-          <label class="form-label">{{ $t('reports.project') }}</label>
+        <div v-if="showProjectFilter" class="form__group reports__control--wide">
+          <label class="form__label" for="reports-project">{{ $t('reports.project') }}</label>
           <ComboBox
+            id="reports-project"
             v-model="filterProjectId"
             :options="projectOptions"
             :placeholder="$t('reports.allProjects')"
@@ -491,312 +521,276 @@ onMounted(async () => {
             :clear-label="$t('reports.allProjects')"
           />
         </div>
-        <div v-if="reportType === 'summary'" class="form-group">
-          <label class="form-label">{{ $t('reports.groupBy') }}</label>
-          <select v-model="groupBy" class="form-select">
-            <option value="project">{{ $t('reports.groupProject') }}</option>
-            <option value="client">{{ $t('reports.groupClient') }}</option>
-            <option value="user">{{ $t('reports.groupUser') }}</option>
-            <option value="day">{{ $t('reports.groupDay') }}</option>
-            <option value="week">{{ $t('reports.groupWeek') }}</option>
-            <option value="month">{{ $t('reports.groupMonth') }}</option>
+        <div v-if="reportType === 'summary'" class="form__group">
+          <label class="form__label" for="reports-group">{{ $t('reports.groupBy') }}</label>
+          <select id="reports-group" v-model="groupBy" class="form__select">
+            <option v-for="o in groupOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
           </select>
         </div>
       </div>
     </div>
 
-    <!-- Totals bar -->
-    <div v-if="displayTotals && reportType !== 'budget'" class="totals-bar">
-      <div class="total-item">
-        <span class="total-label">{{ $t('reports.total') }}</span>
-        <span class="total-value">{{ displayTotals?.total_hours }}h</span>
+    <!-- Totals -->
+    <div v-if="displayTotals && showFilters" class="grid grid--5 reports__stats" :class="{ 'is-loading': loading }">
+      <div class="stat">
+        <span class="stat__label">{{ $t('reports.total') }}</span>
+        <span class="stat__value">{{ hours(displayTotals.total_hours) }} {{ $t('reports.hoursUnit') }}</span>
+        <span class="stat__sub">{{ formatHoursDecimal(displayTotals.total_hours * 3600) }} {{ $t('reports.hoursUnit') }}</span>
       </div>
-      <div class="total-item">
-        <span class="total-label">{{ $t('reports.billable') }}</span>
-        <span class="total-value total-value-green">{{ displayTotals?.billable_hours }}h</span>
+      <div class="stat">
+        <span class="stat__label">{{ $t('reports.billable') }}</span>
+        <span class="stat__value stat__value--accent">{{ hours(displayTotals.billable_hours) }} {{ $t('reports.hoursUnit') }}</span>
+        <span class="stat__sub">{{ formatHoursDecimal(displayTotals.billable_hours * 3600) }} {{ $t('reports.hoursUnit') }}</span>
       </div>
-      <div class="total-item">
-        <span class="total-label">{{ $t('reports.nonBillable') }}</span>
-        <span class="total-value">{{ displayTotals?.non_billable_hours }}h</span>
+      <div class="stat">
+        <span class="stat__label">{{ $t('reports.nonBillable') }}</span>
+        <span class="stat__value">{{ hours(displayTotals.non_billable_hours) }} {{ $t('reports.hoursUnit') }}</span>
+        <span class="stat__sub">{{ formatHoursDecimal(displayTotals.non_billable_hours * 3600) }} {{ $t('reports.hoursUnit') }}</span>
       </div>
-      <div class="total-item">
-        <span class="total-label">{{ $t('reports.entries') }}</span>
-        <span class="total-value">{{ displayTotals?.entry_count }}</span>
+      <div class="stat">
+        <span class="stat__label">{{ $t('reports.entries') }}</span>
+        <span class="stat__value">{{ displayTotals.entry_count }}</span>
       </div>
-      <div v-if="billableAmount > 0" class="total-item">
-        <span class="total-label">{{ $t('reports.billableAmount') }}</span>
-        <span class="total-value total-value-green">{{ formatCurrency(billableAmount) }}</span>
+      <div v-if="billableAmount > 0" class="stat">
+        <span class="stat__label">{{ $t('reports.billableAmount') }}</span>
+        <span class="stat__value">{{ formatCurrency(billableAmount) }}</span>
       </div>
     </div>
 
-    <!-- Timesheet -->
-    <div v-if="reportType === 'timesheet'">
-      <div v-if="settings.roundingInterval" class="rounding-note">
-        {{ $t('reports.roundingNote', { minutes: settings.roundingInterval }) }}
-      </div>
-      <!-- Report title strip (shown when filtering by project) -->
-      <div v-if="selectedProject" class="ts-title-strip">
-        <div class="ts-title-left">
-          <span class="color-dot" :style="{ backgroundColor: selectedProject.color }"></span>
-          <div>
-            <div class="ts-title-name">{{ selectedProject.name }}</div>
-            <div class="text-muted">{{ selectedProject.client?.name }}</div>
-          </div>
+    <!-- Summary -->
+    <template v-if="reportType === 'summary'">
+      <div v-if="charts.length" class="card reports__charts-card" :class="{ 'is-loading': loading }">
+        <div class="card__header">
+          <h2 class="card__title">{{ $t('reports.chartsTitle') }}</h2>
+          <span class="reports__legend">
+            <span class="reports__legend-item"><span class="reports__legend-swatch"></span>{{ $t('reports.billable') }}</span>
+            <span class="reports__legend-item"><span class="reports__legend-swatch reports__legend-swatch--muted"></span>{{ $t('reports.nonBillable') }}</span>
+          </span>
         </div>
-        <div v-if="displayTotals" class="ts-title-stats">
-          <div class="ts-stat">
-            <span class="ts-stat-label">{{ $t('reports.total') }}</span>
-            <span class="ts-stat-value">{{ formatTotalTime(displayTotals?.total_hours ?? 0) }}</span>
+        <div class="card__body">
+          <div class="reports__charts" :class="`reports__charts--${charts.length}`">
+            <section v-for="chart in charts" :key="chart.key" class="reports__chart">
+              <h3 class="reports__chart-title">{{ chart.title }}</h3>
+              <div class="reports__chart-rows">
+                <div v-for="row in chart.rows" :key="row.key" class="reports__chart-row">
+                  <span class="reports__chart-label">
+                    <span v-if="row.color" class="color-dot" :style="{ backgroundColor: row.color }"></span>
+                    <span class="reports__chart-name">{{ row.label }}</span>
+                  </span>
+                  <span class="reports__chart-value">
+                    <span class="bar bar--block reports__bar">
+                      <span class="bar__fill" :style="{ width: (row.billable / chart.max) * 100 + '%' }"></span>
+                      <span class="bar__fill reports__bar-fill--muted" :style="{ width: ((row.total - row.billable) / chart.max) * 100 + '%' }"></span>
+                    </span>
+                    <span class="reports__chart-hours">{{ hours(row.total) }}</span>
+                  </span>
+                </div>
+              </div>
+            </section>
           </div>
-          <div class="ts-stat">
-            <span class="ts-stat-label">{{ $t('reports.billable') }}</span>
-            <span class="ts-stat-value ts-stat-green">{{ formatTotalTime(displayTotals?.billable_hours ?? 0) }}</span>
-          </div>
+          <p v-if="chartsTotal" class="reports__charts-hint">{{ $t('reports.chartsHint', { count: CHART_LIMIT }) }}</p>
         </div>
       </div>
 
       <div class="card">
-        <div v-if="loading" class="loading-center"><div class="loading-spinner"></div></div>
-        <div v-else-if="timesheetEntries.length === 0" class="empty-state">
-          <p class="empty-state-text">{{ $t('reports.noEntries') }}</p>
+        <div v-if="loading && !summaryData.length" class="loading"><div class="spinner" role="status"></div></div>
+        <div v-else-if="summaryData.length === 0" class="empty">
+          <p class="empty__text">{{ $t('reports.noData') }}</p>
         </div>
-        <div v-else>
-          <div class="table-container">
-            <table class="table">
-              <thead class="table-header">
+        <div v-else class="table-wrap" :class="{ 'is-loading': loading }">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ summaryLabelHeading }}</th>
+                <th class="table__num">{{ $t('reports.totalHours') }}</th>
+                <th class="table__num">{{ $t('reports.billableHours') }}</th>
+                <th class="table__num">{{ $t('reports.entries') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(row, i) in summaryData" :key="i" class="table__row">
+                <td>
+                  <span class="cell">
+                    <span v-if="row.color" class="color-dot" :style="{ backgroundColor: row.color }"></span>
+                    <span class="cell__title">{{ summaryLabel(row) }}</span>
+                  </span>
+                </td>
+                <td class="table__num">{{ hours(row.total_hours) }}</td>
+                <td class="table__num">{{ hours(row.billable_hours) }}</td>
+                <td class="table__num">{{ row.entry_count }}</td>
+              </tr>
+            </tbody>
+            <tfoot v-if="totals">
+              <tr class="table__total">
+                <td>{{ $t('reports.total') }}</td>
+                <td class="table__num">{{ hours(totals.total_hours) }}</td>
+                <td class="table__num">{{ hours(totals.billable_hours) }}</td>
+                <td class="table__num">{{ totals.entry_count }}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </template>
+
+    <!-- Timesheet -->
+    <template v-if="reportType === 'timesheet'">
+      <div v-if="selectedProject" class="reports__subject">
+        <span class="color-dot color-dot--lg" :style="{ backgroundColor: selectedProject.color }"></span>
+        <span class="reports__subject-name">{{ selectedProject.name }}</span>
+        <span v-if="selectedProject.client?.name" class="reports__subject-sub">{{ selectedProject.client.name }}</span>
+      </div>
+      <p v-if="settings.roundingInterval" class="reports__note">
+        {{ $t('reports.roundingNote', { minutes: settings.roundingInterval }) }}
+      </p>
+
+      <div class="card">
+        <div v-if="loading && !timesheetEntries.length" class="loading"><div class="spinner" role="status"></div></div>
+        <div v-else-if="timesheetEntries.length === 0" class="empty">
+          <p class="empty__text">{{ $t('reports.noEntries') }}</p>
+        </div>
+        <template v-else>
+          <div class="table-wrap" :class="{ 'is-loading': loading }">
+            <table class="table reports__timesheet">
+              <thead>
                 <tr>
-                  <th class="table-th ts-col-date">{{ $t('reports.printDate') }}</th>
-                  <th class="table-th">{{ $t('reports.client') }}</th>
-                  <th v-if="showProjectCol" class="table-th">{{ $t('reports.project') }}</th>
-                  <th class="table-th">{{ $t('reports.printTask') }}</th>
-                  <th class="table-th ts-col-dur">{{ $t('reports.printDuration') }}</th>
+                  <th class="reports__col-time">{{ $t('reports.time') }}</th>
+                  <th>{{ $t('reports.client') }}</th>
+                  <th v-if="showProjectCol">{{ $t('reports.project') }}</th>
+                  <th>{{ $t('reports.printTask') }}</th>
+                  <th>{{ $t('reports.description') }}</th>
+                  <th class="table__num">{{ $t('reports.printDuration') }}</th>
                 </tr>
               </thead>
               <tbody>
-                <template v-for="group in timesheetByDate" :key="group.date">
-                  <tr class="date-group-row">
-                    <td :colspan="showProjectCol ? 4 : 3" class="date-group-label">{{ formatDate(group.date + 'T00:00:00') }}</td>
-                    <td class="date-group-total">{{ formatDuration(group.totalSeconds) }}</td>
+                <template v-for="day in timesheetByDate" :key="day.date">
+                  <tr class="table__group">
+                    <td :colspan="timesheetColspan">{{ formatDateLong(day.date + 'T00:00:00') }}</td>
+                    <td class="table__num">{{ formatDuration(day.totalSeconds) }}</td>
                   </tr>
-                  <tr v-for="entry in group.entries" :key="entry.id" class="table-row entry-row">
-                    <td class="table-td"></td>
-                    <td class="table-td">{{ entry.project?.client?.name }}</td>
-                    <td v-if="showProjectCol" class="table-td">
-                      <div class="project-cell">
-                        <span v-if="entry.project?.color" class="color-dot" :style="{ backgroundColor: entry.project.color }"></span>
-                        {{ entry.project?.name }}
-                      </div>
+                  <tr v-for="entry in day.entries" :key="entry.id" class="table__row">
+                    <td class="table__time">
+                      {{ formatTime(entry.started_at) }}<template v-if="entry.stopped_at"> - {{ formatTime(entry.stopped_at) }}</template>
                     </td>
-                    <td class="table-td text-muted">{{ entry.task?.name ?? '–' }}</td>
-                    <td class="table-td table-td-mono ts-dur">{{ formatDuration(settings.roundUpSeconds(entry.duration_seconds)) }}</td>
+                    <td class="reports__col-client">{{ entry.project?.client?.name ?? '-' }}</td>
+                    <td v-if="showProjectCol">
+                      <span class="cell">
+                        <span v-if="entry.project?.color" class="color-dot" :style="{ backgroundColor: entry.project.color }"></span>
+                        <span class="cell__title">{{ entry.project?.name }}</span>
+                      </span>
+                    </td>
+                    <td class="table__muted">{{ entry.task?.name ?? '-' }}</td>
+                    <td class="reports__desc">
+                      <span class="table__truncate reports__desc-text">{{ entry.description || '-' }}</span>
+                      <span v-if="!entry.is_billable" class="badge badge--neutral">{{ $t('common.nonBillable') }}</span>
+                    </td>
+                    <td class="table__num">{{ formatDuration(settings.roundUpSeconds(entry.duration_seconds)) }}</td>
                   </tr>
                 </template>
               </tbody>
             </table>
           </div>
-          <div v-if="timesheetMeta && timesheetMeta.last_page > 1" class="ts-pagination">
-            <span class="text-muted">{{ $t('reports.timesheetPagination', { total: timesheetMeta.total, current: timesheetPage, last: timesheetMeta.last_page }) }}</span>
-            <div class="ts-pagination-btns">
-              <button class="btn-secondary btn-sm" :disabled="timesheetPage === 1" @click="timesheetPage--">{{ $t('common.prev') }}</button>
-              <button class="btn-secondary btn-sm" :disabled="timesheetPage === timesheetMeta.last_page" @click="timesheetPage++">{{ $t('common.next') }}</button>
-            </div>
+          <div v-if="timesheetMeta && timesheetMeta.last_page > 1" class="card__footer reports__pagination">
+            <span class="toolbar__count">
+              {{ $t('reports.timesheetPagination', { total: timesheetMeta.total, current: timesheetPage, last: timesheetMeta.last_page }) }}
+            </span>
+            <AppPagination :meta="timesheetMeta" :page="timesheetPage" @update:page="timesheetPage = $event" />
           </div>
-        </div>
+        </template>
       </div>
-    </div>
+    </template>
 
-    <!-- Charts (summary view) -->
-    <div v-if="reportType === 'summary' && !loading && (chartProjectData.length || chartClientData.length || chartUserData.length)" class="chart-card card">
-      <div class="card-body">
-        <div class="chart-grid">
-          <!-- By Project -->
-          <div v-if="topChartProjects.length" class="chart-section">
-            <h3 class="chart-heading">{{ $t('reports.byProject') }}</h3>
-            <div class="chart-bars">
-              <div v-for="row in topChartProjects" :key="row.project_id" class="chart-row">
-                <div class="chart-label">
-                  <span v-if="row.color" class="color-dot" :style="{ backgroundColor: row.color }"></span>
-                  <span class="chart-label-text">{{ row.project_name }}</span>
-                </div>
-                <div class="chart-bar-track">
-                  <div class="chart-bar-fill chart-bar-billable" :style="{ width: (row.billable_hours / maxProjectHours * 100) + '%' }"></div>
-                  <div class="chart-bar-fill chart-bar-nonbillable" :style="{ width: ((row.total_hours - row.billable_hours) / maxProjectHours * 100) + '%' }"></div>
-                </div>
-                <span class="chart-hours">{{ formatTotalTime(row.total_hours) }}</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- By Client -->
-          <div v-if="topChartClients.length" class="chart-section">
-            <h3 class="chart-heading">{{ $t('reports.byClient') }}</h3>
-            <div class="chart-bars">
-              <div v-for="row in topChartClients" :key="row.client_id" class="chart-row">
-                <div class="chart-label">
-                  <span v-if="row.color" class="color-dot" :style="{ backgroundColor: row.color }"></span>
-                  <span class="chart-label-text">{{ row.client_name }}</span>
-                </div>
-                <div class="chart-bar-track">
-                  <div class="chart-bar-fill chart-bar-billable" :style="{ width: (row.billable_hours / maxClientHours * 100) + '%' }"></div>
-                  <div class="chart-bar-fill chart-bar-nonbillable" :style="{ width: ((row.total_hours - row.billable_hours) / maxClientHours * 100) + '%' }"></div>
-                </div>
-                <span class="chart-hours">{{ formatTotalTime(row.total_hours) }}</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- By Team Member -->
-          <div v-if="topChartUsers.length" class="chart-section">
-            <h3 class="chart-heading">{{ $t('reports.byTeamMember') }}</h3>
-            <div class="chart-bars">
-              <div v-for="row in topChartUsers" :key="row.user_id" class="chart-row">
-                <div class="chart-label">
-                  <span class="chart-label-text">{{ row.user_name }}</span>
-                </div>
-                <div class="chart-bar-track">
-                  <div class="chart-bar-fill chart-bar-billable" :style="{ width: (row.billable_hours / maxUserHours * 100) + '%' }"></div>
-                  <div class="chart-bar-fill chart-bar-nonbillable" :style="{ width: ((row.total_hours - row.billable_hours) / maxUserHours * 100) + '%' }"></div>
-                </div>
-                <span class="chart-hours">{{ formatTotalTime(row.total_hours) }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Legend -->
-        <div class="chart-legend">
-          <span class="chart-legend-item">
-            <span class="chart-legend-dot chart-legend-billable"></span>
-            {{ $t('reports.billable') }}
-          </span>
-          <span class="chart-legend-item">
-            <span class="chart-legend-dot chart-legend-nonbillable"></span>
-            {{ $t('reports.nonBillable') }}
-          </span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Summary Table -->
-    <div v-if="reportType === 'summary'" class="card">
-      <div v-if="loading" class="loading-center"><div class="loading-spinner"></div></div>
-      <div v-else-if="summaryData.length === 0" class="empty-state">
-        <p class="empty-state-text">{{ $t('reports.noData') }}</p>
-      </div>
-      <div v-else class="table-container">
-        <table class="table">
-          <thead class="table-header">
-            <tr>
-              <th class="table-th">{{ groupBy === 'project' ? $t('reports.project') : groupBy === 'client' ? $t('reports.client') : groupBy === 'user' ? $t('reports.user') : $t('reports.period') }}</th>
-              <th class="table-th">{{ $t('reports.totalHours') }}</th>
-              <th class="table-th">{{ $t('reports.billableHours') }}</th>
-              <th class="table-th">{{ $t('reports.entries') }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="(row, i) in summaryData" :key="i" class="table-row">
-              <td class="table-td">
-                <div class="report-name-cell">
-                  <span v-if="row.color" class="color-dot" :style="{ backgroundColor: row.color }"></span>
-                  {{ row.project_name || row.client_name || row.user_name || row.period }}
-                </div>
-              </td>
-              <td class="table-td table-td-mono">{{ row.total_hours }}h</td>
-              <td class="table-td table-td-mono">{{ row.billable_hours }}h</td>
-              <td class="table-td table-td-mono">{{ row.entry_count }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- Budget Table -->
+    <!-- Budget -->
     <div v-if="reportType === 'budget'" class="card">
-      <div v-if="loading" class="loading-center"><div class="loading-spinner"></div></div>
-      <div v-else-if="budgetData.length === 0" class="empty-state">
-        <p class="empty-state-text">{{ $t('reports.noBudgets') }}</p>
+      <div class="card__header">
+        <h2 class="card__title">{{ $t('reports.budget') }}</h2>
+        <span class="reports__hint">{{ $t('reports.budgetHint') }}</span>
       </div>
-      <div v-else class="table-container">
-        <table class="table">
-          <thead class="table-header">
+      <div v-if="loading && !budgetData.length" class="loading"><div class="spinner" role="status"></div></div>
+      <div v-else-if="budgetData.length === 0" class="empty">
+        <p class="empty__text">{{ $t('reports.noBudgets') }}</p>
+      </div>
+      <div v-else class="table-wrap">
+        <table class="table table--compact">
+          <thead>
             <tr>
-              <th class="table-th">{{ $t('reports.project') }}</th>
-              <th class="table-th">{{ $t('reports.client') }}</th>
-              <th class="table-th">{{ $t('reports.budget') }}</th>
-              <th class="table-th">{{ $t('reports.total') }}</th>
-              <th class="table-th">{{ $t('reports.remaining') }}</th>
-              <th class="table-th">{{ $t('reports.hourlyRate') }}</th>
-              <th class="table-th">{{ $t('reports.revenue') }}</th>
-              <th class="table-th">{{ $t('reports.progress') }}</th>
-              <th class="table-th">{{ $t('reports.status') }}</th>
+              <th>{{ $t('reports.project') }}</th>
+              <th>{{ $t('reports.client') }}</th>
+              <th class="table__num">{{ $t('reports.budget') }}</th>
+              <th class="table__num">{{ $t('reports.total') }}</th>
+              <th class="table__num">{{ $t('reports.remaining') }}</th>
+              <th class="table__num">{{ $t('reports.hourlyRate') }}</th>
+              <th class="table__num">{{ $t('reports.revenue') }}</th>
+              <th class="table__num">{{ $t('reports.progress') }}</th>
+              <th>{{ $t('reports.status') }}</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="row in budgetData" :key="row.id" class="table-row">
-              <td class="table-td">
-                <div class="report-name-cell">
+            <tr v-for="row in budgetData" :key="row.id" class="table__row">
+              <td>
+                <RouterLink :to="{ name: 'report-detail', params: { scope: 'projects', id: row.id } }" class="cell reports__link">
                   <span class="color-dot" :style="{ backgroundColor: row.color }"></span>
-                  {{ row.project_name }}
-                </div>
+                  <span class="cell__title">{{ row.project_name }}</span>
+                </RouterLink>
               </td>
-              <td class="table-td">{{ row.client_name }}</td>
-              <td class="table-td table-td-mono">{{ row.budget_hours }}h</td>
-              <td class="table-td table-td-mono">{{ row.tracked_hours }}h</td>
-              <td class="table-td table-td-mono">{{ row.remaining_hours }}h</td>
-              <td class="table-td table-td-mono">{{ row.hourly_rate ? formatCurrency(row.hourly_rate) : '–' }}</td>
-              <td class="table-td table-td-mono">{{ row.revenue ? formatCurrency(row.revenue) : '–' }}</td>
-              <td class="table-td">
-                <div class="budget-bar-inline">
-                  <div class="budget-bar-bg-sm">
-                    <div
-                      class="budget-bar-fill-sm"
-                      :class="{
-                        'budget-bar-ok': row.status === 'on_track',
-                        'budget-bar-warn': row.status === 'at_risk',
-                        'budget-bar-over': row.status === 'over_budget',
-                      }"
-                      :style="{ width: Math.min(row.budget_used_percentage, 100) + '%' }"
-                    ></div>
-                  </div>
-                  <span class="budget-bar-pct">{{ row.budget_used_percentage }}%</span>
-                </div>
-              </td>
-              <td class="table-td">
-                <span :class="{ 'badge-green': row.status === 'on_track', 'badge-yellow': row.status === 'at_risk', 'badge-red': row.status === 'over_budget' }">
-                  {{ row.status === 'on_track' ? $t('reports.onTrack') : row.status === 'at_risk' ? $t('reports.atRisk') : $t('reports.overBudget') }}
+              <td class="table__muted reports__col-client">{{ row.client_name }}</td>
+              <td class="table__num">{{ hours(row.budget_hours) }}</td>
+              <td class="table__num">{{ hours(row.tracked_hours) }}</td>
+              <td class="table__num" :class="{ 'reports__num--danger': row.remaining_hours < 0 }">{{ hours(row.remaining_hours) }}</td>
+              <td class="table__num">{{ row.hourly_rate ? formatCurrency(row.hourly_rate) : '-' }}</td>
+              <td class="table__num">{{ row.revenue ? formatCurrency(row.revenue) : '-' }}</td>
+              <td class="table__num">
+                <span class="share">
+                  <span class="bar">
+                    <span class="bar__fill" :class="budgetFill(row.status)" :style="{ width: Math.min(row.budget_used_percentage, 100) + '%' }"></span>
+                  </span>
+                  {{ row.budget_used_percentage }}%
                 </span>
               </td>
+              <td><span class="badge" :class="budgetBadge(row.status)">{{ budgetLabel(row.status) }}</span></td>
             </tr>
           </tbody>
         </table>
       </div>
     </div>
 
-    <!-- Utilization Table -->
+    <!-- Utilization -->
     <div v-if="reportType === 'utilization'" class="card">
-      <div v-if="loading" class="loading-center"><div class="loading-spinner"></div></div>
-      <div v-else class="table-container">
+      <div v-if="loading && !utilizationData.length" class="loading"><div class="spinner" role="status"></div></div>
+      <div v-else-if="utilizationData.length === 0" class="empty">
+        <p class="empty__text">{{ $t('reports.noUtilization') }}</p>
+      </div>
+      <div v-else class="table-wrap" :class="{ 'is-loading': loading }">
         <table class="table">
-          <thead class="table-header">
+          <thead>
             <tr>
-              <th class="table-th">{{ $t('reports.teamMember') }}</th>
-              <th class="table-th">{{ $t('reports.totalHours') }}</th>
-              <th class="table-th">{{ $t('reports.billable') }}</th>
-              <th class="table-th">{{ $t('reports.nonBillable') }}</th>
-              <th class="table-th">{{ $t('reports.billablePercent') }}</th>
-              <th class="table-th">{{ $t('reports.daysTracked') }}</th>
-              <th class="table-th">{{ $t('reports.avgPerDay') }}</th>
+              <th>{{ $t('reports.teamMember') }}</th>
+              <th class="table__num">{{ $t('reports.totalHours') }}</th>
+              <th class="table__num">{{ $t('reports.billable') }}</th>
+              <th class="table__num">{{ $t('reports.nonBillable') }}</th>
+              <th class="table__num">{{ $t('reports.billablePercent') }}</th>
+              <th class="table__num">{{ $t('reports.daysTracked') }}</th>
+              <th class="table__num">{{ $t('reports.avgPerDay') }}</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="row in utilizationData" :key="row.id" class="table-row">
-              <td class="table-td">{{ row.name }}</td>
-              <td class="table-td table-td-mono">{{ row.total_hours }}h</td>
-              <td class="table-td table-td-mono">{{ row.billable_hours }}h</td>
-              <td class="table-td table-td-mono">{{ row.non_billable_hours }}h</td>
-              <td class="table-td table-td-mono">{{ row.billable_percentage }}%</td>
-              <td class="table-td table-td-mono">{{ row.days_tracked }}</td>
-              <td class="table-td table-td-mono">{{ row.avg_hours_per_day }}h</td>
+            <tr v-for="row in utilizationData" :key="row.id" class="table__row">
+              <td>
+                <RouterLink :to="{ name: 'report-detail', params: { scope: 'users', id: row.id }, query: { from: dateFrom, to: dateTo } }" class="reports__link">
+                  {{ row.name }}
+                </RouterLink>
+              </td>
+              <td class="table__num">{{ hours(row.total_hours) }}</td>
+              <td class="table__num">{{ hours(row.billable_hours) }}</td>
+              <td class="table__num">{{ hours(row.non_billable_hours) }}</td>
+              <td class="table__num">
+                <span class="share">
+                  <span class="bar"><span class="bar__fill bar__fill--success" :style="{ width: Math.min(row.billable_percentage, 100) + '%' }"></span></span>
+                  {{ row.billable_percentage }}%
+                </span>
+              </td>
+              <td class="table__num">{{ row.days_tracked }}</td>
+              <td class="table__num">{{ formatHoursDecimal(row.avg_hours_per_day * 3600) }}</td>
             </tr>
           </tbody>
         </table>
@@ -804,233 +798,3 @@ onMounted(async () => {
     </div>
   </div>
 </template>
-
-<style scoped>
-@reference "../assets/main.css";
-.page-header {
-  @apply flex items-center justify-between mb-6;
-}
-
-.header-actions {
-  @apply flex gap-2;
-}
-
-.btn-icon-sm {
-  @apply h-4 w-4;
-}
-
-.report-tabs {
-  @apply flex gap-1 mb-6 bg-gray-100 rounded-lg p-1 w-fit;
-}
-
-.report-tab {
-  @apply px-4 py-2 rounded-md text-sm font-medium text-gray-600 transition-colors hover:text-gray-900;
-}
-
-.report-tab-active {
-  @apply px-4 py-2 rounded-md text-sm font-medium bg-white text-gray-900 shadow-sm;
-}
-
-.filters-section {
-  @apply mb-6 space-y-3;
-}
-
-.date-ranges {
-  @apply flex flex-wrap gap-2;
-}
-
-.range-btn {
-  @apply px-3 py-1.5 rounded-md text-sm font-medium text-gray-600 border border-gray-200 bg-white hover:bg-gray-50 transition-colors;
-}
-
-.range-btn-active {
-  @apply px-3 py-1.5 rounded-md text-sm font-medium text-primary-700 border border-primary-300 bg-primary-50;
-}
-
-.filters-bar {
-  @apply grid grid-cols-2 sm:grid-cols-4 gap-4;
-}
-
-.totals-bar {
-  @apply grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6;
-}
-
-.total-item {
-  @apply bg-white rounded-lg border border-gray-200 shadow-sm p-3 flex flex-col;
-}
-
-.total-label {
-  @apply text-xs text-gray-500;
-}
-
-.total-value {
-  @apply text-lg font-bold text-gray-900 tabular-nums;
-}
-
-.total-value-green {
-  @apply text-green-600;
-}
-
-.loading-center {
-  @apply flex justify-center py-12;
-}
-
-.report-name-cell {
-  @apply flex items-center gap-2;
-}
-
-.table-td-mono {
-  @apply font-mono text-sm tabular-nums;
-}
-
-/* Timesheet */
-.ts-col-date {
-  @apply w-32;
-}
-
-.date-group-row {
-  @apply bg-primary-50;
-}
-
-.date-group-label {
-  @apply px-6 py-2 text-sm font-semibold text-primary-800;
-}
-
-.date-group-total {
-  @apply px-6 py-2 text-sm font-bold text-primary-800 tabular-nums font-mono;
-}
-
-.entry-row {
-  @apply hover:bg-gray-50;
-}
-
-.entry-description {
-  @apply max-w-xs truncate;
-}
-
-.project-cell {
-  @apply flex items-center gap-1.5;
-}
-
-.billable-cell {
-  @apply text-center;
-}
-
-.bill-dot {
-  @apply text-xs py-0;
-}
-
-.ts-pagination {
-  @apply flex items-center justify-between px-6 py-3 border-t border-gray-200;
-}
-
-.ts-pagination-btns {
-  @apply flex gap-2;
-}
-
-.rounding-note {
-  @apply text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-1.5 mb-3;
-}
-
-/* Budget */
-.budget-bar-inline {
-  @apply flex items-center gap-2;
-}
-
-.budget-bar-bg-sm {
-  @apply w-20 h-2 rounded-full bg-gray-200 overflow-hidden;
-}
-
-.budget-bar-fill-sm {
-  @apply h-full rounded-full transition-all;
-}
-
-.budget-bar-ok {
-  @apply bg-green-500;
-}
-
-.budget-bar-warn {
-  @apply bg-yellow-500;
-}
-
-.budget-bar-over {
-  @apply bg-red-500;
-}
-
-.budget-bar-pct {
-  @apply text-xs text-gray-500 tabular-nums;
-}
-
-/* Charts */
-.chart-card {
-  @apply mb-6;
-}
-
-.chart-grid {
-  @apply grid grid-cols-1 lg:grid-cols-3 gap-8;
-}
-
-.chart-section {
-  @apply space-y-3;
-}
-
-.chart-heading {
-  @apply text-sm font-semibold text-gray-700;
-}
-
-.chart-bars {
-  @apply space-y-2;
-}
-
-.chart-row {
-  @apply flex items-center gap-3;
-}
-
-.chart-label {
-  @apply flex items-center gap-1.5 w-28 shrink-0;
-}
-
-.chart-label-text {
-  @apply text-xs text-gray-700 truncate;
-}
-
-.chart-bar-track {
-  @apply flex flex-1 h-5 rounded-sm overflow-hidden bg-gray-100;
-}
-
-.chart-bar-fill {
-  @apply h-full transition-all;
-}
-
-.chart-bar-billable {
-  @apply bg-green-500;
-}
-
-.chart-bar-nonbillable {
-  @apply bg-gray-300;
-}
-
-.chart-hours {
-  @apply text-xs font-medium text-gray-600 tabular-nums w-16 text-right shrink-0;
-}
-
-.chart-legend {
-  @apply flex gap-4 mt-6 pt-4 border-t border-gray-100;
-}
-
-.chart-legend-item {
-  @apply flex items-center gap-1.5 text-xs text-gray-500;
-}
-
-.chart-legend-dot {
-  @apply inline-block h-2.5 w-2.5 rounded-sm;
-}
-
-.chart-legend-billable {
-  @apply bg-green-500;
-}
-
-.chart-legend-nonbillable {
-  @apply bg-gray-300;
-}
-</style>

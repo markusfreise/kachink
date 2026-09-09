@@ -2,3 +2,135 @@
 @use "../mixins" as *;
 
 // report-detail view
+.report-detail {
+  &__back {
+    margin-bottom: var(--gap-05x);
+  }
+
+  &__title-block {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-025x);
+    min-width: 0;
+  }
+
+  &__name {
+    display: flex;
+    align-items: center;
+    gap: var(--gap-05x);
+  }
+
+  &__sub {
+    color: var(--c-copy-light);
+  }
+
+  &__toolbar {
+    margin-bottom: var(--m-vert);
+  }
+
+  &__period {
+    gap: var(--gap-025x);
+  }
+
+  &__period-label {
+    min-width: pxtorem(150);
+    padding: 0 var(--gap-05x);
+    text-align: center;
+    font-size: var(--fs-medium);
+    font-weight: 600;
+    color: var(--c-head);
+    @include tabular;
+  }
+
+  &__custom {
+    .toolbar__label:not(:first-child) {
+      margin-left: var(--gap-025x);
+    }
+  }
+
+  &__date {
+    width: pxtorem(150);
+  }
+
+  &__rounding {
+    width: pxtorem(150);
+  }
+
+  &__stats {
+    margin-bottom: var(--gap-05x);
+  }
+
+  &__note {
+    margin-bottom: var(--gap);
+    font-size: var(--fs-small);
+    color: var(--c-copy-light);
+  }
+
+  &__groups {
+    // Explicit track so wide tables scroll inside their card instead of
+    // stretching the auto column (grid tracks use the min-content size).
+    grid-template-columns: minmax(0, 1fr);
+    margin-top: var(--gap);
+    margin-bottom: var(--m-vert);
+
+    @include tablet {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    td:first-child {
+      white-space: nowrap;
+    }
+  }
+
+  &__link {
+    color: inherit;
+
+    &:hover {
+      color: var(--c-corporate);
+    }
+  }
+
+  &__col-time {
+    width: pxtorem(120);
+  }
+
+  &__table {
+    min-width: pxtorem(860);
+
+    td {
+      vertical-align: top;
+    }
+  }
+
+  &__col-user {
+    white-space: nowrap;
+  }
+
+  &__desc {
+    min-width: pxtorem(240);
+    color: var(--c-copy);
+
+    .badge {
+      margin-left: var(--gap-05x);
+      vertical-align: middle;
+    }
+  }
+}
+
+@media print {
+  .report-detail {
+    padding: 0;
+
+    &__back,
+    &__toolbar,
+    &__actions {
+      display: none;
+    }
+
+    .card,
+    .stat {
+      box-shadow: none;
+      break-inside: avoid;
+    }
+  }
+}

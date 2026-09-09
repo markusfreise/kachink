@@ -1,4 +1,178 @@
 @use "../functions" as *;
 @use "../mixins" as *;
 
-// timer-widget component
+// timer-widget component: the primary control of the app
+
+.timer-widget {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  padding: var(--gap-15x);
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-flat);
+  transition: border-color 0.2s;
+
+  &--running {
+    border-color: color-mix(in srgb, var(--c-accent) 45%, var(--c-border));
+  }
+
+  // ---------------------------------------------------------------- Clock + primary action
+
+  &__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--gap);
+  }
+
+  &__clock {
+    font-family: var(--ff-fixed);
+    font-size: var(--fs-clock);
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    color: var(--c-copy-lighter);
+    transition: color 0.2s;
+    @include tabular;
+
+    @include tablet {
+      font-size: pxtorem(52);
+    }
+
+    &--running {
+      color: var(--c-head);
+    }
+  }
+
+  &__primary {
+    flex-shrink: 0;
+    min-width: pxtorem(130);
+
+    @include below-tablet {
+      width: 100%;
+    }
+  }
+
+  // ---------------------------------------------------------------- Running entry panel
+
+  &__running {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--gap-075x);
+    padding: var(--gap) var(--gap);
+    background: var(--c-accent-soft);
+    border-radius: var(--radius-medium);
+  }
+
+  &__pulse {
+    flex-shrink: 0;
+    width: pxtorem(10);
+    height: pxtorem(10);
+    margin-top: pxtorem(6);
+    border-radius: 50%;
+    background: var(--c-accent);
+    box-shadow: 0 0 0 pxtorem(3) color-mix(in srgb, var(--c-accent) 25%, transparent);
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+
+  &__running-body {
+    display: flex;
+    flex-direction: column;
+    gap: pxtorem(3);
+    min-width: 0;
+  }
+
+  &__running-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--gap-05x);
+    min-width: 0;
+  }
+
+  &__running-project {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--gap-05x);
+    min-width: 0;
+    font-size: var(--fs-medium);
+    font-weight: 600;
+    color: var(--c-head);
+  }
+
+  &__running-client {
+    font-size: var(--fs-small);
+    color: var(--c-copy-light);
+  }
+
+  &__running-task {
+    font-size: var(--fs-small);
+    color: var(--c-copy);
+
+    &::before {
+      content: "/";
+      margin-right: var(--gap-05x);
+      color: var(--c-copy-lighter);
+    }
+  }
+
+  &__running-desc {
+    color: var(--c-copy);
+    overflow-wrap: anywhere;
+  }
+
+  &__running-since {
+    font-size: var(--fs-mini);
+    color: var(--c-copy-light);
+    @include tabular;
+  }
+
+  // ---------------------------------------------------------------- Selection form
+
+  &__form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-075x);
+  }
+
+  &__form-hint {
+    font-size: var(--fs-small);
+    color: var(--c-copy-light);
+  }
+
+  &__selects {
+    display: grid;
+    gap: var(--gap-075x);
+
+    @include tablet {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  &__row {
+    display: grid;
+    gap: var(--gap-075x);
+    align-items: center;
+
+    @include tablet {
+      grid-template-columns: minmax(0, 1fr) auto auto;
+    }
+  }
+
+  &__billable {
+    white-space: nowrap;
+
+    @include tablet {
+      padding: 0 var(--gap-05x);
+    }
+  }
+
+  &__switch {
+    @include below-tablet {
+      width: 100%;
+    }
+  }
+}

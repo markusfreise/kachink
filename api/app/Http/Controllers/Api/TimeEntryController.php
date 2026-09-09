@@ -22,6 +22,9 @@ class TimeEntryController extends Controller
         // Scope to current user unless admin requesting all
         if (!$request->user()->isAdmin() || !$request->boolean('all_users')) {
             $query->where('user_id', $request->user()->id);
+        } elseif ($request->filled('filter.user_id')) {
+            // Admins viewing all users may narrow the list to one team member
+            $query->where('user_id', $request->input('filter.user_id'));
         }
 
         if ($request->has('filter.project_id')) {

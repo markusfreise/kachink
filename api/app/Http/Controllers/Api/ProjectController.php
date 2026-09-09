@@ -7,6 +7,7 @@ use App\Http\Requests\Project\StoreProjectRequest;
 use App\Http\Requests\Project\UpdateProjectRequest;
 use App\Http\Resources\ProjectResource;
 use App\Models\Project;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -35,7 +36,7 @@ class ProjectController extends Controller
         }
 
         if ($request->boolean('include_time_summary')) {
-            $query->with('timeEntries');
+            $this->withTimeSummary($query);
         }
 
         $sort = $request->input('sort', 'name');
@@ -58,7 +59,9 @@ class ProjectController extends Controller
 
     public function show(Project $project): JsonResponse
     {
-        $project->load(['client', 'timeEntries']);
+        $project->load('client');
+        $project->loadSum(['timeEntries as tracked_seconds' => fn ($q) => $q->where('is_running', false)], 'duration_seconds');
+        $project->loadSum(['timeEntries as billable_seconds' => fn ($q) => $q->where('is_running', false)->where('is_billable', true)], 'duration_seconds');
 
         return response()->json([
             'data' => new ProjectResource($project),
@@ -73,6 +76,16 @@ class ProjectController extends Controller
         return response()->json([
             'data' => new ProjectResource($project),
         ]);
+    }
+
+    /**
+     * Aggregate tracked/billable seconds in SQL instead of loading every time entry.
+     */
+    private function withTimeSummary(Builder $query): void
+    {
+        $query
+            ->withSum(['timeEntries as tracked_seconds' => fn ($q) => $q->where('is_running', false)], 'duration_seconds')
+            ->withSum(['timeEntries as billable_seconds' => fn ($q) => $q->where('is_running', false)->where('is_billable', true)], 'duration_seconds');
     }
 
     public function destroy(Project $project): JsonResponse

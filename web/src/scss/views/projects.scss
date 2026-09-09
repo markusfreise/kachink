@@ -2,3 +2,189 @@
 @use "../mixins" as *;
 
 // projects view
+
+.projects {
+  &__client-filter {
+    width: pxtorem(200);
+    max-width: 100%;
+  }
+
+  .empty.card {
+    margin-bottom: var(--gap);
+  }
+}
+
+// ---------------------------------------------------------------- Project card
+
+.project-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  padding: var(--gap) var(--gap-15x);
+
+  &--archived {
+    background: var(--c-surface-2);
+
+    .project-card__name,
+    .project-card__stat-value {
+      color: var(--c-copy-light);
+    }
+  }
+
+  &__head {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--gap-05x);
+    min-width: 0;
+  }
+
+  &__dot {
+    margin-top: pxtorem(5);
+  }
+
+  &__ident {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__name {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    font-size: var(--fs-medium);
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--c-head);
+    overflow-wrap: anywhere;
+  }
+
+  &__link {
+    color: inherit;
+    text-decoration: none;
+
+    &:hover {
+      color: var(--c-corporate);
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+      border-radius: var(--radius-small);
+    }
+  }
+
+  &__client {
+    font-size: var(--fs-small);
+    color: var(--c-copy-light);
+    @include truncate;
+  }
+
+  &__badges {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: pxtorem(4);
+    flex-shrink: 0;
+  }
+
+  &__budget {
+    display: flex;
+    flex-direction: column;
+    gap: pxtorem(6);
+  }
+
+  &__budget-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--gap-05x);
+    font-size: var(--fs-small);
+  }
+
+  &__budget-label {
+    font-size: var(--fs-mini);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--c-copy-light);
+  }
+
+  &__budget-value {
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--gap-05x);
+    color: var(--c-copy);
+    @include tabular;
+
+    &--muted {
+      color: var(--c-copy-lighter);
+    }
+  }
+
+  &__budget-percent {
+    font-weight: 600;
+    color: var(--c-head);
+
+    &--over {
+      color: var(--c-danger);
+    }
+  }
+
+  &__stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--gap-05x) var(--gap);
+    padding-top: var(--gap-075x);
+    border-top: 1px solid var(--c-border);
+  }
+
+  &__stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  &__stat-label {
+    font-size: var(--fs-mini);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--c-copy-light);
+  }
+
+  &__stat-value {
+    font-size: var(--fs-medium);
+    font-weight: 600;
+    color: var(--c-head);
+    @include tabular;
+
+    &--muted {
+      color: var(--c-copy-lighter);
+      font-weight: 400;
+    }
+  }
+
+  &__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: pxtorem(4);
+    margin: auto calc(var(--gap-05x) * -1) calc(var(--gap-025x) * -1);
+    padding-top: var(--gap-05x);
+    border-top: 1px solid var(--c-border);
+  }
+}
+
+// ---------------------------------------------------------------- Project form modal
+
+.project-form {
+  &__meta {
+    @include tablet {
+      grid-template-columns: auto 1fr;
+    }
+  }
+
+  &__check {
+    min-height: var(--control-height);
+  }
+}

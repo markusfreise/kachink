@@ -2,3 +2,175 @@
 @use "../mixins" as *;
 
 // dashboard view
+
+.dashboard {
+  &__timer,
+  &__stats {
+    margin-bottom: var(--m-vert);
+  }
+
+  &__columns {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--gap);
+    align-items: start;
+    margin-bottom: var(--m-vert);
+
+    @include desktop {
+      grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    }
+  }
+
+  // ---------------------------------------------------------------- Today by project
+
+  &__project-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-075x);
+  }
+
+  &__project {
+    display: flex;
+    flex-direction: column;
+    gap: pxtorem(6);
+  }
+
+  &__project-head {
+    display: flex;
+    align-items: center;
+    gap: var(--gap-05x);
+    min-width: 0;
+  }
+
+  &__project-name {
+    font-weight: 500;
+    color: var(--c-head);
+    @include truncate;
+  }
+
+  &__project-client {
+    font-size: var(--fs-small);
+    color: var(--c-copy-light);
+    @include truncate;
+  }
+
+  &__project-hours {
+    margin-left: auto;
+    font-weight: 600;
+    color: var(--c-head);
+    white-space: nowrap;
+    @include tabular;
+  }
+
+  // ---------------------------------------------------------------- This week
+
+  &__days {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: var(--gap-05x);
+  }
+
+  &__day {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: pxtorem(6);
+    min-width: 0;
+  }
+
+  &__day-hours {
+    min-height: pxtorem(14);
+    font-size: var(--fs-mini);
+    line-height: pxtorem(14);
+    color: var(--c-copy-light);
+    white-space: nowrap;
+    @include tabular;
+  }
+
+  &__day-bar {
+    display: flex;
+    align-items: flex-end;
+    width: 100%;
+    height: pxtorem(96);
+    background: var(--c-surface-2);
+    border-radius: var(--radius-small);
+    overflow: hidden;
+  }
+
+  &__day-fill {
+    display: block;
+    width: 100%;
+    min-height: 0;
+    background: color-mix(in srgb, var(--c-corporate) 45%, var(--c-surface-3));
+    border-radius: var(--radius-small) var(--radius-small) 0 0;
+    transition: height 0.25s ease-out;
+  }
+
+  &__day-label {
+    font-size: var(--fs-small);
+    color: var(--c-copy-light);
+    white-space: nowrap;
+  }
+
+  &__day--today {
+    .dashboard__day-fill {
+      background: var(--c-corporate);
+    }
+
+    .dashboard__day-label,
+    .dashboard__day-hours {
+      font-weight: 600;
+      color: var(--c-head);
+    }
+  }
+
+  &__day--future {
+    .dashboard__day-bar {
+      background: transparent;
+      border: 1px dashed var(--c-border);
+    }
+
+    .dashboard__day-label {
+      color: var(--c-copy-lighter);
+    }
+  }
+
+  // ---------------------------------------------------------------- Recent entries
+
+  &__table {
+    th:first-child,
+    td:first-child {
+      min-width: pxtorem(180);
+    }
+
+    // Cap the project cell so long names truncate instead of widening the table.
+    .cell {
+      max-width: pxtorem(180);
+
+      @include tablet {
+        max-width: pxtorem(260);
+      }
+    }
+  }
+
+  &__col-task,
+  &__col-desc,
+  &__col-billable {
+    @include below-tablet {
+      display: none;
+    }
+  }
+
+  &__col-desc {
+    width: 40%;
+  }
+
+  &__row--running td {
+    background: var(--c-accent-soft);
+  }
+
+  &__duration--running {
+    font-weight: 600;
+    color: var(--c-accent);
+  }
+}

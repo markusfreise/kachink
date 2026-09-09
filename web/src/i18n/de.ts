@@ -20,7 +20,6 @@ export default {
     from: 'Von',
     to: 'Bis',
     name: 'Name',
-    nur: 'Spaß',
     email: 'E-Mail',
     color: 'Farbe',
     notes: 'Notizen',

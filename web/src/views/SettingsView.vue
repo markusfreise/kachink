@@ -1,51 +1,22 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import api from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
 import { useSettingsStore } from '@/stores/settings'
+import { useToastStore, errorMessage } from '@/stores/toast'
+import { formatDate, formatDuration } from '@/utils/format'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import {
   ClipboardDocumentIcon,
   TrashIcon,
   KeyIcon,
-  ComputerDesktopIcon,
   CheckIcon,
+  CommandLineIcon,
+  ArrowRightEndOnRectangleIcon,
+  MoonIcon,
 } from '@heroicons/vue/24/outline'
 
-const { t } = useI18n()
-const auth = useAuthStore()
-const settings = useSettingsStore()
-
-const generatedToken = ref<string | null>(null)
-const tokenName = ref('kaCHINK! Menu Bar')
-const generating = ref(false)
-const copied = ref(false)
-const error = ref('')
-
-async function generateToken() {
-  error.value = ''
-  generating.value = true
-  generatedToken.value = null
-  try {
-    const { data } = await api.post('/auth/token', {
-      device_name: tokenName.value,
-    })
-    generatedToken.value = data.data.token
-  } catch (e: any) {
-    error.value = e.response?.data?.message || t('settings.failedToGenerate')
-  } finally {
-    generating.value = false
-  }
-}
-
-async function copyToken() {
-  if (!generatedToken.value) return
-  await navigator.clipboard.writeText(generatedToken.value)
-  copied.value = true
-  setTimeout(() => (copied.value = false), 2000)
-}
-
-// Fetch existing tokens
 interface TokenInfo {
   id: string
   name: string
@@ -53,29 +24,91 @@ interface TokenInfo {
   created_at: string
 }
 
+const { t } = useI18n()
+const auth = useAuthStore()
+const settings = useSettingsStore()
+const toast = useToastStore()
+
+// Profile
+const roleLabel = computed(() => (auth.user?.role === 'admin' ? t('users.roleAdmin') : t('users.roleMember')))
+const roleClass = computed(() => (auth.user?.role === 'admin' ? 'badge--brand' : 'badge--neutral'))
+
+// Reporting: rounding example (7 minutes rounded up with the current interval)
+const roundingExample = computed(() => {
+  const raw = 7 * 60
+  return { from: formatDuration(raw), to: formatDuration(settings.roundUpSeconds(raw)) }
+})
+
+// Menu bar app
+const serverAddress = window.location.origin
+const shortcut = 'Cmd + Shift + T'
+
+// Tokens
 const tokens = ref<TokenInfo[]>([])
 const loadingTokens = ref(true)
+const tokenName = ref('kaCHINK! Menu Bar')
+const generating = ref(false)
+const generatedToken = ref<string | null>(null)
+const copied = ref(false)
+const revoking = ref<TokenInfo | null>(null)
+const revokeBusy = ref(false)
+
+let copiedTimer: ReturnType<typeof setTimeout> | null = null
 
 async function fetchTokens() {
   loadingTokens.value = true
   try {
     const { data } = await api.get('/auth/tokens')
     tokens.value = data.data
-  } catch {
-    // Endpoint may not exist yet
+  } catch (e) {
     tokens.value = []
+    toast.error(errorMessage(e, t('settings.tokensLoadFailed')))
   } finally {
     loadingTokens.value = false
   }
 }
 
-async function revokeToken(id: string) {
-  if (!confirm(t('settings.revokeConfirm'))) return
+async function generateToken() {
+  if (!tokenName.value.trim()) return
+  generating.value = true
+  generatedToken.value = null
+  copied.value = false
   try {
-    await api.delete(`/auth/tokens/${id}`)
-    tokens.value = tokens.value.filter((t) => t.id !== id)
+    const { data } = await api.post('/auth/token', { device_name: tokenName.value.trim() })
+    generatedToken.value = data.data.token
+    toast.success(t('settings.tokenGenerated'))
+    await fetchTokens()
+  } catch (e) {
+    toast.error(errorMessage(e, t('settings.failedToGenerate')))
+  } finally {
+    generating.value = false
+  }
+}
+
+async function copyToken() {
+  if (!generatedToken.value) return
+  try {
+    await navigator.clipboard.writeText(generatedToken.value)
+    copied.value = true
+    if (copiedTimer) clearTimeout(copiedTimer)
+    copiedTimer = setTimeout(() => (copied.value = false), 2000)
   } catch {
-    // silently fail
+    toast.error(t('settings.copyFailed'))
+  }
+}
+
+async function confirmRevoke() {
+  if (!revoking.value) return
+  revokeBusy.value = true
+  try {
+    await api.delete(`/auth/tokens/${revoking.value.id}`)
+    tokens.value = tokens.value.filter((token) => token.id !== revoking.value?.id)
+    toast.success(t('settings.tokenRevoked'))
+    revoking.value = null
+  } catch (e) {
+    toast.error(errorMessage(e, t('settings.revokeFailed')))
+  } finally {
+    revokeBusy.value = false
   }
 }
 
@@ -83,245 +116,213 @@ fetchTokens()
 </script>
 
 <template>
-  <div class="page-container">
-    <h1 class="heading-1 page-title">{{ $t('settings.title') }}</h1>
-
-    <!-- Profile Info -->
-    <div class="card settings-section">
-      <div class="card-header">
-        <h2 class="heading-3">{{ $t('settings.profile') }}</h2>
+  <div class="page settings">
+    <header class="page__header">
+      <div>
+        <h1 class="heading-1 page__title">{{ $t('settings.title') }}</h1>
       </div>
-      <div class="card-body">
-        <div class="profile-grid">
-          <div class="profile-row">
-            <span class="text-label">{{ $t('settings.name') }}</span>
-            <span class="profile-value">{{ auth.user?.name }}</span>
-          </div>
-          <div class="profile-row">
-            <span class="text-label">{{ $t('settings.email') }}</span>
-            <span class="profile-value">{{ auth.user?.email }}</span>
-          </div>
-          <div class="profile-row">
-            <span class="text-label">{{ $t('settings.role') }}</span>
-            <span class="profile-value profile-role">{{ auth.user?.role }}</span>
-          </div>
+    </header>
+
+    <div class="settings__stack">
+      <!-- Profile -->
+      <section class="card" aria-labelledby="settings-profile">
+        <div class="card__header">
+          <h2 id="settings-profile" class="card__title">{{ $t('settings.profile') }}</h2>
         </div>
-      </div>
-    </div>
+        <div class="card__body">
+          <dl class="settings__profile">
+            <dt class="settings__profile-label">{{ $t('settings.name') }}</dt>
+            <dd class="settings__profile-value">{{ auth.user?.name }}</dd>
+            <dt class="settings__profile-label">{{ $t('settings.email') }}</dt>
+            <dd class="settings__profile-value">{{ auth.user?.email }}</dd>
+            <dt class="settings__profile-label">{{ $t('settings.role') }}</dt>
+            <dd class="settings__profile-value">
+              <span class="badge" :class="roleClass">{{ roleLabel }}</span>
+            </dd>
+          </dl>
+        </div>
+      </section>
 
-    <!-- API Token Generation -->
-    <div class="card settings-section">
-      <div class="card-header">
-        <div class="token-header">
+      <!-- Reporting -->
+      <section class="card" aria-labelledby="settings-reporting">
+        <div class="card__header">
           <div>
-            <h2 class="heading-3">{{ $t('settings.apiTokens') }}</h2>
-            <p class="text-muted">{{ $t('settings.tokenDescription') }}</p>
+            <h2 id="settings-reporting" class="card__title">{{ $t('settings.reporting') }}</h2>
+            <p class="settings__intro">{{ $t('settings.reportingIntro') }}</p>
           </div>
-          <ComputerDesktopIcon class="token-header-icon" />
         </div>
-      </div>
-      <div class="card-body">
-        <!-- Token generation form -->
-        <div class="token-form">
-          <div class="form-group token-name-group">
-            <label class="form-label">{{ $t('settings.deviceName') }}</label>
-            <input v-model="tokenName" type="text" class="form-input" :placeholder="$t('settings.devicePlaceholder')" />
+        <div class="card__body">
+          <div class="form__group">
+            <label class="form__label" for="settings-rounding">{{ $t('settings.timeRounding') }}</label>
+            <select id="settings-rounding" v-model.number="settings.roundingInterval" class="form__select settings__select">
+              <option :value="0">{{ $t('settings.noRounding') }}</option>
+              <option :value="5">{{ $t('settings.minutes5') }}</option>
+              <option :value="10">{{ $t('settings.minutes10') }}</option>
+              <option :value="15">{{ $t('settings.minutes15') }}</option>
+              <option :value="30">{{ $t('settings.minutes30') }}</option>
+              <option :value="60">{{ $t('settings.hour1') }}</option>
+            </select>
+            <p class="form__hint">{{ $t('settings.roundingHint') }}</p>
+            <p class="settings__example">
+              <i18n-t keypath="settings.roundingExample" tag="span" scope="global">
+                <template #from><strong>{{ roundingExample.from }}</strong></template>
+                <template #to><strong>{{ roundingExample.to }}</strong></template>
+              </i18n-t>
+            </p>
           </div>
-          <button class="btn-primary token-generate-btn" :disabled="generating || !tokenName.trim()" @click="generateToken">
-            <KeyIcon class="btn-icon-sm" />
-            {{ generating ? $t('settings.generating') : $t('settings.generateToken') }}
-          </button>
         </div>
+      </section>
 
-        <div v-if="error" class="form-error-box">{{ error }}</div>
-
-        <!-- Show generated token -->
-        <div v-if="generatedToken" class="token-result">
-          <div class="token-warning">
-            {{ $t('settings.tokenWarning') }}
+      <!-- Language -->
+      <section class="card" aria-labelledby="settings-language">
+        <div class="card__header">
+          <div>
+            <h2 id="settings-language" class="card__title">{{ $t('settings.language') }}</h2>
+            <p class="settings__intro">{{ $t('settings.languageIntro') }}</p>
           </div>
-          <div class="token-display">
-            <code class="token-code">{{ generatedToken }}</code>
-            <button class="btn-secondary btn-sm" @click="copyToken">
-              <CheckIcon v-if="copied" class="btn-icon-sm" />
-              <ClipboardDocumentIcon v-else class="btn-icon-sm" />
-              {{ copied ? $t('settings.copied') : $t('settings.copy') }}
+        </div>
+        <div class="card__body">
+          <div class="form__group">
+            <label class="form__label" for="settings-locale">{{ $t('settings.language') }}</label>
+            <select id="settings-locale" v-model="settings.locale" class="form__select settings__select">
+              <option value="auto">{{ $t('settings.languageAuto') }}</option>
+              <option value="en">English</option>
+              <option value="de">Deutsch</option>
+            </select>
+            <p class="form__hint">{{ $t('settings.languageHint') }}</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- API tokens -->
+      <section class="card" aria-labelledby="settings-tokens">
+        <div class="card__header">
+          <div>
+            <h2 id="settings-tokens" class="card__title">{{ $t('settings.apiTokens') }}</h2>
+            <p class="settings__intro">{{ $t('settings.tokenDescription') }}</p>
+          </div>
+        </div>
+        <div class="card__body">
+          <form class="settings__token-form" @submit.prevent="generateToken">
+            <div class="form__group settings__token-name">
+              <label class="form__label" for="settings-token-name">{{ $t('settings.deviceName') }}</label>
+              <input
+                id="settings-token-name"
+                v-model="tokenName"
+                type="text"
+                class="form__input"
+                :placeholder="$t('settings.devicePlaceholder')"
+                autocomplete="off"
+              />
+            </div>
+            <button type="submit" class="btn btn--primary" :disabled="generating || !tokenName.trim()">
+              <span v-if="generating" class="spinner" aria-hidden="true"></span>
+              <KeyIcon v-else class="btn__icon" aria-hidden="true" />
+              {{ generating ? $t('settings.generating') : $t('settings.generateToken') }}
             </button>
-          </div>
-          <div class="token-steps">
-            <p class="text-label">{{ $t('settings.howToConnect') }}</p>
-            <ol class="token-steps-list">
+          </form>
+
+          <div v-if="generatedToken" class="settings__reveal" role="status">
+            <p class="settings__reveal-title">{{ $t('settings.tokenWarning') }}</p>
+            <div class="settings__reveal-row">
+              <code class="settings__code">{{ generatedToken }}</code>
+              <button type="button" class="btn btn--secondary btn--sm" @click="copyToken">
+                <CheckIcon v-if="copied" class="btn__icon" aria-hidden="true" />
+                <ClipboardDocumentIcon v-else class="btn__icon" aria-hidden="true" />
+                {{ copied ? $t('settings.copied') : $t('settings.copy') }}
+              </button>
+            </div>
+            <p class="form__label">{{ $t('settings.howToConnect') }}</p>
+            <ol class="settings__steps">
               <li>{{ $t('settings.step1') }}</li>
               <li>{{ $t('settings.step2') }}</li>
               <li>{{ $t('settings.step3') }}</li>
             </ol>
           </div>
-        </div>
 
-        <!-- Existing tokens -->
-        <div v-if="!loadingTokens && tokens.length > 0" class="tokens-list">
-          <h3 class="text-label tokens-list-title">{{ $t('settings.activeTokens') }}</h3>
-          <div v-for="token in tokens" :key="token.id" class="token-item">
-            <div class="token-item-info">
-              <span class="token-item-name">{{ token.name }}</span>
-              <span class="text-muted">
-                {{ $t('settings.tokenCreated', { date: new Date(token.created_at).toLocaleDateString() }) }}
-                <template v-if="token.last_used_at">
-                  · {{ $t('settings.tokenLastUsed', { date: new Date(token.last_used_at).toLocaleDateString() }) }}
-                </template>
-              </span>
+          <div class="settings__tokens">
+            <h3 class="kicker settings__tokens-title">{{ $t('settings.activeTokens') }}</h3>
+
+            <div v-if="loadingTokens" class="loading" :aria-label="$t('settings.loadingTokens')">
+              <span class="spinner"></span>
             </div>
-            <button class="btn-ghost btn-sm" @click="revokeToken(token.id)">
-              <TrashIcon class="btn-icon-sm" />
-            </button>
+
+            <p v-else-if="tokens.length === 0" class="settings__token-empty">{{ $t('settings.noTokens') }}</p>
+
+            <ul v-else class="settings__token-list">
+              <li v-for="token in tokens" :key="token.id" class="settings__token">
+                <div class="settings__token-info">
+                  <span class="settings__token-title">{{ token.name }}</span>
+                  <span class="settings__token-meta">
+                    {{ $t('settings.tokenCreated', { date: formatDate(token.created_at) }) }}
+                    <template v-if="token.last_used_at">
+                      &middot; {{ $t('settings.tokenLastUsed', { date: formatDate(token.last_used_at) }) }}
+                    </template>
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  class="btn btn--danger-ghost btn--icon btn--sm"
+                  :aria-label="$t('settings.revokeToken')"
+                  :title="$t('settings.revokeToken')"
+                  @click="revoking = token"
+                >
+                  <TrashIcon class="btn__icon" aria-hidden="true" />
+                </button>
+              </li>
+            </ul>
           </div>
         </div>
-      </div>
-    </div>
-    <!-- Reporting Settings -->
-    <div class="card settings-section">
-      <div class="card-header">
-        <h2 class="heading-3">{{ $t('settings.reporting') }}</h2>
-      </div>
-      <div class="card-body">
-        <div class="form-group">
-          <label class="form-label">{{ $t('settings.timeRounding') }}</label>
-          <select v-model.number="settings.roundingInterval" class="form-select rounding-select">
-            <option :value="0">{{ $t('settings.noRounding') }}</option>
-            <option :value="5">{{ $t('settings.minutes5') }}</option>
-            <option :value="10">{{ $t('settings.minutes10') }}</option>
-            <option :value="15">{{ $t('settings.minutes15') }}</option>
-            <option :value="30">{{ $t('settings.minutes30') }}</option>
-            <option :value="60">{{ $t('settings.hour1') }}</option>
-          </select>
-          <p class="form-hint">{{ $t('settings.roundingHint') }}</p>
+      </section>
+
+      <!-- Menu bar app -->
+      <section class="card" aria-labelledby="settings-menubar">
+        <div class="card__header">
+          <div>
+            <h2 id="settings-menubar" class="card__title">{{ $t('settings.menuBarApp') }}</h2>
+            <p class="settings__intro">{{ $t('settings.menuBarIntro') }}</p>
+          </div>
         </div>
-      </div>
+        <div class="card__body">
+          <div class="settings__features">
+            <div class="settings__feature">
+              <ArrowRightEndOnRectangleIcon class="settings__feature-icon" aria-hidden="true" />
+              <span class="settings__feature-title">{{ $t('settings.menuBarSignInTitle') }}</span>
+              <p class="settings__feature-text">{{ $t('settings.menuBarSignInText') }}</p>
+            </div>
+            <div class="settings__feature">
+              <CommandLineIcon class="settings__feature-icon" aria-hidden="true" />
+              <span class="settings__feature-title">{{ $t('settings.menuBarShortcutTitle') }}</span>
+              <p class="settings__feature-text">
+                <i18n-t keypath="settings.menuBarShortcutText" tag="span" scope="global">
+                  <template #shortcut><kbd class="settings__kbd">{{ shortcut }}</kbd></template>
+                </i18n-t>
+              </p>
+            </div>
+            <div class="settings__feature">
+              <MoonIcon class="settings__feature-icon" aria-hidden="true" />
+              <span class="settings__feature-title">{{ $t('settings.menuBarIdleTitle') }}</span>
+              <p class="settings__feature-text">{{ $t('settings.menuBarIdleText') }}</p>
+            </div>
+          </div>
+
+          <div class="settings__server">
+            <span class="settings__server-label">{{ $t('settings.serverAddress') }}</span>
+            <code class="settings__server-value">{{ serverAddress }}</code>
+          </div>
+        </div>
+      </section>
     </div>
 
-    <!-- Language -->
-    <div class="card settings-section">
-      <div class="card-header">
-        <h2 class="heading-3">{{ $t('settings.language') }}</h2>
-      </div>
-      <div class="card-body">
-        <div class="form-group">
-          <select v-model="settings.locale" class="form-select rounding-select">
-            <option value="auto">{{ $t('settings.languageAuto') }}</option>
-            <option value="en">English</option>
-            <option value="de">Deutsch</option>
-          </select>
-          <p class="form-hint">{{ $t('settings.languageHint') }}</p>
-        </div>
-      </div>
-    </div>
+    <ConfirmDialog
+      v-if="revoking"
+      :title="$t('settings.revokeTitle')"
+      :text="$t('settings.revokeConfirm')"
+      :confirm-label="$t('settings.revokeToken')"
+      danger
+      :busy="revokeBusy"
+      @confirm="confirmRevoke"
+      @cancel="revoking = null"
+    />
   </div>
 </template>
-
-<style scoped>
-@reference "../assets/main.css";
-
-.page-title {
-  @apply mb-6;
-}
-
-.settings-section {
-  @apply mb-6;
-}
-
-.profile-grid {
-  @apply space-y-3;
-}
-
-.profile-row {
-  @apply flex items-center gap-4;
-}
-
-.profile-value {
-  @apply text-sm text-gray-900;
-}
-
-.profile-role {
-  @apply capitalize;
-}
-
-.token-header {
-  @apply flex items-start justify-between;
-}
-
-.token-header-icon {
-  @apply h-6 w-6 text-gray-400;
-}
-
-.token-form {
-  @apply flex items-end gap-3 mb-4;
-}
-
-.token-name-group {
-  @apply flex-1;
-}
-
-.token-generate-btn {
-  @apply shrink-0;
-}
-
-.btn-icon-sm {
-  @apply h-4 w-4;
-}
-
-.form-error-box {
-  @apply rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 border border-red-200 mb-4;
-}
-
-.token-result {
-  @apply rounded-lg border border-green-200 bg-green-50 p-4 mb-4;
-}
-
-.token-warning {
-  @apply text-sm font-medium text-green-800 mb-2;
-}
-
-.token-display {
-  @apply flex items-center gap-3 rounded-lg bg-white border border-green-300 p-3;
-}
-
-.token-code {
-  @apply flex-1 font-mono text-sm text-gray-900 break-all select-all;
-}
-
-.token-steps {
-  @apply mt-3;
-}
-
-.token-steps-list {
-  @apply mt-1 text-sm text-green-700 list-decimal list-inside space-y-0.5;
-}
-
-.tokens-list {
-  @apply border-t border-gray-200 pt-4;
-}
-
-.tokens-list-title {
-  @apply mb-3;
-}
-
-.token-item {
-  @apply flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3 mb-2;
-}
-
-.token-item-info {
-  @apply flex flex-col gap-0.5;
-}
-
-.token-item-name {
-  @apply text-sm font-medium text-gray-900;
-}
-
-.rounding-select {
-  @apply w-48;
-}
-
-.form-hint {
-  @apply text-xs text-gray-500 mt-1;
-}
-</style>

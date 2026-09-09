@@ -2,3 +2,87 @@
 @use "../mixins" as *;
 
 // project-detail view
+
+.project-detail {
+  &__back {
+    display: inline-flex;
+    align-items: center;
+    gap: pxtorem(4);
+    margin-bottom: var(--gap-05x);
+    font-size: var(--fs-small);
+    color: var(--c-copy-light);
+    text-decoration: none;
+
+    &:hover {
+      color: var(--c-corporate);
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+      border-radius: var(--radius-small);
+    }
+  }
+
+  &__back-icon {
+    width: pxtorem(14);
+    height: pxtorem(14);
+  }
+
+  &__ident {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--gap-075x);
+    min-width: 0;
+  }
+
+  &__dot {
+    width: pxtorem(18);
+    height: pxtorem(18);
+    margin-top: pxtorem(7);
+  }
+
+  &__titles {
+    min-width: 0;
+  }
+
+  &__name {
+    overflow-wrap: anywhere;
+  }
+
+  &__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--gap-05x);
+    margin-top: var(--gap-025x);
+  }
+
+  &__client {
+    color: var(--c-copy-light);
+  }
+
+  &__stat-value--over {
+    color: var(--c-danger);
+  }
+
+  &__stat-value--muted {
+    color: var(--c-copy-lighter);
+    font-weight: 400;
+  }
+
+  &__budget-bar {
+    margin-top: var(--gap-05x);
+  }
+
+  &__member {
+    white-space: nowrap;
+  }
+
+  &__entries {
+    min-width: pxtorem(640);
+
+    @include desktop {
+      min-width: 0;
+    }
+  }
+}

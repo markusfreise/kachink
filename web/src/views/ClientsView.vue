@@ -1,19 +1,27 @@
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import api from '@/api/client'
 import type { Client, PaginationMeta } from '@/types'
 import { monthlyReportRange } from '@/composables/useReportPeriod'
-import { PlusIcon, XMarkIcon, ChevronLeftIcon, ChevronRightIcon, DocumentTextIcon } from '@heroicons/vue/24/outline'
+import { useToastStore, errorMessage } from '@/stores/toast'
+import BaseModal from '@/components/BaseModal.vue'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import AppPagination from '@/components/AppPagination.vue'
+import { PlusIcon, DocumentTextIcon, UsersIcon } from '@heroicons/vue/24/outline'
+
+type StatusFilter = 'active' | 'archived' | 'all'
 
 const { t } = useI18n()
 const router = useRouter()
+const toast = useToastStore()
 
 function openMonthlyReport(client: Client) {
   const range = monthlyReportRange()
   router.push({ name: 'report-detail', params: { scope: 'clients', id: client.id }, query: { from: range.from, to: range.to } })
 }
+
 const clients = ref<Client[]>([])
 const loading = ref(true)
 const showForm = ref(false)
@@ -21,18 +29,26 @@ const editingClient = ref<Client | null>(null)
 
 // Filters / sort / pagination
 const search = ref('')
+const status = ref<StatusFilter>('active')
 const sort = ref('name')
 const page = ref(1)
 const perPage = ref(25)
 const meta = ref<PaginationMeta | null>(null)
 
 const perPageOptions = [10, 25, 50, 100]
-const sortOptions = [
+const sortOptions = computed(() => [
   { value: 'name', label: t('clients.sortName') },
   { value: '-name', label: t('clients.sortNameDesc') },
   { value: '-created_at', label: t('clients.sortNewest') },
   { value: 'created_at', label: t('clients.sortOldest') },
-]
+])
+const statusOptions = computed<{ value: StatusFilter; label: string }[]>(() => [
+  { value: 'active', label: t('common.active') },
+  { value: 'archived', label: t('common.archived') },
+  { value: 'all', label: t('common.all') },
+])
+
+const hasFilters = computed(() => search.value !== '' || status.value !== 'active')
 
 let searchTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -43,6 +59,10 @@ const formNotes = ref('')
 const saving = ref(false)
 const formError = ref('')
 
+// Archive dialog
+const archiveTarget = ref<Client | null>(null)
+const archiving = ref(false)
+
 async function fetchClients() {
   loading.value = true
   try {
@@ -52,9 +72,12 @@ async function fetchClients() {
       sort: sort.value,
     }
     if (search.value) params['filter[name]'] = search.value
+    if (status.value !== 'all') params['filter[is_active]'] = status.value === 'active' ? 1 : 0
     const { data } = await api.get('/clients', { params })
     clients.value = data.data
     meta.value = data.meta ?? null
+  } catch (e) {
+    toast.error(errorMessage(e, t('common.loadFailed')))
   } finally {
     loading.value = false
   }
@@ -63,16 +86,23 @@ async function fetchClients() {
 watch(perPage, () => { page.value = 1; fetchClients() })
 watch(page, fetchClients)
 watch(sort, () => { page.value = 1; fetchClients() })
+watch(status, () => { page.value = 1; fetchClients() })
 watch(search, () => {
   if (searchTimer) clearTimeout(searchTimer)
   searchTimer = setTimeout(() => { page.value = 1; fetchClients() }, 300)
 })
+
+function clearFilters() {
+  search.value = ''
+  status.value = 'active'
+}
 
 function openCreate() {
   editingClient.value = null
   formName.value = ''
   formColor.value = '#6B7280'
   formNotes.value = ''
+  formError.value = ''
   showForm.value = true
 }
 
@@ -81,6 +111,7 @@ function openEdit(client: Client) {
   formName.value = client.name
   formColor.value = client.color
   formNotes.value = client.notes || ''
+  formError.value = ''
   showForm.value = true
 }
 
@@ -95,104 +126,167 @@ async function handleSave() {
       await api.post('/clients', payload)
     }
     showForm.value = false
+    toast.success(t('clients.saved'))
     fetchClients()
-  } catch (e: any) {
-    formError.value = e.response?.data?.message || t('common.failedToSave')
+  } catch (e) {
+    formError.value = errorMessage(e, t('common.failedToSave'))
   } finally {
     saving.value = false
   }
 }
 
-async function archiveClient(client: Client) {
-  if (!confirm(t('clients.archiveConfirm', { name: client.name }))) return
-  await api.delete(`/clients/${client.id}`)
-  fetchClients()
+async function confirmArchive() {
+  if (!archiveTarget.value) return
+  archiving.value = true
+  try {
+    await api.delete(`/clients/${archiveTarget.value.id}`)
+    archiveTarget.value = null
+    toast.success(t('clients.archived'))
+    fetchClients()
+  } catch (e) {
+    toast.error(errorMessage(e, t('common.error')))
+  } finally {
+    archiving.value = false
+  }
+}
+
+async function unarchiveClient(client: Client) {
+  try {
+    await api.put(`/clients/${client.id}`, { is_active: true })
+    toast.success(t('clients.unarchived'))
+    fetchClients()
+  } catch (e) {
+    toast.error(errorMessage(e, t('common.error')))
+  }
 }
 
 onMounted(fetchClients)
 </script>
 
 <template>
-  <div class="page-container">
-    <div class="page-header">
-      <h1 class="heading-1">{{ $t('clients.title') }}</h1>
-      <button class="btn-primary" @click="openCreate">
-        <PlusIcon class="btn-icon-sm" />
-        {{ $t('clients.newClient') }}
-      </button>
+  <div class="page clients">
+    <div class="page__header">
+      <h1 class="heading-1 page__title">{{ $t('clients.title') }}</h1>
+      <div class="page__actions">
+        <button type="button" class="btn btn--primary" @click="openCreate">
+          <PlusIcon class="btn__icon" aria-hidden="true" />
+          {{ $t('clients.newClient') }}
+        </button>
+      </div>
     </div>
 
-    <!-- Toolbar -->
     <div class="toolbar">
-      <div class="toolbar-filters">
+      <div class="toolbar__group">
         <input
+          id="clients-search"
           v-model="search"
           type="search"
-          class="form-input search-input"
+          class="form__input form__input--sm toolbar__search"
           :placeholder="$t('clients.search')"
+          :aria-label="$t('clients.search')"
         />
-        <select v-model="sort" class="form-select">
+        <div class="segmented" role="group" :aria-label="$t('clients.filterStatus')">
+          <button
+            v-for="o in statusOptions"
+            :key="o.value"
+            type="button"
+            class="segmented__item"
+            :class="{ 'segmented__item--active': status === o.value }"
+            :aria-pressed="status === o.value"
+            @click="status = o.value"
+          >
+            {{ o.label }}
+          </button>
+        </div>
+        <select id="clients-sort" v-model="sort" class="form__select form__select--sm form__select--inline" :aria-label="$t('clients.sortBy')">
           <option v-for="o in sortOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
         </select>
       </div>
-      <div class="toolbar-right">
-        <span class="text-muted">
-          <template v-if="meta">{{ meta.total }} {{ $t('clients.title').toLowerCase() }}</template>
-        </span>
-        <label class="form-label">{{ $t('common.perPage') }}</label>
-        <select v-model="perPage" class="form-select per-page-select">
+      <div class="toolbar__group">
+        <span v-if="meta" class="toolbar__count">{{ $t('clients.count', { count: meta.total }) }}</span>
+        <label for="clients-per-page" class="toolbar__label">{{ $t('common.perPage') }}</label>
+        <select id="clients-per-page" v-model="perPage" class="form__select form__select--sm form__select--inline clients__per-page">
           <option v-for="n in perPageOptions" :key="n" :value="n">{{ n }}</option>
         </select>
       </div>
     </div>
 
-    <div v-if="loading" class="loading-center">
-      <div class="loading-spinner"></div>
+    <div v-if="loading" class="loading">
+      <div class="spinner" role="status"></div>
     </div>
 
     <div v-else class="card">
-      <div v-if="clients.length === 0" class="empty-state">
-        <p class="empty-state-text">{{ $t('clients.noClients') }}</p>
+      <div v-if="clients.length === 0" class="empty">
+        <UsersIcon class="empty__icon" aria-hidden="true" />
+        <template v-if="hasFilters">
+          <p class="empty__title">{{ $t('common.noResults') }}</p>
+          <p class="empty__text">{{ $t('clients.noMatches') }}</p>
+          <button type="button" class="btn btn--secondary btn--sm" @click="clearFilters">{{ $t('clients.clearFilters') }}</button>
+        </template>
+        <template v-else>
+          <p class="empty__text">{{ $t('clients.noClients') }}</p>
+          <button type="button" class="btn btn--primary btn--sm" @click="openCreate">
+            <PlusIcon class="btn__icon" aria-hidden="true" />
+            {{ $t('clients.newClient') }}
+          </button>
+        </template>
       </div>
-      <div v-else class="table-container">
+
+      <div v-else class="table-wrap">
         <table class="table">
-          <thead class="table-header">
+          <thead>
             <tr>
-              <th class="table-th">{{ $t('clients.client') }}</th>
-              <th class="table-th">{{ $t('clients.projects') }}</th>
-              <th class="table-th">{{ $t('clients.status') }}</th>
-              <th class="table-th">{{ $t('common.notes') }}</th>
-              <th class="table-th">{{ $t('common.actions') }}</th>
+              <th>{{ $t('clients.client') }}</th>
+              <th class="table__num">{{ $t('clients.projects') }}</th>
+              <th>{{ $t('clients.status') }}</th>
+              <th>{{ $t('common.notes') }}</th>
+              <th class="clients__actions-head">{{ $t('common.actions') }}</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="client in clients" :key="client.id" class="table-row">
-              <td class="table-td">
-                <div class="client-cell">
-                  <span class="color-dot" :style="{ backgroundColor: client.color }"></span>
-                  <span class="client-name">{{ client.name }}</span>
+            <tr
+              v-for="client in clients"
+              :key="client.id"
+              class="table__row"
+              :class="{ 'clients__row--archived': !client.is_active }"
+            >
+              <td>
+                <div class="cell">
+                  <span class="color-dot" :style="{ backgroundColor: client.color }" aria-hidden="true"></span>
+                  <span class="cell__title">{{ client.name }}</span>
                 </div>
               </td>
-              <td class="table-td">{{ client.projects_count ?? 0 }}</td>
-              <td class="table-td">
-                <span :class="client.is_active ? 'badge-green' : 'badge-gray'">
+              <td class="table__num">{{ client.projects_count ?? 0 }}</td>
+              <td>
+                <span class="badge" :class="client.is_active ? 'badge--success' : 'badge--neutral'">
                   {{ client.is_active ? $t('common.active') : $t('common.archived') }}
                 </span>
               </td>
-              <td class="table-td table-td-notes">{{ client.notes || '—' }}</td>
-              <td class="table-td">
-                <div class="action-btns">
-                  <button class="btn-secondary btn-sm" @click="openMonthlyReport(client)">
-                    <DocumentTextIcon class="btn-icon-sm" />
+              <td>
+                <div class="clients__notes" :title="client.notes || undefined">{{ client.notes || '–' }}</div>
+              </td>
+              <td>
+                <div class="table__actions">
+                  <button type="button" class="btn btn--secondary btn--sm" @click="openMonthlyReport(client)">
+                    <DocumentTextIcon class="btn__icon" aria-hidden="true" />
                     {{ $t('reportDetail.monthlyReport') }}
                   </button>
-                  <button class="btn-ghost btn-sm" @click="openEdit(client)">{{ $t('common.edit') }}</button>
+                  <button type="button" class="btn btn--ghost btn--sm" @click="openEdit(client)">{{ $t('common.edit') }}</button>
                   <button
                     v-if="client.is_active"
-                    class="btn-ghost btn-sm"
-                    @click="archiveClient(client)"
+                    type="button"
+                    class="btn btn--ghost btn--sm"
+                    @click="archiveTarget = client"
                   >
                     {{ $t('common.archive') }}
+                  </button>
+                  <button
+                    v-else
+                    type="button"
+                    class="btn btn--ghost btn--sm"
+                    @click="unarchiveClient(client)"
+                  >
+                    {{ $t('clients.unarchive') }}
                   </button>
                 </div>
               </td>
@@ -202,163 +296,45 @@ onMounted(fetchClients)
       </div>
     </div>
 
-    <!-- Pagination -->
-    <div v-if="meta && meta.last_page > 1" class="pagination">
-      <button class="btn-secondary btn-sm" :disabled="page === 1" @click="page--">
-        <ChevronLeftIcon class="btn-icon-sm" />
-      </button>
-      <div class="pagination-pages">
-        <button
-          v-for="p in meta.last_page"
-          :key="p"
-          :class="p === page ? 'page-btn-active' : 'page-btn'"
-          @click="page = p"
-        >
-          {{ p }}
-        </button>
-      </div>
-      <button class="btn-secondary btn-sm" :disabled="page === meta.last_page" @click="page++">
-        <ChevronRightIcon class="btn-icon-sm" />
-      </button>
-      <span class="pagination-info">
-        {{ $t('common.page', { current: page, last: meta.last_page }) }}
-      </span>
-    </div>
+    <AppPagination :meta="meta" :page="page" @update:page="page = $event" />
 
-    <!-- Form Modal -->
-    <div v-if="showForm" class="modal-overlay" @click.self="showForm = false">
-      <div class="modal-panel">
-        <div class="modal-header">
-          <h2 class="heading-2">{{ editingClient ? $t('clients.editClient') : $t('clients.newClient') }}</h2>
-          <button class="btn-ghost btn-icon" @click="showForm = false">
-            <XMarkIcon class="modal-close-icon" />
-          </button>
+    <BaseModal
+      v-if="showForm"
+      :title="editingClient ? $t('clients.editClient') : $t('clients.newClient')"
+      @close="showForm = false"
+    >
+      <form id="client-form" class="form" @submit.prevent="handleSave">
+        <div v-if="formError" class="form__alert" role="alert">{{ formError }}</div>
+        <div class="form__group">
+          <label for="client-name" class="form__label">{{ $t('clients.nameRequired') }}</label>
+          <input id="client-name" v-model="formName" type="text" class="form__input" required autofocus />
         </div>
-        <form class="modal-body" @submit.prevent="handleSave">
-          <div v-if="formError" class="form-error-box">{{ formError }}</div>
-          <div class="form-group">
-            <label class="form-label">{{ $t('clients.nameRequired') }}</label>
-            <input v-model="formName" type="text" class="form-input" required />
-          </div>
-          <div class="form-group">
-            <label class="form-label">{{ $t('common.color') }}</label>
-            <input v-model="formColor" type="color" class="form-input form-color" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">{{ $t('common.notes') }}</label>
-            <textarea v-model="formNotes" class="form-textarea" rows="3"></textarea>
-          </div>
-          <div class="modal-actions">
-            <button type="button" class="btn-secondary" @click="showForm = false">{{ $t('common.cancel') }}</button>
-            <button type="submit" class="btn-primary" :disabled="saving">
-              {{ saving ? $t('common.saving') : $t('common.save') }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <div class="form__group">
+          <label for="client-color" class="form__label">{{ $t('common.color') }}</label>
+          <input id="client-color" v-model="formColor" type="color" class="form__input form__color" />
+          <span class="form__hint">{{ $t('clients.colorHint') }}</span>
+        </div>
+        <div class="form__group">
+          <label for="client-notes" class="form__label">{{ $t('common.notes') }}</label>
+          <textarea id="client-notes" v-model="formNotes" class="form__textarea" rows="3"></textarea>
+        </div>
+      </form>
+      <template #footer>
+        <button type="button" class="btn btn--secondary" @click="showForm = false">{{ $t('common.cancel') }}</button>
+        <button type="submit" form="client-form" class="btn btn--primary" :disabled="saving">
+          {{ saving ? $t('common.saving') : $t('common.save') }}
+        </button>
+      </template>
+    </BaseModal>
+
+    <ConfirmDialog
+      v-if="archiveTarget"
+      :title="$t('clients.archiveTitle')"
+      :text="$t('clients.archiveConfirm', { name: archiveTarget.name })"
+      :confirm-label="$t('common.archive')"
+      :busy="archiving"
+      @confirm="confirmArchive"
+      @cancel="archiveTarget = null"
+    />
   </div>
 </template>
-
-<style scoped>
-@reference "../assets/main.css";
-.page-header {
-  @apply flex items-center justify-between mb-6;
-}
-
-.toolbar {
-  @apply flex flex-wrap items-center justify-between gap-3 mb-4;
-}
-
-.toolbar-filters {
-  @apply flex flex-wrap items-center gap-2;
-}
-
-.toolbar-right {
-  @apply flex items-center gap-2;
-}
-
-.search-input {
-  @apply w-52;
-}
-
-.per-page-select {
-  @apply w-20;
-}
-
-.loading-center {
-  @apply flex justify-center py-12;
-}
-
-.client-cell {
-  @apply flex items-center gap-2;
-}
-
-.client-name {
-  @apply font-medium;
-}
-
-.table-td-notes {
-  @apply max-w-xs truncate text-gray-500;
-}
-
-.action-btns {
-  @apply flex gap-1;
-}
-
-.btn-icon-sm {
-  @apply h-4 w-4;
-}
-
-.pagination {
-  @apply flex items-center gap-2 mt-6;
-}
-
-.pagination-pages {
-  @apply flex gap-1;
-}
-
-.page-btn {
-  @apply w-8 h-8 rounded text-sm text-gray-700 hover:bg-gray-100 transition-colors;
-}
-
-.page-btn-active {
-  @apply w-8 h-8 rounded text-sm font-semibold bg-primary-600 text-white;
-}
-
-.pagination-info {
-  @apply text-sm text-gray-500 ml-2;
-}
-
-.modal-overlay {
-  @apply fixed inset-0 z-50 flex items-center justify-center bg-black/50;
-}
-
-.modal-panel {
-  @apply w-full max-w-md rounded-xl bg-white shadow-xl;
-}
-
-.modal-header {
-  @apply flex items-center justify-between px-6 py-4 border-b border-gray-200;
-}
-
-.modal-close-icon {
-  @apply h-5 w-5;
-}
-
-.modal-body {
-  @apply space-y-4 px-6 py-4;
-}
-
-.form-error-box {
-  @apply rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 border border-red-200;
-}
-
-.form-color {
-  @apply h-10 p-1 cursor-pointer;
-}
-
-.modal-actions {
-  @apply flex justify-end gap-3 pt-2;
-}
-</style>

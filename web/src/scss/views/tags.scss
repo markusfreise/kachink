@@ -2,3 +2,32 @@
 @use "../mixins" as *;
 
 // tags view
+.tags {
+  &__card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--gap-05x);
+    padding: var(--gap-075x) var(--gap-075x) var(--gap-075x) var(--gap);
+    min-width: 0;
+  }
+
+  &__info {
+    display: flex;
+    align-items: center;
+    gap: var(--gap-05x);
+    min-width: 0;
+  }
+
+  &__name {
+    font-weight: 500;
+    color: var(--c-head);
+    @include truncate;
+  }
+
+  &__actions {
+    display: flex;
+    gap: var(--gap-025x);
+    flex-shrink: 0;
+  }
+}

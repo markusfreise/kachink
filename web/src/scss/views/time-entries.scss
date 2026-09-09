@@ -2,3 +2,159 @@
 @use "../mixins" as *;
 
 // time-entries view
+.time-entries {
+  &__toolbar {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-075x);
+    margin-bottom: var(--gap);
+  }
+
+  &__filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--gap-05x);
+
+    .segmented {
+      flex-wrap: wrap;
+      max-width: 100%;
+    }
+
+    .segmented__item {
+      white-space: nowrap;
+    }
+  }
+
+  &__range {
+    display: flex;
+    align-items: center;
+    gap: var(--gap-025x);
+
+    input {
+      width: pxtorem(150);
+      @include tabular;
+    }
+  }
+
+  &__range-sep {
+    font-size: var(--fs-small);
+    color: var(--c-copy-lighter);
+  }
+
+  &__project {
+    width: 100%;
+
+    @include tablet {
+      width: pxtorem(260);
+    }
+  }
+
+  &__member {
+    width: 100%;
+
+    @include tablet {
+      width: pxtorem(200);
+    }
+  }
+
+  &__summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--gap-05x) var(--gap);
+  }
+
+  &__total {
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--gap-05x);
+    font-size: var(--fs-small);
+    color: var(--c-copy-light);
+  }
+
+  &__total-value {
+    font-size: var(--fs-hl-small);
+    font-weight: 700;
+    color: var(--c-head);
+    line-height: 1.1;
+    @include tabular;
+  }
+
+  &__note {
+    font-size: var(--fs-mini);
+    color: var(--c-copy-light);
+  }
+
+  &__group-cell {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--gap);
+  }
+
+  &__group-total {
+    font-size: var(--fs-small);
+    color: var(--c-copy-light);
+    @include tabular;
+  }
+
+  &__project-cell {
+    max-width: pxtorem(260);
+  }
+
+  &__desc {
+    max-width: pxtorem(360);
+    @include truncate;
+  }
+
+  &__billable {
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  &__billable-dot {
+    display: inline-block;
+    width: pxtorem(8);
+    height: pxtorem(8);
+    border-radius: 50%;
+    background: var(--c-border-strong);
+
+    &--on {
+      background: var(--c-accent);
+    }
+  }
+
+  &__duration {
+    font-weight: 600;
+    color: var(--c-head);
+  }
+
+  &__running {
+    color: var(--c-accent);
+  }
+
+  &__actions {
+    width: pxtorem(88);
+  }
+
+  // Row actions only become visible on hover/focus on pointer devices
+  @media (hover: hover) {
+    .table__row .table__actions {
+      opacity: 0;
+      transition: opacity 0.1s;
+    }
+
+    .table__row:hover .table__actions,
+    .table__row:focus-within .table__actions {
+      opacity: 1;
+    }
+  }
+
+  @include below-tablet {
+    .table {
+      min-width: pxtorem(760);
+    }
+  }
+}

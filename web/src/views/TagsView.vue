@@ -3,9 +3,14 @@ import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import api from '@/api/client'
 import type { Tag } from '@/types'
-import { PlusIcon, PencilIcon, TrashIcon, XMarkIcon } from '@heroicons/vue/24/outline'
+import { useToastStore, errorMessage } from '@/stores/toast'
+import BaseModal from '@/components/BaseModal.vue'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import { PlusIcon, PencilIcon, TrashIcon, TagIcon } from '@heroicons/vue/24/outline'
 
 const { t } = useI18n()
+const toast = useToastStore()
+
 const tags = ref<Tag[]>([])
 const loading = ref(true)
 const showForm = ref(false)
@@ -16,11 +21,16 @@ const formColor = ref('#6B7280')
 const saving = ref(false)
 const formError = ref('')
 
+const deleteTarget = ref<Tag | null>(null)
+const deleting = ref(false)
+
 async function fetchTags() {
   loading.value = true
   try {
     const { data } = await api.get('/tags')
     tags.value = data.data
+  } catch (e) {
+    toast.error(errorMessage(e, t('common.loadFailed')))
   } finally {
     loading.value = false
   }
@@ -30,6 +40,7 @@ function openCreate() {
   editingTag.value = null
   formName.value = ''
   formColor.value = '#6B7280'
+  formError.value = ''
   showForm.value = true
 }
 
@@ -37,6 +48,7 @@ function openEdit(tag: Tag) {
   editingTag.value = tag
   formName.value = tag.name
   formColor.value = tag.color
+  formError.value = ''
   showForm.value = true
 }
 
@@ -51,156 +63,126 @@ async function handleSave() {
       await api.post('/tags', payload)
     }
     showForm.value = false
+    toast.success(t('tags.saved'))
     fetchTags()
-  } catch (e: any) {
-    formError.value = e.response?.data?.message || t('common.failedToSave')
+  } catch (e) {
+    formError.value = errorMessage(e, t('common.failedToSave'))
   } finally {
     saving.value = false
   }
 }
 
-async function deleteTag(tag: Tag) {
-  if (!confirm(t('tags.deleteConfirm', { name: tag.name }))) return
-  await api.delete(`/tags/${tag.id}`)
-  fetchTags()
+async function confirmDelete() {
+  if (!deleteTarget.value) return
+  deleting.value = true
+  try {
+    await api.delete(`/tags/${deleteTarget.value.id}`)
+    deleteTarget.value = null
+    toast.success(t('tags.deleted'))
+    fetchTags()
+  } catch (e) {
+    toast.error(errorMessage(e, t('common.error')))
+  } finally {
+    deleting.value = false
+  }
 }
 
 onMounted(fetchTags)
 </script>
 
 <template>
-  <div class="page-container">
-    <div class="page-header">
-      <h1 class="heading-1">{{ $t('tags.title') }}</h1>
-      <button class="btn-primary" @click="openCreate">
-        <PlusIcon class="btn-icon-sm" />
-        {{ $t('tags.newTag') }}
-      </button>
-    </div>
-
-    <div v-if="loading" class="loading-center">
-      <div class="loading-spinner"></div>
-    </div>
-
-    <div v-else class="tags-grid">
-      <div v-for="tag in tags" :key="tag.id" class="tag-card">
-        <div class="tag-info">
-          <span class="color-dot" :style="{ backgroundColor: tag.color }"></span>
-          <span class="tag-name">{{ tag.name }}</span>
-        </div>
-        <div class="tag-actions">
-          <button class="btn-ghost btn-icon btn-sm" @click="openEdit(tag)">
-            <PencilIcon class="tag-action-icon" />
-          </button>
-          <button class="btn-ghost btn-icon btn-sm" @click="deleteTag(tag)">
-            <TrashIcon class="tag-action-icon" />
-          </button>
-        </div>
+  <div class="page tags">
+    <div class="page__header">
+      <div>
+        <h1 class="heading-1 page__title">{{ $t('tags.title') }}</h1>
+        <p v-if="!loading && tags.length > 0" class="page__subtitle small">{{ $t('tags.count', { count: tags.length }) }}</p>
       </div>
-
-      <div v-if="tags.length === 0" class="empty-state">
-        <p class="empty-state-text">{{ $t('tags.noTags') }}</p>
+      <div class="page__actions">
+        <button type="button" class="btn btn--primary" @click="openCreate">
+          <PlusIcon class="btn__icon" aria-hidden="true" />
+          {{ $t('tags.newTag') }}
+        </button>
       </div>
     </div>
 
-    <!-- Form Modal -->
-    <div v-if="showForm" class="modal-overlay" @click.self="showForm = false">
-      <div class="modal-panel-sm">
-        <div class="modal-header">
-          <h2 class="heading-2">{{ editingTag ? $t('tags.editTag') : $t('tags.newTag') }}</h2>
-          <button class="btn-ghost btn-icon" @click="showForm = false">
-            <XMarkIcon class="modal-close-icon" />
-          </button>
-        </div>
-        <form class="modal-body" @submit.prevent="handleSave">
-          <div v-if="formError" class="form-error-box">{{ formError }}</div>
-          <div class="form-group">
-            <label class="form-label">{{ $t('tags.nameRequired') }}</label>
-            <input v-model="formName" type="text" class="form-input" required />
-          </div>
-          <div class="form-group">
-            <label class="form-label">{{ $t('common.color') }}</label>
-            <input v-model="formColor" type="color" class="form-input form-color" />
-          </div>
-          <div class="modal-actions">
-            <button type="button" class="btn-secondary" @click="showForm = false">{{ $t('common.cancel') }}</button>
-            <button type="submit" class="btn-primary" :disabled="saving">
-              {{ saving ? $t('common.saving') : $t('common.save') }}
-            </button>
-          </div>
-        </form>
+    <div v-if="loading" class="loading">
+      <div class="spinner" role="status"></div>
+    </div>
+
+    <div v-else-if="tags.length === 0" class="card">
+      <div class="empty">
+        <TagIcon class="empty__icon" aria-hidden="true" />
+        <p class="empty__text">{{ $t('tags.noTags') }}</p>
+        <button type="button" class="btn btn--primary btn--sm" @click="openCreate">
+          <PlusIcon class="btn__icon" aria-hidden="true" />
+          {{ $t('tags.newTag') }}
+        </button>
       </div>
     </div>
+
+    <ul v-else class="grid grid--3">
+      <li v-for="tag in tags" :key="tag.id" class="card tags__card">
+        <div class="tags__info">
+          <span class="color-dot color-dot--lg" :style="{ backgroundColor: tag.color }" aria-hidden="true"></span>
+          <span class="tags__name">{{ tag.name }}</span>
+        </div>
+        <div class="tags__actions">
+          <button
+            type="button"
+            class="btn btn--ghost btn--icon btn--sm"
+            :aria-label="$t('tags.editAria', { name: tag.name })"
+            :title="$t('common.edit')"
+            @click="openEdit(tag)"
+          >
+            <PencilIcon class="btn__icon" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            class="btn btn--danger-ghost btn--icon btn--sm"
+            :aria-label="$t('tags.deleteAria', { name: tag.name })"
+            :title="$t('common.delete')"
+            @click="deleteTarget = tag"
+          >
+            <TrashIcon class="btn__icon" aria-hidden="true" />
+          </button>
+        </div>
+      </li>
+    </ul>
+
+    <BaseModal
+      v-if="showForm"
+      :title="editingTag ? $t('tags.editTag') : $t('tags.newTag')"
+      size="narrow"
+      @close="showForm = false"
+    >
+      <form id="tag-form" class="form" @submit.prevent="handleSave">
+        <div v-if="formError" class="form__alert" role="alert">{{ formError }}</div>
+        <div class="form__group">
+          <label for="tag-name" class="form__label">{{ $t('tags.nameRequired') }}</label>
+          <input id="tag-name" v-model="formName" type="text" class="form__input" required autofocus />
+        </div>
+        <div class="form__group">
+          <label for="tag-color" class="form__label">{{ $t('common.color') }}</label>
+          <input id="tag-color" v-model="formColor" type="color" class="form__input form__color" />
+        </div>
+      </form>
+      <template #footer>
+        <button type="button" class="btn btn--secondary" @click="showForm = false">{{ $t('common.cancel') }}</button>
+        <button type="submit" form="tag-form" class="btn btn--primary" :disabled="saving">
+          {{ saving ? $t('common.saving') : $t('common.save') }}
+        </button>
+      </template>
+    </BaseModal>
+
+    <ConfirmDialog
+      v-if="deleteTarget"
+      :title="$t('tags.deleteTitle')"
+      :text="$t('tags.deleteText', { name: deleteTarget.name })"
+      :confirm-label="$t('common.delete')"
+      danger
+      :busy="deleting"
+      @confirm="confirmDelete"
+      @cancel="deleteTarget = null"
+    />
   </div>
 </template>
-
-<style scoped>
-@reference "../assets/main.css";
-.page-header {
-  @apply flex items-center justify-between mb-6;
-}
-
-.loading-center {
-  @apply flex justify-center py-12;
-}
-
-.tags-grid {
-  @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3;
-}
-
-.tag-card {
-  @apply bg-white rounded-lg border border-gray-200 shadow-sm p-4 flex items-center justify-between;
-}
-
-.tag-info {
-  @apply flex items-center gap-2;
-}
-
-.tag-name {
-  @apply text-sm font-medium text-gray-900;
-}
-
-.tag-actions {
-  @apply flex gap-1;
-}
-
-.tag-action-icon {
-  @apply h-4 w-4;
-}
-
-.btn-icon-sm {
-  @apply h-4 w-4;
-}
-
-.modal-overlay {
-  @apply fixed inset-0 z-50 flex items-center justify-center bg-black/50;
-}
-
-.modal-panel-sm {
-  @apply w-full max-w-sm rounded-xl bg-white shadow-xl;
-}
-
-.modal-header {
-  @apply flex items-center justify-between px-6 py-4 border-b border-gray-200;
-}
-
-.modal-close-icon {
-  @apply h-5 w-5;
-}
-
-.modal-body {
-  @apply space-y-4 px-6 py-4;
-}
-
-.form-error-box {
-  @apply rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 border border-red-200;
-}
-
-.form-color {
-  @apply h-10 p-1 cursor-pointer;
-}
-
-.modal-actions {
-  @apply flex justify-end gap-3 pt-2;
-}
-</style>
