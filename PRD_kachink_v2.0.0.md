@@ -379,7 +379,7 @@ Menubar: Build-Check `xcodebuild`; manuelle Testliste in `menubar/README.md`.
 
 | ID | Thema | Prioritaet | Status |
 |---|---|---|---|
-| TODO-01 | Produktions-URL der API fuer Menubar-Login und Doku (in CLAUDE.local.md) | Hoch | Offen |
+| TODO-01 | Produktions-URL der API fuer Menubar-Login und Doku (in CLAUDE.local.md) | Hoch | Erledigt (2026-09-09) |
 | TODO-02 | Rollen auf Organisations-Pivot verlagern (`users.role` global) | Mittel | Offen |
 | TODO-03 | Ein laufender Timer je User ueber alle Organisationen + DB-Constraint | Mittel | Offen |
 | TODO-04 | Menubar-App signieren/notarisieren fuer Verteilung | Niedrig | Offen |

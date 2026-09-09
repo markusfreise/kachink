@@ -4,7 +4,7 @@ import Observation
 @MainActor
 @Observable
 final class LoginViewModel {
-    var serverURL: String = Preferences.serverURL
+    var serverURL: String = Preferences.serverURL.isEmpty ? "kachink.croeso.de" : Preferences.serverURL
     var email: String = ""
     var password: String = ""
     var isLoading = false
