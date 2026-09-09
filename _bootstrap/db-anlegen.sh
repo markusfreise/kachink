@@ -31,7 +31,7 @@ else
 fi
 
 if [ "$(q -d postgres -c "select count(*) from pg_database where datname = '${DB_NAME}'")" = "0" ]; then
-  q -d postgres -c "create database ${DB_NAME} owner ${APP_USER} encoding 'UTF8'" >/dev/null
+  q -d postgres -c "create database ${DB_NAME} owner ${APP_USER} template template0 encoding 'UTF8' lc_collate 'C.UTF-8' lc_ctype 'C.UTF-8'" >/dev/null
   log "Datenbank ${DB_NAME} angelegt (Owner ${APP_USER})"
 else
   log "Datenbank ${DB_NAME} existiert"
