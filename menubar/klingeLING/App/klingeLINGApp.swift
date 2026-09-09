@@ -1,5 +1,4 @@
 import SwiftUI
-import SwiftData
 
 @main
 struct klingeLINGApp: App {
@@ -9,9 +8,9 @@ struct klingeLINGApp: App {
         MenuBarExtra {
             PopoverContentView()
                 .environment(appState)
-                .frame(width: 320, height: appState.isAuthenticated ? 480 : 260)
+                .frame(width: 340)
         } label: {
-            MenuBarLabel(state: appState.menuBarState, elapsed: appState.timerVM.elapsedFormatted)
+            MenuBarLabel(state: appState.menuBarState, elapsed: appState.timerVM.menuBarElapsed)
         }
         .menuBarExtraStyle(.window)
 
@@ -28,6 +27,9 @@ struct PopoverContentView: View {
     var body: some View {
         if appState.isAuthenticated {
             TimerPopoverView()
+        } else if appState.isRestoringSession {
+            ProgressView("Connecting...")
+                .padding(40)
         } else {
             LoginView()
         }
@@ -41,12 +43,14 @@ struct MenuBarLabel: View {
     var body: some View {
         switch state {
         case .idle:
-            Label("kaching.", systemImage: "clock")
+            Image(systemName: "clock")
         case .tracking:
-            Label(elapsed, systemImage: "clock.fill")
-                .foregroundStyle(.green)
-        case .offline:
-            Label("Offline", systemImage: "clock.badge.xmark")
+            HStack(spacing: 4) {
+                Image(systemName: "clock.fill")
+                Text(elapsed).monospacedDigit()
+            }
+        case .error:
+            Image(systemName: "clock.badge.exclamationmark")
         }
     }
 }

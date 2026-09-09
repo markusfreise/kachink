@@ -5,53 +5,52 @@ struct LoginView: View {
     @State private var vm = LoginViewModel()
 
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 14) {
             Image(systemName: "clock.fill")
-                .font(.system(size: 32))
-                .foregroundStyle(.blue)
+                .font(.system(size: 28))
+                .foregroundStyle(.tint)
 
-            Text("kaching.")
-                .font(.title2.bold())
-
-            Text("Paste your API token to connect")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            Text("Kachink")
+                .font(.title3.bold())
 
             VStack(alignment: .leading, spacing: 8) {
-                TextField("Server URL", text: $vm.serverURL)
+                TextField("Server, e.g. time.example.com", text: $vm.serverURL)
                     .textFieldStyle(.roundedBorder)
-                    .font(.caption)
-
-                SecureField("API Token", text: $vm.token)
+                TextField("Email", text: $vm.email)
                     .textFieldStyle(.roundedBorder)
-                    .onSubmit { Task { await vm.login(appState: appState) } }
+                    .textContentType(.username)
+                SecureField("Password", text: $vm.password)
+                    .textFieldStyle(.roundedBorder)
+                    .textContentType(.password)
+                    .onSubmit { if vm.canSubmit { Task { await vm.login(appState: appState) } } }
             }
 
             if let error = vm.error {
                 Text(error)
                     .font(.caption)
                     .foregroundStyle(.red)
+                    .multilineTextAlignment(.center)
             }
 
             Button {
                 Task { await vm.login(appState: appState) }
             } label: {
                 if vm.isLoading {
-                    ProgressView()
-                        .controlSize(.small)
-                        .frame(maxWidth: .infinity)
+                    ProgressView().controlSize(.small).frame(maxWidth: .infinity)
                 } else {
-                    Text("Connect")
-                        .frame(maxWidth: .infinity)
+                    Text("Sign in").frame(maxWidth: .infinity)
                 }
             }
             .buttonStyle(.borderedProminent)
-            .disabled(vm.isLoading || vm.token.isEmpty)
+            .disabled(!vm.canSubmit)
 
-            Text("Generate a token in the web app under Settings → API Tokens")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-                .multilineTextAlignment(.center)
+            HStack {
+                Spacer()
+                Button("Quit") { NSApplication.shared.terminate(nil) }
+                    .buttonStyle(.plain)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .padding(20)
     }

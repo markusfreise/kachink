@@ -1,6 +1,6 @@
 import Foundation
 
-struct APIResponse<T: Codable & Sendable>: Codable, Sendable {
+struct APIResponse<T: Decodable>: Decodable {
     let data: T
     let meta: PaginationMeta?
 
@@ -15,9 +15,9 @@ struct APIResponse<T: Codable & Sendable>: Codable, Sendable {
     }
 }
 
-struct PaginationMeta: Codable, Sendable {
-    let currentPage: Int
-    let lastPage: Int
-    let perPage: Int
-    let total: Int
+struct PaginationMeta: Decodable {
+    let currentPage: Int?
+    let lastPage: Int?
+    let perPage: Int?
+    let total: Int?
 }

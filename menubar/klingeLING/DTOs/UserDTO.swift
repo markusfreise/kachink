@@ -5,7 +5,5 @@ struct UserDTO: Codable, Identifiable, Sendable {
     let name: String
     let email: String
     let role: String
-    let avatarUrl: String?
-    let isActive: Bool
-    let createdAt: String
+    let isActive: Bool?
 }

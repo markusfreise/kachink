@@ -4,31 +4,29 @@ import Observation
 @MainActor
 @Observable
 final class LoginViewModel {
-    var token: String = ""
-    var serverURL: String = "http://localhost:8081"
+    var serverURL: String = Preferences.serverURL
+    var email: String = ""
+    var password: String = ""
     var isLoading = false
     var error: String?
 
+    var canSubmit: Bool {
+        !isLoading && !serverURL.trimmingCharacters(in: .whitespaces).isEmpty && !email.isEmpty && !password.isEmpty
+    }
+
     func login(appState: AppState) async {
-        let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            error = "Please enter your API token"
+        guard let url = APIClient.normalize(serverURL) else {
+            error = "Please enter the server address."
             return
         }
-
         isLoading = true
         error = nil
-
-        if let url = URL(string: serverURL + "/api") {
-            appState.apiClient.baseURL = url
-        }
-
         do {
-            try await appState.login(token: trimmed)
+            try await appState.login(serverURL: url, email: email, password: password)
+            password = ""
         } catch {
             self.error = error.localizedDescription
         }
-
         isLoading = false
     }
 }

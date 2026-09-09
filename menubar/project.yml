@@ -14,16 +14,29 @@ targets:
       - klingeLING
     settings:
       base:
+        PRODUCT_NAME: Kachink
         PRODUCT_BUNDLE_IDENTIFIER: digital.freise.klingeling
-        MARKETING_VERSION: "1.0.0"
-        CURRENT_PROJECT_VERSION: "1"
-        SWIFT_VERSION: "6.0"
+        MARKETING_VERSION: "1.1.0"
+        CURRENT_PROJECT_VERSION: "2"
+        SWIFT_VERSION: "5.0"
+        SWIFT_STRICT_CONCURRENCY: minimal
         MACOSX_DEPLOYMENT_TARGET: "14.0"
         INFOPLIST_KEY_LSUIElement: true
+        INFOPLIST_KEY_CFBundleDisplayName: Kachink
+        INFOPLIST_KEY_NSHumanReadableCopyright: "freise design+digital"
         CODE_SIGN_ENTITLEMENTS: klingeLING/Resources/klingeLING.entitlements
-        SWIFT_STRICT_CONCURRENCY: targeted
-        GENERATE_INFOPLIST_FILE: true
+        GENERATE_INFOPLIST_FILE: false
         CODE_SIGN_IDENTITY: "-"
         CODE_SIGNING_REQUIRED: false
+    info:
+      path: klingeLING/Resources/Info.plist
+      properties:
+        LSUIElement: true
+        CFBundleDisplayName: Kachink
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
     entitlements:
       path: klingeLING/Resources/klingeLING.entitlements
+    scheme:
+      testTargets: []
+      gatherCoverageData: false

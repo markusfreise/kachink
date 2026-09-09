@@ -13,11 +13,10 @@ struct TimeEntryDTO: Codable, Identifiable, Sendable {
     let isBillable: Bool
     let isRunning: Bool
     let source: String
-    let user: UserDTO?
     let project: ProjectDTO?
     let task: TaskDTO?
-    let createdAt: String
-    let updatedAt: String
+
+    var startedDate: Date? { DateParsing.parse(startedAt) }
 }
 
 struct StartTimerRequest: Codable, Sendable {

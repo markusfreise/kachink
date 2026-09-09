@@ -9,16 +9,17 @@
 /* Begin PBXBuildFile section */
 		0F3A184358C33DECD272FF53 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 481FF4B30E4EEF4E5B7D8AC3 /* Assets.xcassets */; };
 		106911E99AF08622F76965FC /* TimerViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E346E18FCA9A8D20D80E67ED /* TimerViewModel.swift */; };
-		11F34F479129201D1201F4E4 /* TaskPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23527AB2DC753F0C5B45A8A6 /* TaskPickerView.swift */; };
+		1327BC35FA5B72522591325F /* HotkeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31A6F40B8F397FFDA8E6A1DE /* HotkeyManager.swift */; };
 		17244FCB73DC658222ECBCF5 /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9E0264BE5403B2F51EF07C4 /* AuthService.swift */; };
-		18A5CA6CBE80562A81AE73FF /* ProjectPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD53CF86858DC8D9028D8D5D /* ProjectPickerView.swift */; };
 		1A60CAB0E735A2B6F39FCAFD /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9600A87566C159762AB69E43 /* AppState.swift */; };
 		1ABA55B702427FEA8F134688 /* klingeLINGApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F83C94D428E2C861F0294B1 /* klingeLINGApp.swift */; };
 		266F0A9340524640DA3E20E3 /* TimerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE9BFC88DDFE36B34DB85CD7 /* TimerService.swift */; };
+		27CA25DA1A0781832A61CC8C /* PickerListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB2262DBBA7FFB0C0832B9C6 /* PickerListView.swift */; };
 		29BCB240CDD1EB20CE99998C /* LoginViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6E42D7DE3CDFDA5D8DB1070 /* LoginViewModel.swift */; };
-		5351DE1F63FBF327A53E0BE8 /* Empty.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CB5BEAE198F1F6FCB8E1BA7 /* Empty.swift */; };
+		37EADB615AED12E88531AC51 /* IdleAlert.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C6944B8C57BCD1DCD944844 /* IdleAlert.swift */; };
+		50041C288E9B8C55AF1FDC05 /* Preferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8386F2FE85CC68AC98835BC0 /* Preferences.swift */; };
 		5B99F4428E59207FF68E47A5 /* ProjectDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16CF24469303C76EE5959319 /* ProjectDTO.swift */; };
-		79511877845411038C0091B5 /* SyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 510602AD7F59A7680C09D3A3 /* SyncService.swift */; };
+		73ACE791838E9C1DDE951B43 /* IdleMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F8CE65A1484F51DE67211B3 /* IdleMonitor.swift */; };
 		7B5D35F57DC84FCFF27686B5 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BED6E441E22129BBB2C1DAEC /* LoginView.swift */; };
 		846208D8C489F1EB74B7A876 /* UserDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F40CFD019A707D183E6F202 /* UserDTO.swift */; };
 		8542EC068B75458EB403EBD4 /* APIResponse.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92BFDEB062DF39F1AA516589 /* APIResponse.swift */; };
@@ -28,33 +29,35 @@
 		C6749B1A4D18DADF6826590D /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 686C11E27DB2250941DC80E0 /* SettingsView.swift */; };
 		C92DA2FE8A1BCD39B18C457B /* StatusDotView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10C40F8B9AD1F23230584BD /* StatusDotView.swift */; };
 		CF8AA6FE66EFD9763E34AF2B /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77FF3C6AF020118635993726 /* APIClient.swift */; };
-		CFD3B6D9F7FC095BBB56AFE8 /* ProjectService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4F8F95051FD3581E964CC51 /* ProjectService.swift */; };
 		D27C94F420F8B8432D7AA04B /* TimeEntryDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69A777208D798C2B7766D13D /* TimeEntryDTO.swift */; };
+		ED16B180B63219227A293893 /* DateParsing.swift in Sources */ = {isa = PBXBuildFile; fileRef = A518308693FF70F8159FC706 /* DateParsing.swift */; };
 		F23F8CC284591CF85969614F /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1BDA34E50D2F16AAD05BE64 /* KeychainHelper.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		16CF24469303C76EE5959319 /* ProjectDTO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectDTO.swift; sourceTree = "<group>"; };
 		1F40CFD019A707D183E6F202 /* UserDTO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserDTO.swift; sourceTree = "<group>"; };
-		23527AB2DC753F0C5B45A8A6 /* TaskPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskPickerView.swift; sourceTree = "<group>"; };
+		31A6F40B8F397FFDA8E6A1DE /* HotkeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyManager.swift; sourceTree = "<group>"; };
 		3F19ADA00126F629DD3E2967 /* TimerPopoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerPopoverView.swift; sourceTree = "<group>"; };
 		481FF4B30E4EEF4E5B7D8AC3 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		510602AD7F59A7680C09D3A3 /* SyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncService.swift; sourceTree = "<group>"; };
+		5C6944B8C57BCD1DCD944844 /* IdleAlert.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdleAlert.swift; sourceTree = "<group>"; };
 		686C11E27DB2250941DC80E0 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		69A777208D798C2B7766D13D /* TimeEntryDTO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeEntryDTO.swift; sourceTree = "<group>"; };
-		6CB5BEAE198F1F6FCB8E1BA7 /* Empty.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Empty.swift; sourceTree = "<group>"; };
+		6F8CE65A1484F51DE67211B3 /* IdleMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdleMonitor.swift; sourceTree = "<group>"; };
 		77FF3C6AF020118635993726 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		7F83C94D428E2C861F0294B1 /* klingeLINGApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = klingeLINGApp.swift; sourceTree = "<group>"; };
+		8386F2FE85CC68AC98835BC0 /* Preferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Preferences.swift; sourceTree = "<group>"; };
 		905CCD596FD6E296B942A17B /* klingeLING.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = klingeLING.entitlements; sourceTree = "<group>"; };
 		92BFDEB062DF39F1AA516589 /* APIResponse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIResponse.swift; sourceTree = "<group>"; };
 		93F3184F5A86A5CA6A2774E0 /* ColorExtension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorExtension.swift; sourceTree = "<group>"; };
 		9600A87566C159762AB69E43 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
-		AD53CF86858DC8D9028D8D5D /* ProjectPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectPickerView.swift; sourceTree = "<group>"; };
+		A518308693FF70F8159FC706 /* DateParsing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateParsing.swift; sourceTree = "<group>"; };
 		B63BD927CD828801B4D5854D /* klingeLING.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = klingeLING.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B6E42D7DE3CDFDA5D8DB1070 /* LoginViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginViewModel.swift; sourceTree = "<group>"; };
 		B9E0264BE5403B2F51EF07C4 /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
+		BB2262DBBA7FFB0C0832B9C6 /* PickerListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PickerListView.swift; sourceTree = "<group>"; };
 		BED6E441E22129BBB2C1DAEC /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
-		C4F8F95051FD3581E964CC51 /* ProjectService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectService.swift; sourceTree = "<group>"; };
+		C22F65A63D5B4884146B2408 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		CE9BFC88DDFE36B34DB85CD7 /* TimerService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerService.swift; sourceTree = "<group>"; };
 		D10C40F8B9AD1F23230584BD /* StatusDotView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusDotView.swift; sourceTree = "<group>"; };
 		D1BDA34E50D2F16AAD05BE64 /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
@@ -99,14 +102,6 @@
 			path = Components;
 			sourceTree = "<group>";
 		};
-		6B3599DCDDB1AA6F3BC6437A /* Models */ = {
-			isa = PBXGroup;
-			children = (
-				6CB5BEAE198F1F6FCB8E1BA7 /* Empty.swift */,
-			);
-			path = Models;
-			sourceTree = "<group>";
-		};
 		7203DAF508FBFCE7533F4BF5 /* App */ = {
 			isa = PBXGroup;
 			children = (
@@ -129,6 +124,7 @@
 			isa = PBXGroup;
 			children = (
 				93F3184F5A86A5CA6A2774E0 /* ColorExtension.swift */,
+				A518308693FF70F8159FC706 /* DateParsing.swift */,
 			);
 			path = Utilities;
 			sourceTree = "<group>";
@@ -137,6 +133,7 @@
 			isa = PBXGroup;
 			children = (
 				481FF4B30E4EEF4E5B7D8AC3 /* Assets.xcassets */,
+				C22F65A63D5B4884146B2408 /* Info.plist */,
 				905CCD596FD6E296B942A17B /* klingeLING.entitlements */,
 			);
 			path = Resources;
@@ -146,9 +143,8 @@
 			isa = PBXGroup;
 			children = (
 				BED6E441E22129BBB2C1DAEC /* LoginView.swift */,
-				AD53CF86858DC8D9028D8D5D /* ProjectPickerView.swift */,
+				BB2262DBBA7FFB0C0832B9C6 /* PickerListView.swift */,
 				686C11E27DB2250941DC80E0 /* SettingsView.swift */,
-				23527AB2DC753F0C5B45A8A6 /* TaskPickerView.swift */,
 				3F19ADA00126F629DD3E2967 /* TimerPopoverView.swift */,
 				6AF49092CBB8F4CD22D80EA4 /* Components */,
 			);
@@ -160,7 +156,6 @@
 			children = (
 				7203DAF508FBFCE7533F4BF5 /* App */,
 				35772B7D7B69BC5FD8B96D4C /* DTOs */,
-				6B3599DCDDB1AA6F3BC6437A /* Models */,
 				D5A4DE4869BEC9A987ABCE90 /* Resources */,
 				FDCC6242D8A934AC727ACD1D /* Services */,
 				9CB6806D1264DA8E103DF8AE /* Utilities */,
@@ -175,9 +170,11 @@
 			children = (
 				77FF3C6AF020118635993726 /* APIClient.swift */,
 				B9E0264BE5403B2F51EF07C4 /* AuthService.swift */,
+				31A6F40B8F397FFDA8E6A1DE /* HotkeyManager.swift */,
+				5C6944B8C57BCD1DCD944844 /* IdleAlert.swift */,
+				6F8CE65A1484F51DE67211B3 /* IdleMonitor.swift */,
 				D1BDA34E50D2F16AAD05BE64 /* KeychainHelper.swift */,
-				C4F8F95051FD3581E964CC51 /* ProjectService.swift */,
-				510602AD7F59A7680C09D3A3 /* SyncService.swift */,
+				8386F2FE85CC68AC98835BC0 /* Preferences.swift */,
 				CE9BFC88DDFE36B34DB85CD7 /* TimerService.swift */,
 			);
 			path = Services;
@@ -253,18 +250,19 @@
 				1A60CAB0E735A2B6F39FCAFD /* AppState.swift in Sources */,
 				17244FCB73DC658222ECBCF5 /* AuthService.swift in Sources */,
 				BF2483B7A1A7895468584D3B /* ColorExtension.swift in Sources */,
-				5351DE1F63FBF327A53E0BE8 /* Empty.swift in Sources */,
+				ED16B180B63219227A293893 /* DateParsing.swift in Sources */,
+				1327BC35FA5B72522591325F /* HotkeyManager.swift in Sources */,
+				37EADB615AED12E88531AC51 /* IdleAlert.swift in Sources */,
+				73ACE791838E9C1DDE951B43 /* IdleMonitor.swift in Sources */,
 				F23F8CC284591CF85969614F /* KeychainHelper.swift in Sources */,
 				7B5D35F57DC84FCFF27686B5 /* LoginView.swift in Sources */,
 				29BCB240CDD1EB20CE99998C /* LoginViewModel.swift in Sources */,
+				27CA25DA1A0781832A61CC8C /* PickerListView.swift in Sources */,
+				50041C288E9B8C55AF1FDC05 /* Preferences.swift in Sources */,
 				5B99F4428E59207FF68E47A5 /* ProjectDTO.swift in Sources */,
-				18A5CA6CBE80562A81AE73FF /* ProjectPickerView.swift in Sources */,
-				CFD3B6D9F7FC095BBB56AFE8 /* ProjectService.swift in Sources */,
 				C6749B1A4D18DADF6826590D /* SettingsView.swift in Sources */,
 				C92DA2FE8A1BCD39B18C457B /* StatusDotView.swift in Sources */,
-				79511877845411038C0091B5 /* SyncService.swift in Sources */,
 				9C10C4243D1BBF5D1D351A10 /* TaskDTO.swift in Sources */,
-				11F34F479129201D1201F4E4 /* TaskPickerView.swift in Sources */,
 				D27C94F420F8B8432D7AA04B /* TimeEntryDTO.swift in Sources */,
 				8A68DA619CC86ED4716E7E2B /* TimerPopoverView.swift in Sources */,
 				266F0A9340524640DA3E20E3 /* TimerService.swift in Sources */,
@@ -285,19 +283,23 @@
 				CODE_SIGN_ENTITLEMENTS = klingeLING/Resources/klingeLING.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
-				GENERATE_INFOPLIST_FILE = YES;
+				CURRENT_PROJECT_VERSION = 2;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = klingeLING/Resources/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Kachink;
 				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "freise design+digital";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = digital.freise.klingeling;
+				PRODUCT_NAME = Kachink;
 				SDKROOT = macosx;
-				SWIFT_STRICT_CONCURRENCY = targeted;
-				SWIFT_VERSION = 6.0;
+				SWIFT_STRICT_CONCURRENCY = minimal;
+				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
 		};
@@ -372,19 +374,23 @@
 				CODE_SIGN_ENTITLEMENTS = klingeLING/Resources/klingeLING.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
-				GENERATE_INFOPLIST_FILE = YES;
+				CURRENT_PROJECT_VERSION = 2;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = klingeLING/Resources/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Kachink;
 				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "freise design+digital";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = digital.freise.klingeling;
+				PRODUCT_NAME = Kachink;
 				SDKROOT = macosx;
-				SWIFT_STRICT_CONCURRENCY = targeted;
-				SWIFT_VERSION = 6.0;
+				SWIFT_STRICT_CONCURRENCY = minimal;
+				SWIFT_VERSION = 5.0;
 			};
 			name = Release;
 		};

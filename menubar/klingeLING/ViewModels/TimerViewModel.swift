@@ -8,6 +8,7 @@ final class TimerViewModel {
     var elapsed: TimeInterval = 0
     var isRunning: Bool { runningEntry != nil }
     var error: String?
+    var isBusy = false
 
     // Selection state for new timers
     var selectedProject: ProjectDTO?
@@ -17,20 +18,23 @@ final class TimerViewModel {
 
     let timerService: TimerService
     private var tickTask: Task<Void, Never>?
+    private var startedAt: Date?
+
+    init(timerService: TimerService) {
+        self.timerService = timerService
+    }
 
     var elapsedFormatted: String {
         let total = Int(elapsed)
-        let h = total / 3600
-        let m = (total % 3600) / 60
-        let s = total % 60
-        return String(format: "%d:%02d:%02d", h, m, s)
+        return String(format: "%d:%02d:%02d", total / 3600, (total % 3600) / 60, total % 60)
     }
 
-    var shortElapsed: String {
+    var menuBarElapsed: String {
         let total = Int(elapsed)
-        let h = total / 3600
-        let m = (total % 3600) / 60
-        return String(format: "%d:%02d", h, m)
+        if Preferences.showSecondsInMenuBar {
+            return String(format: "%d:%02d:%02d", total / 3600, (total % 3600) / 60, total % 60)
+        }
+        return String(format: "%d:%02d", total / 3600, (total % 3600) / 60)
     }
 
     var currentProjectName: String {
@@ -41,81 +45,137 @@ final class TimerViewModel {
         runningEntry?.project?.client?.name ?? selectedProject?.client?.name ?? ""
     }
 
-    init(timerService: TimerService) {
-        self.timerService = timerService
+    /// True when a different project/task is selected than the running one, i.e. a "switch" is possible.
+    var canSwitch: Bool {
+        guard let running = runningEntry, let project = selectedProject else { return false }
+        return project.id != running.projectId || (selectedTask?.id ?? "") != (running.taskId ?? "")
     }
+
+    // MARK: - Server sync
 
     func fetchRunning() async {
         do {
             let entry = try await timerService.fetchRunning()
-            await MainActor.run {
-                self.runningEntry = entry
-                if entry != nil {
-                    self.startTicking()
-                }
-            }
+            apply(entry)
+            error = nil
+        } catch APIError.unauthorized {
+            // handled globally
         } catch {
-            // No running timer or network error
+            self.error = error.localizedDescription
         }
     }
 
+    private func apply(_ entry: TimeEntryDTO?) {
+        if let entry {
+            let changed = entry.id != runningEntry?.id
+            runningEntry = entry
+            if changed || tickTask == nil { startTicking() }
+            if changed {
+                selectedProject = entry.project ?? selectedProject
+                selectedTask = entry.task
+                entryDescription = entry.description ?? ""
+                isBillable = entry.isBillable
+            }
+        } else {
+            runningEntry = nil
+            stopTicking()
+        }
+    }
+
+    // MARK: - Actions
+
     func start() async {
         guard let project = selectedProject else {
-            await MainActor.run { self.error = "Select a project first" }
+            error = "Select a project first."
             return
         }
-
-        do {
+        await run {
             let request = StartTimerRequest(
                 projectId: project.id,
-                taskId: selectedTask?.id,
-                description: entryDescription.isEmpty ? nil : entryDescription,
-                isBillable: isBillable
+                taskId: self.selectedTask?.id,
+                description: self.entryDescription.isEmpty ? nil : self.entryDescription,
+                isBillable: self.isBillable
             )
-            let entry = try await timerService.startTimer(request: request)
-            await MainActor.run {
-                self.runningEntry = entry
-                self.error = nil
-                self.startTicking()
-            }
-        } catch {
-            await MainActor.run { self.error = error.localizedDescription }
+            let entry = try await self.timerService.startTimer(request: request)
+            Preferences.lastProjectId = project.id
+            Preferences.lastTaskId = self.selectedTask?.id
+            self.apply(entry)
         }
     }
 
     func stop() async {
-        do {
-            _ = try await timerService.stopTimer()
-            await MainActor.run {
-                self.stopTicking()
-                self.runningEntry = nil
-            }
-        } catch {
-            await MainActor.run { self.error = error.localizedDescription }
+        await run {
+            _ = try await self.timerService.stopTimer()
+            self.apply(nil)
+            self.entryDescription = ""
         }
     }
 
-    func quickRestart(from entry: TimeEntryDTO) async {
-        // Stop current if running
-        if isRunning {
-            await stop()
-        }
-        // Start with same project/task
-        do {
+    /// Stops the current timer and starts a new one with the current selection.
+    func switchTimer() async {
+        await start() // the server stops any running entry first
+    }
+
+    func restart(from entry: TimeEntryDTO) async {
+        await run {
             let request = StartTimerRequest(
                 projectId: entry.projectId,
                 taskId: entry.taskId,
                 description: entry.description,
                 isBillable: entry.isBillable
             )
-            let newEntry = try await timerService.startTimer(request: request)
-            await MainActor.run {
-                self.runningEntry = newEntry
-                self.error = nil
-                self.startTicking()
+            let started = try await self.timerService.startTimer(request: request)
+            self.apply(started)
+        }
+    }
+
+    /// Toggle used by the global hotkey: stop if running, otherwise restart the last selection.
+    func toggle(projects: [ProjectDTO], tasks: [TaskDTO]) async {
+        if isRunning {
+            await stop()
+            return
+        }
+        if selectedProject == nil, let lastId = Preferences.lastProjectId {
+            selectedProject = projects.first { $0.id == lastId }
+            selectedTask = tasks.first { $0.id == Preferences.lastTaskId }
+        }
+        await start()
+    }
+
+    func saveDescription() async {
+        guard let entry = runningEntry else { return }
+        let text = entryDescription
+        guard text != (entry.description ?? "") else { return }
+        await run {
+            let updated = try await self.timerService.updateDescription(entryId: entry.id, description: text)
+            self.runningEntry = updated
+        }
+    }
+
+    // MARK: - Idle handling
+
+    func resolveIdle(_ period: IdleMonitor.IdlePeriod, decision: IdleDecision) async {
+        guard let entry = runningEntry else { return }
+        switch decision {
+        case .keep:
+            return
+        case .stop:
+            await run {
+                _ = try await self.timerService.stop(entryId: entry.id, at: period.start)
+                self.apply(nil)
             }
-        } catch {
-            await MainActor.run { self.error = error.localizedDescription }
+        case .discardContinue:
+            await run {
+                _ = try await self.timerService.stop(entryId: entry.id, at: period.start)
+                let request = StartTimerRequest(
+                    projectId: entry.projectId,
+                    taskId: entry.taskId,
+                    description: entry.description,
+                    isBillable: entry.isBillable
+                )
+                let restarted = try await self.timerService.startTimer(request: request)
+                self.apply(restarted)
+            }
         }
     }
 
@@ -126,26 +186,28 @@ final class TimerViewModel {
         selectedTask = nil
         entryDescription = ""
         isBillable = true
+        error = nil
+    }
+
+    // MARK: - Ticking
+
+    /// Re-syncs the elapsed time from the start timestamp (after sleep/wake).
+    func resync() {
+        if let startedAt { elapsed = max(0, Date().timeIntervalSince(startedAt)) }
     }
 
     private func startTicking() {
         stopTicking()
         guard let entry = runningEntry else { return }
+        let start = entry.startedDate ?? Date()
+        startedAt = start
+        elapsed = max(0, Date().timeIntervalSince(start))
 
-        // Parse ISO 8601 date
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let startedAt = formatter.date(from: entry.startedAt)
-            ?? ISO8601DateFormatter().date(from: entry.startedAt)
-            ?? Date()
-
-        elapsed = Date().timeIntervalSince(startedAt)
-
-        tickTask = Task {
+        tickTask = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1))
-                guard !Task.isCancelled else { return }
-                self.elapsed += 1
+                guard !Task.isCancelled, let self else { return }
+                self.resync()
             }
         }
     }
@@ -153,6 +215,20 @@ final class TimerViewModel {
     private func stopTicking() {
         tickTask?.cancel()
         tickTask = nil
+        startedAt = nil
         elapsed = 0
+    }
+
+    private func run(_ work: @escaping () async throws -> Void) async {
+        isBusy = true
+        defer { isBusy = false }
+        do {
+            try await work()
+            error = nil
+        } catch APIError.unauthorized {
+            // handled globally
+        } catch {
+            self.error = error.localizedDescription
+        }
     }
 }
