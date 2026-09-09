@@ -36,7 +36,7 @@ systemctl is-active --quiet "$FPM" || die "${FPM} laeuft nicht"
 [ -f "${API_DIR}/.env" ] || die "${API_DIR}/.env fehlt — aus api/.env.example anlegen und fuellen"
 grep -q '^APP_KEY=.\+' "${API_DIR}/.env" || die "APP_KEY in api/.env ist leer (php artisan key:generate)"
 grep -q '^DB_PASSWORD=.\+' "${API_DIR}/.env" || die "DB_PASSWORD in api/.env ist leer"
-[ -z "$(git status --porcelain)" ] || die "Checkout hat lokale Aenderungen — erst aufraeumen (git status)"
+[ -z "$(git status --porcelain --untracked-files=no)" ] || die "Checkout hat lokale Aenderungen — erst aufraeumen (git status)"
 
 # ─── 1. Stand von vorher taggen (Rollback-Ziel) ───────────────────────
 VORHER="$(git rev-parse --short HEAD)"
