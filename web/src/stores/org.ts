@@ -20,8 +20,9 @@ export const useOrgStore = defineStore('org', () => {
 
       // Auto-select: use stored id if valid, otherwise pick first
       const storedValid = organizations.value.some((o) => o.id === currentOrgId.value)
-      if (!storedValid && organizations.value.length > 0) {
-        setCurrentOrg(organizations.value[0].id)
+      const first = organizations.value[0]
+      if (!storedValid && first) {
+        setCurrentOrg(first.id)
       }
     } catch {
       // Non-fatal — user stays authenticated, org context just isn't loaded

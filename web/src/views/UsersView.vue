@@ -135,6 +135,7 @@ onMounted(fetchUsers)
               </span>
             </td>
             <td class="td td-actions">
+              <RouterLink class="btn-ghost btn-sm text-xs" :to="{ name: 'report-detail', params: { scope: 'users', id: user.id } }">{{ $t('reportDetail.report') }}</RouterLink>
               <button class="btn-ghost btn-icon btn-sm" @click="openEdit(user)">
                 <PencilIcon class="action-icon" />
               </button>

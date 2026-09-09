@@ -13,6 +13,7 @@ const props = defineProps<{
 
 const { t } = useI18n()
 const timer = useTimerStore()
+const emit = defineEmits<{ (e: 'changed'): void }>()
 
 const selectedProjectId = ref('')
 const selectedTaskId = ref('')
@@ -35,10 +36,12 @@ async function handleStart() {
   if (!selectedProjectId.value) return
   await timer.start(selectedProjectId.value, selectedTaskId.value || undefined, description.value || undefined)
   description.value = ''
+  emit('changed')
 }
 
 async function handleStop() {
   await timer.stop()
+  emit('changed')
 }
 
 onMounted(() => {

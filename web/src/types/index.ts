@@ -148,3 +148,83 @@ export interface UtilizationRow {
   days_tracked: number
   avg_hours_per_day: number
 }
+
+// Scoped reports (organization / client / project / user)
+export type ReportScope = 'organization' | 'client' | 'project' | 'user'
+
+export interface ReportEntry {
+  id: string
+  date: string
+  started_at: string
+  stopped_at: string | null
+  start_time: string
+  end_time: string | null
+  user_id: string
+  user_name: string
+  client_id: string | null
+  client_name: string
+  client_color: string | null
+  project_id: string
+  project_name: string
+  project_color: string | null
+  task_id: string | null
+  task_name: string
+  description: string
+  duration_seconds: number
+  rounded_seconds: number
+  is_billable: boolean
+  hourly_rate: number | null
+  amount: number
+}
+
+export interface ReportGroupRow {
+  id: string | null
+  name: string
+  color: string | null
+  subtitle: string | null
+  total_seconds: number
+  billable_seconds: number
+  total_hours: number
+  billable_hours: number
+  entry_count: number
+  amount: number
+}
+
+export interface ReportDay {
+  date: string
+  total_seconds: number
+  billable_seconds: number
+  entries: ReportEntry[]
+}
+
+export interface ScopedReport {
+  scope: {
+    type: ReportScope
+    id: string | null
+    name: string
+    color: string | null
+    client_name: string | null
+    organization_name: string
+  }
+  period: { from: string; to: string; label: string; is_full_month: boolean }
+  rounding_minutes: number
+  timezone: string
+  generated_at: string
+  totals: {
+    total_seconds: number
+    billable_seconds: number
+    non_billable_seconds: number
+    raw_seconds: number
+    total_hours: number
+    billable_hours: number
+    non_billable_hours: number
+    entry_count: number
+    amount: number
+    days_tracked: number
+  }
+  by_client: ReportGroupRow[]
+  by_project: ReportGroupRow[]
+  by_task: ReportGroupRow[]
+  by_user: ReportGroupRow[]
+  days: ReportDay[]
+}

@@ -6,6 +6,7 @@ import { useTimerStore } from '@/stores/timer'
 import { useAuthStore } from '@/stores/auth'
 import type { TimeEntry, Project, Task } from '@/types'
 import TimerWidget from '@/components/TimerWidget.vue'
+import { toDateString } from '@/utils/format'
 import {
   ClockIcon,
   CurrencyDollarIcon,
@@ -59,11 +60,12 @@ function formatHours(seconds: number): string {
   return (seconds / 3600).toFixed(1)
 }
 
-onMounted(async () => {
-  const today = new Date().toISOString().split('T')[0]
-  const weekStart = new Date()
-  weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1)
-  const weekStartStr = weekStart.toISOString().split('T')[0]
+async function load() {
+  const now = new Date()
+  const today = toDateString(now)
+  const weekStart = new Date(now)
+  weekStart.setDate(now.getDate() - ((now.getDay() + 6) % 7))
+  const weekStartStr = toDateString(weekStart)
 
   try {
     const [todayRes, weekRes, projectsRes, tasksRes] = await Promise.all([
@@ -85,7 +87,9 @@ onMounted(async () => {
   } finally {
     loading.value = false
   }
-})
+}
+
+onMounted(load)
 </script>
 
 <template>
@@ -96,7 +100,7 @@ onMounted(async () => {
     </h1>
 
     <!-- Timer widget -->
-    <TimerWidget :projects="projects" :tasks="tasks" class="dashboard-timer" />
+    <TimerWidget :projects="projects" :tasks="tasks" class="dashboard-timer" @changed="load" />
 
     <!-- Stats -->
     <div class="dashboard-stats">

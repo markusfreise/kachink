@@ -147,6 +147,7 @@ onMounted(async () => {
             <span class="text-muted">{{ project.client?.name }}</span>
           </div>
           <div class="project-card-actions" @click.stop>
+            <button class="btn-ghost btn-sm" @click="router.push({ name: 'report-detail', params: { scope: 'projects', id: project.id } })">{{ $t('reportDetail.report') }}</button>
             <button class="btn-ghost btn-sm" @click="openEdit(project)">{{ $t('common.edit') }}</button>
             <button class="btn-ghost btn-sm" @click="archiveProject(project)">{{ $t('common.archive') }}</button>
           </div>

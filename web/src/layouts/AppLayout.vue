@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, onUnmounted } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
@@ -26,6 +26,11 @@ const route = useRoute()
 
 onMounted(() => {
   timer.fetchRunning()
+  timer.startPolling()
+})
+
+onUnmounted(() => {
+  timer.stopPolling()
 })
 
 const navItems = computed(() => [

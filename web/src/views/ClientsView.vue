@@ -1,11 +1,19 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import api from '@/api/client'
 import type { Client, PaginationMeta } from '@/types'
-import { PlusIcon, XMarkIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/vue/24/outline'
+import { monthlyReportRange } from '@/composables/useReportPeriod'
+import { PlusIcon, XMarkIcon, ChevronLeftIcon, ChevronRightIcon, DocumentTextIcon } from '@heroicons/vue/24/outline'
 
 const { t } = useI18n()
+const router = useRouter()
+
+function openMonthlyReport(client: Client) {
+  const range = monthlyReportRange()
+  router.push({ name: 'report-detail', params: { scope: 'clients', id: client.id }, query: { from: range.from, to: range.to } })
+}
 const clients = ref<Client[]>([])
 const loading = ref(true)
 const showForm = ref(false)
@@ -174,6 +182,10 @@ onMounted(fetchClients)
               <td class="table-td table-td-notes">{{ client.notes || '—' }}</td>
               <td class="table-td">
                 <div class="action-btns">
+                  <button class="btn-secondary btn-sm" @click="openMonthlyReport(client)">
+                    <DocumentTextIcon class="btn-icon-sm" />
+                    {{ $t('reportDetail.monthlyReport') }}
+                  </button>
                   <button class="btn-ghost btn-sm" @click="openEdit(client)">{{ $t('common.edit') }}</button>
                   <button
                     v-if="client.is_active"

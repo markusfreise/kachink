@@ -293,6 +293,29 @@ export default {
   },
 
   // Users
+  reportDetail: {
+    back: 'Zur\u00FCck',
+    scope: { client: 'Kundenbericht', project: 'Projektbericht', user: 'Mitarbeiterbericht', organization: 'Zeitnachweis' },
+    downloadPdf: 'PDF herunterladen',
+    preparing: 'Wird erstellt...',
+    previousMonth: 'Vorheriger Monat',
+    nextMonth: 'N\u00E4chster Monat',
+    monthlyDefault: 'Letzter voller Monat',
+    rounding: 'Rundung',
+    noRounding: 'Keine Rundung',
+    roundingMinutes: 'Auf {minutes} Min.',
+    share: 'Anteil',
+    byTask: 'Nach Aufgabe',
+    detail: 'Einzelnachweis',
+    time: 'Zeit',
+    daysTracked: '{count} Tage erfasst',
+    notFound: 'Berichtsobjekt nicht gefunden.',
+    loadFailed: 'Der Bericht konnte nicht geladen werden.',
+    downloadFailed: 'Der Download ist fehlgeschlagen.',
+    monthlyReport: 'Monatsbericht',
+    report: 'Bericht',
+  },
+
   users: {
     title: 'Team',
     inviteUser: 'Benutzer einladen',

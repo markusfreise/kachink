@@ -7,6 +7,9 @@ export const useTimerStore = defineStore('timer', () => {
   const runningEntry = ref<TimeEntry | null>(null)
   const elapsed = ref(0)
   let interval: ReturnType<typeof setInterval> | null = null
+  let pollInterval: ReturnType<typeof setInterval> | null = null
+  let visibilityHandler: (() => void) | null = null
+  const POLL_MS = 60_000
 
   const isRunning = computed(() => !!runningEntry.value)
 
@@ -22,10 +25,11 @@ export const useTimerStore = defineStore('timer', () => {
     stopTicking()
     if (runningEntry.value) {
       const started = new Date(runningEntry.value.started_at).getTime()
-      elapsed.value = Math.floor((Date.now() - started) / 1000)
-      interval = setInterval(() => {
-        elapsed.value++
-      }, 1000)
+      const tick = () => {
+        elapsed.value = Math.max(0, Math.floor((Date.now() - started) / 1000))
+      }
+      tick()
+      interval = setInterval(tick, 1000)
     }
   }
 
@@ -40,12 +44,37 @@ export const useTimerStore = defineStore('timer', () => {
   async function fetchRunning() {
     try {
       const { data } = await api.get('/time-entries/running')
-      runningEntry.value = data.data
-      if (runningEntry.value) {
-        startTicking()
+      const next: TimeEntry | null = data.data
+      const changed = next?.id !== runningEntry.value?.id
+      runningEntry.value = next
+      if (next) {
+        if (changed || !interval) startTicking()
+      } else {
+        stopTicking()
       }
     } catch {
-      runningEntry.value = null
+      // keep the current state on transient network errors
+    }
+  }
+
+  /** Keep the web app in sync with timers started/stopped from the menubar app. */
+  function startPolling() {
+    stopPolling()
+    pollInterval = setInterval(fetchRunning, POLL_MS)
+    visibilityHandler = () => {
+      if (document.visibilityState === 'visible') fetchRunning()
+    }
+    document.addEventListener('visibilitychange', visibilityHandler)
+    window.addEventListener('focus', visibilityHandler)
+  }
+
+  function stopPolling() {
+    if (pollInterval) clearInterval(pollInterval)
+    pollInterval = null
+    if (visibilityHandler) {
+      document.removeEventListener('visibilitychange', visibilityHandler)
+      window.removeEventListener('focus', visibilityHandler)
+      visibilityHandler = null
     }
   }
 
@@ -74,6 +103,8 @@ export const useTimerStore = defineStore('timer', () => {
     isRunning,
     elapsedFormatted,
     fetchRunning,
+    startPolling,
+    stopPolling,
     start,
     stop,
     startTicking,

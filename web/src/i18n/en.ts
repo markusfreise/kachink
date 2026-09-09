@@ -292,6 +292,29 @@ export default {
   },
 
   // Users
+  reportDetail: {
+    back: 'Back',
+    scope: { client: 'Client report', project: 'Project report', user: 'Team member report', organization: 'Time report' },
+    downloadPdf: 'Download PDF',
+    preparing: 'Preparing...',
+    previousMonth: 'Previous month',
+    nextMonth: 'Next month',
+    monthlyDefault: 'Last full month',
+    rounding: 'Rounding',
+    noRounding: 'No rounding',
+    roundingMinutes: 'Up to {minutes} min',
+    share: 'Share',
+    byTask: 'By task',
+    detail: 'Detail',
+    time: 'Time',
+    daysTracked: '{count} days tracked',
+    notFound: 'Report subject not found.',
+    loadFailed: 'The report could not be loaded.',
+    downloadFailed: 'The download failed.',
+    monthlyReport: 'Monthly report',
+    report: 'Report',
+  },
+
   users: {
     title: 'Team',
     inviteUser: 'Invite User',

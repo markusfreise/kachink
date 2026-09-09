@@ -2,6 +2,7 @@
 import { ref, watch, onMounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import api from '@/api/client'
+import { downloadFile } from '@/api/download'
 import { useAuthStore } from '@/stores/auth'
 import { useSettingsStore } from '@/stores/settings'
 import type { SummaryRow, ReportTotals, BudgetRow, UtilizationRow, Project, TimeEntry } from '@/types'
@@ -401,13 +402,18 @@ tbody td{padding:3px 8px;border-bottom:1px solid #f3f4f6;vertical-align:top;font
 }
 
 async function exportCsv() {
-  const params = new URLSearchParams({
+  const params: Record<string, string> = {
     date_from: dateFrom.value,
     date_to: dateTo.value,
     format: 'csv',
-  })
-  if (filterProjectId.value) params.set('filter[project_id]', filterProjectId.value)
-  window.open(`/api/reports/export?${params.toString()}`, '_blank')
+  }
+  if (filterProjectId.value) params['filter[project_id]'] = filterProjectId.value
+  loading.value = true
+  try {
+    await downloadFile('/reports/export', params)
+  } finally {
+    loading.value = false
+  }
 }
 
 watch(timesheetPage, fetchTimesheet)

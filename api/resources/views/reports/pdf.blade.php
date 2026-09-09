@@ -37,7 +37,7 @@
     table.stats { width: 100%; border-collapse: collapse; margin-bottom: 4pt; }
     table.stats td { padding: 6pt 10pt 6pt 0; vertical-align: top; width: 20%; }
     table.stats .label { display: block; font-size: 7pt; color: #777; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 2pt; }
-    table.stats .value { display: block; font-size: 14pt; font-weight: bold; }
+    table.stats .value { display: block; font-size: 14pt; font-weight: bold; white-space: nowrap; }
     table.stats .value.small { font-size: 10pt; font-weight: normal; color: #444; }
     table.data { width: 100%; border-collapse: collapse; }
     table.data th { text-align: left; font-size: 7.5pt; text-transform: uppercase; letter-spacing: 0.05em; color: #666; padding: 4pt 6pt; border-bottom: 1pt solid #bbb; background: #f4f4f4; }
@@ -45,6 +45,7 @@
     table.data tr.total td { font-weight: bold; border-top: 1pt solid #1a1a1a; border-bottom: none; background: #fafafa; }
     table.data tr.day td { background: #eeeeee; font-weight: bold; padding: 5pt 6pt; border-top: 0.5pt solid #ccc; }
     td.num, th.num { text-align: right; white-space: nowrap; }
+    td.share, th.share { width: 90pt; white-space: nowrap; }
     td.time { white-space: nowrap; color: #555; }
     td.muted { color: #777; }
     .dot { display: inline-block; width: 6pt; height: 6pt; border-radius: 3pt; margin-right: 4pt; vertical-align: middle; }
@@ -52,8 +53,9 @@
     .bar-wrap { display: inline-block; width: 60pt; height: 5pt; background: #e5e5e5; vertical-align: middle; margin-right: 4pt; }
     .desc { color: #444; }
     .footer { position: fixed; bottom: -12mm; left: 0; right: 0; font-size: 7.5pt; color: #999; }
-    .footer .left { float: left; }
-    .footer .right { float: right; }
+    .footer table { width: 100%; border-collapse: collapse; }
+    .footer td { padding: 0; }
+    .footer td.right { text-align: right; }
     .empty { padding: 30pt 0; color: #777; text-align: center; }
     .pagebreak { page-break-before: always; }
 </style>
@@ -61,8 +63,10 @@
 <body>
 
 <div class="footer">
-    <span class="left">{{ $scope['organization_name'] }} &middot; {{ $title }} {{ $subject }} &middot; {{ $report['period']['label'] }}</span>
-    <span class="right">{{ __('reports.generated') }} {{ CarbonImmutable::parse($report['generated_at'])->locale($locale)->isoFormat('L LT') }}</span>
+    <table><tr>
+        <td>{{ $scope['organization_name'] }} &middot; {{ $title }} {{ $subject }} &middot; {{ $report['period']['label'] }}</td>
+        <td class="right">{{ __('reports.generated') }} {{ CarbonImmutable::parse($report['generated_at'])->locale($locale)->isoFormat('L LT') }}</td>
+    </tr></table>
 </div>
 
 <div class="org">{{ $scope['organization_name'] }}</div>
@@ -98,12 +102,12 @@
     @if($showClients)
     <h2>{{ __('reports.by_client') }}</h2>
     <table class="data">
-        <thead><tr><th>{{ __('reports.client') }}</th><th class="num">{{ __('reports.share') }}</th><th class="num">{{ __('reports.hours') }}</th><th class="num">{{ __('reports.billable') }}</th>@if($showAmount)<th class="num">{{ __('reports.amount') }}</th>@endif</tr></thead>
+        <thead><tr><th>{{ __('reports.client') }}</th><th class="share">{{ __('reports.share') }}</th><th class="num">{{ __('reports.hours') }}</th><th class="num">{{ __('reports.billable') }}</th>@if($showAmount)<th class="num">{{ __('reports.amount') }}</th>@endif</tr></thead>
         <tbody>
         @foreach($report['by_client'] as $row)
             <tr>
                 <td>@if($row['color'])<span class="dot" style="background: {{ $row['color'] }}"></span>@endif{{ $row['name'] }}</td>
-                <td class="num"><span class="bar-wrap"><span class="bar" style="width: {{ $pct($row['total_seconds'], $totals['total_seconds']) * 0.6 }}pt"></span></span>{{ $pct($row['total_seconds'], $totals['total_seconds']) }}%</td>
+                <td class="share"><span class="bar-wrap"><span class="bar" style="width: {{ $pct($row['total_seconds'], $totals['total_seconds']) * 0.6 }}pt"></span></span>{{ $pct($row['total_seconds'], $totals['total_seconds']) }}%</td>
                 <td class="num">{{ $fmtH($row['total_seconds']) }}</td>
                 <td class="num">{{ $fmtH($row['billable_seconds']) }}</td>
                 @if($showAmount)<td class="num">{{ $fmtMoney($row['amount']) }}</td>@endif
@@ -116,13 +120,13 @@
     @if($showProjects)
     <h2>{{ __('reports.by_project') }}</h2>
     <table class="data">
-        <thead><tr><th>{{ __('reports.project') }}</th>@if($scope['type'] !== 'client')<th>{{ __('reports.client') }}</th>@endif<th class="num">{{ __('reports.share') }}</th><th class="num">{{ __('reports.hours') }}</th><th class="num">{{ __('reports.billable') }}</th>@if($showAmount)<th class="num">{{ __('reports.amount') }}</th>@endif</tr></thead>
+        <thead><tr><th>{{ __('reports.project') }}</th>@if($scope['type'] !== 'client')<th>{{ __('reports.client') }}</th>@endif<th class="share">{{ __('reports.share') }}</th><th class="num">{{ __('reports.hours') }}</th><th class="num">{{ __('reports.billable') }}</th>@if($showAmount)<th class="num">{{ __('reports.amount') }}</th>@endif</tr></thead>
         <tbody>
         @foreach($report['by_project'] as $row)
             <tr>
                 <td>@if($row['color'])<span class="dot" style="background: {{ $row['color'] }}"></span>@endif{{ $row['name'] }}</td>
                 @if($scope['type'] !== 'client')<td class="muted">{{ $row['subtitle'] }}</td>@endif
-                <td class="num"><span class="bar-wrap"><span class="bar" style="width: {{ $pct($row['total_seconds'], $totals['total_seconds']) * 0.6 }}pt"></span></span>{{ $pct($row['total_seconds'], $totals['total_seconds']) }}%</td>
+                <td class="share"><span class="bar-wrap"><span class="bar" style="width: {{ $pct($row['total_seconds'], $totals['total_seconds']) * 0.6 }}pt"></span></span>{{ $pct($row['total_seconds'], $totals['total_seconds']) }}%</td>
                 <td class="num">{{ $fmtH($row['total_seconds']) }}</td>
                 <td class="num">{{ $fmtH($row['billable_seconds']) }}</td>
                 @if($showAmount)<td class="num">{{ $fmtMoney($row['amount']) }}</td>@endif
@@ -141,12 +145,12 @@
     @if($showTasks)
     <h2>{{ __('reports.by_task') }}</h2>
     <table class="data">
-        <thead><tr><th>{{ __('reports.task') }}</th><th class="num">{{ __('reports.share') }}</th><th class="num">{{ __('reports.hours') }}</th><th class="num">{{ __('reports.billable') }}</th></tr></thead>
+        <thead><tr><th>{{ __('reports.task') }}</th><th class="share">{{ __('reports.share') }}</th><th class="num">{{ __('reports.hours') }}</th><th class="num">{{ __('reports.billable') }}</th></tr></thead>
         <tbody>
         @foreach($report['by_task'] as $row)
             <tr>
                 <td>{{ $row['name'] !== '' ? $row['name'] : '-' }}</td>
-                <td class="num"><span class="bar-wrap"><span class="bar" style="width: {{ $pct($row['total_seconds'], $totals['total_seconds']) * 0.6 }}pt"></span></span>{{ $pct($row['total_seconds'], $totals['total_seconds']) }}%</td>
+                <td class="share"><span class="bar-wrap"><span class="bar" style="width: {{ $pct($row['total_seconds'], $totals['total_seconds']) * 0.6 }}pt"></span></span>{{ $pct($row['total_seconds'], $totals['total_seconds']) }}%</td>
                 <td class="num">{{ $fmtH($row['total_seconds']) }}</td>
                 <td class="num">{{ $fmtH($row['billable_seconds']) }}</td>
             </tr>
@@ -158,12 +162,12 @@
     @if($showUsers)
     <h2>{{ __('reports.by_user') }}</h2>
     <table class="data">
-        <thead><tr><th>{{ __('reports.user') }}</th><th class="num">{{ __('reports.share') }}</th><th class="num">{{ __('reports.hours') }}</th><th class="num">{{ __('reports.billable') }}</th><th class="num">{{ __('reports.entries') }}</th></tr></thead>
+        <thead><tr><th>{{ __('reports.user') }}</th><th class="share">{{ __('reports.share') }}</th><th class="num">{{ __('reports.hours') }}</th><th class="num">{{ __('reports.billable') }}</th><th class="num">{{ __('reports.entries') }}</th></tr></thead>
         <tbody>
         @foreach($report['by_user'] as $row)
             <tr>
                 <td>{{ $row['name'] }}</td>
-                <td class="num"><span class="bar-wrap"><span class="bar" style="width: {{ $pct($row['total_seconds'], $totals['total_seconds']) * 0.6 }}pt"></span></span>{{ $pct($row['total_seconds'], $totals['total_seconds']) }}%</td>
+                <td class="share"><span class="bar-wrap"><span class="bar" style="width: {{ $pct($row['total_seconds'], $totals['total_seconds']) * 0.6 }}pt"></span></span>{{ $pct($row['total_seconds'], $totals['total_seconds']) }}%</td>
                 <td class="num">{{ $fmtH($row['total_seconds']) }}</td>
                 <td class="num">{{ $fmtH($row['billable_seconds']) }}</td>
                 <td class="num">{{ $row['entry_count'] }}</td>

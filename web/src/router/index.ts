@@ -59,6 +59,11 @@ const router = createRouter({
           component: () => import('@/views/ReportsView.vue'),
         },
         {
+          path: 'reports/:scope(clients|projects|users)/:id',
+          name: 'report-detail',
+          component: () => import('@/views/ReportDetailView.vue'),
+        },
+        {
           path: 'tags',
           name: 'tags',
           component: () => import('@/views/TagsView.vue'),
@@ -74,6 +79,10 @@ const router = createRouter({
           component: () => import('@/views/SettingsView.vue'),
         },
       ],
+    },
+    {
+      path: '/:pathMatch(.*)*',
+      redirect: { name: 'dashboard' },
     },
   ],
 })
