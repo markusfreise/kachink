@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# kachink-deploy-trigger — vom Webhook-Daemon aufgerufen. Antwortet sofort,
+# der Deploy laeuft losgeloest weiter (/var/log/kachink-deploy.log).
+setsid /usr/local/bin/kachink-deploy >/dev/null 2>&1 </dev/null &
+echo "kachink deploy angestossen"

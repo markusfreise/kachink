@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# kachink-deploy — fuehrt deploy.sh auf LXC 114 aus, mit Lock und Log.
+#   /usr/local/bin/kachink-deploy          # deployt origin/main
+#   tail -f /var/log/kachink-deploy.log    # zuschauen
+set -euo pipefail
+
+APP_DIR="${KACHINK_DIR:-/var/www/kachink}"
+LOG="${KACHINK_LOG:-/var/log/kachink-deploy.log}"
+LOCK="${KACHINK_LOCK:-/var/lock/kachink-deploy.lock}"
+NACHHOLEN="${LOCK}.nachholen"
+
+export HOME="${HOME:-/root}"
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+log() { printf '%s %s\n' "$(date -Is)" "$*" >>"$LOG"; }
+
+exec 9>"$LOCK"
+if ! flock -n 9; then
+  touch "$NACHHOLEN"
+  log "Deploy laeuft bereits — dieser Anstoss wird nach dessen Ende nachgeholt."
+  exit 0
+fi
+
+while :; do
+  rm -f "$NACHHOLEN"
+  {
+    echo
+    echo "=== $(date -Is) Deploy angestossen ==="
+    cd "$APP_DIR"
+    if ./deploy.sh; then
+      echo "=== $(date -Is) Deploy fertig ==="
+    else
+      echo "=== $(date -Is) Deploy FEHLGESCHLAGEN (Exit $?) ==="
+    fi
+  } >>"$LOG" 2>&1
+  [ -e "$NACHHOLEN" ] || break
+  log "Waehrend des Deploys kam ein weiterer Push — noch einmal."
+done

@@ -1,0 +1,24 @@
+{
+  "id": "kachink-deploy",
+  "execute-command": "/usr/local/bin/kachink-deploy-trigger",
+  "command-working-directory": "/var/www/kachink",
+  "response-message": "kachink deploy angestossen",
+  "trigger-rule": {
+    "and": [
+      {
+        "match": {
+          "type": "payload-hmac-sha256",
+          "secret": "__WEBHOOK_SECRET__",
+          "parameter": { "source": "header", "name": "X-Hub-Signature-256" }
+        }
+      },
+      {
+        "match": {
+          "type": "value",
+          "value": "refs/heads/main",
+          "parameter": { "source": "payload", "name": "ref" }
+        }
+      }
+    ]
+  }
+}
