@@ -31,6 +31,7 @@ for (const mod of Object.values(additionModules)) {
 }
 
 function getDefaultLocale(): string {
+  if (typeof localStorage === 'undefined' || typeof navigator === 'undefined') return 'en'
   const stored = localStorage.getItem('setting:locale')
   if (stored) {
     try {

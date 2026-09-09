@@ -102,17 +102,17 @@ class HarvestImport extends Command
                 continue;
             }
 
-            $orgRole = in_array('administrator', $hu['access_roles'] ?? []) ? 'admin' : 'member';
-            $user = User::updateOrCreate(
-                ['harvest_id' => (string) $hu['id']],
-                [
-                    'name' => $hu['first_name'] . ' ' . $hu['last_name'],
-                    'email' => $hu['email'],
-                    'password' => Hash::make(Str::random(32)),
-                    'role' => 'member',
-                    'is_active' => true,
-                ]
-            );
+            $isAdmin = in_array('administrator', $hu['access_roles'] ?? []);
+            $orgRole = $isAdmin ? 'admin' : 'member';
+            $user = User::where('harvest_id', (string) $hu['id'])->first()
+                ?? User::where('email', $hu['email'])->first()
+                ?? new User(['password' => Hash::make(Str::random(32)), 'role' => $isAdmin ? 'admin' : 'member']);
+            $user->fill([
+                'harvest_id' => (string) $hu['id'],
+                'name' => $hu['first_name'] . ' ' . $hu['last_name'],
+                'email' => $hu['email'],
+                'is_active' => true,
+            ])->save();
             $this->organization->users()->syncWithoutDetaching([
                 $user->id => ['role' => $orgRole],
             ]);
@@ -130,8 +130,8 @@ class HarvestImport extends Command
 
         foreach ($clients as $hc) {
             $slug = Str::slug($hc['name']);
-            $client = Client::withoutGlobalScope('organization')->where('harvest_id', (string) $hc['id'])->first()
-                ?? Client::withoutGlobalScope('organization')->where('slug', $slug)->first()
+            $client = Client::withoutGlobalScope('organization')->where('organization_id', $orgId)->where('harvest_id', (string) $hc['id'])->first()
+                ?? Client::withoutGlobalScope('organization')->where('organization_id', $orgId)->where('slug', $slug)->first()
                 ?? new Client();
             $client->fill([
                 'organization_id' => $orgId,
@@ -159,9 +159,10 @@ class HarvestImport extends Command
             }
 
             $slug = Str::slug($hp['name']);
-            $project = Project::withoutGlobalScope('organization')->where('harvest_id', (string) $hp['id'])->first()
+            $project = Project::withoutGlobalScope('organization')->where('organization_id', $orgId)->where('harvest_id', (string) $hp['id'])->first()
                 ?? Project::withoutGlobalScope('organization')->where('client_id', $client->id)->where('slug', $slug)->first()
                 ?? new Project();
+            $budgetInHours = in_array($hp['budget_by'] ?? '', ['project', 'person', 'task', 'none'], true) || ($hp['budget_by'] ?? '') === '';
             $project->fill([
                 'organization_id' => $orgId,
                 'harvest_id' => (string) $hp['id'],
@@ -170,7 +171,7 @@ class HarvestImport extends Command
                 'slug' => $slug,
                 'is_billable' => $hp['is_billable'],
                 'is_active' => $hp['is_active'],
-                'budget_hours' => $hp['budget'] ?? null,
+                'budget_hours' => $budgetInHours ? ($hp['budget'] ?? null) : null,
                 'hourly_rate' => $hp['hourly_rate'] ?? null,
                 'color' => $project->color ?? $this->randomColor(),
             ])->save();
@@ -188,7 +189,7 @@ class HarvestImport extends Command
 
         foreach ($tasks as $ht) {
             $task = Task::withoutGlobalScope('organization')->updateOrCreate(
-                ['harvest_id' => (string) $ht['id']],
+                ['organization_id' => $orgId, 'harvest_id' => (string) $ht['id']],
                 [
                     'organization_id' => $orgId,
                     'name' => $ht['name'],
@@ -228,6 +229,15 @@ class HarvestImport extends Command
             $hours = (float) $he['hours'];
             $durationSeconds = (int) round($hours * 3600);
 
+            // Harvest gives "8:05am"-style times when the account tracks start/end;
+            // otherwise place the entry at 09:00 local time on the spent date.
+            $tz = config('reports.timezone');
+            $startedAt = ! empty($he['started_time'])
+                ? \Carbon\Carbon::parse($spentDate . ' ' . $he['started_time'], $tz)
+                : \Carbon\Carbon::parse($spentDate . ' 09:00', $tz);
+            $startedAt = $startedAt->setTimezone(config('app.timezone'));
+            $stoppedAt = $startedAt->copy()->addSeconds($durationSeconds);
+
             TimeEntry::withoutGlobalScope('organization')->updateOrCreate(
                 ['harvest_id' => (string) $he['id']],
                 [
@@ -236,8 +246,8 @@ class HarvestImport extends Command
                     'project_id' => $project->id,
                     'task_id' => $task?->id,
                     'description' => $he['notes'] ?: null,
-                    'started_at' => $spentDate . ' 00:00:00',
-                    'stopped_at' => date('Y-m-d H:i:s', strtotime($spentDate . ' 00:00:00') + $durationSeconds),
+                    'started_at' => $startedAt,
+                    'stopped_at' => $stoppedAt,
                     'duration_seconds' => $durationSeconds,
                     'is_billable' => $he['billable'],
                     'is_running' => false,
