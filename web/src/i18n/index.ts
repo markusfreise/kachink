@@ -47,7 +47,7 @@ const i18n = createI18n({
   globalInjection: true,
   locale: getDefaultLocale(),
   fallbackLocale: 'en',
-  messages: { en: messagesEn, de: messagesDe },
+  messages: { en: messagesEn as typeof en, de: messagesDe as typeof en },
 })
 
 export default i18n
