@@ -1,0 +1,14 @@
+@use "../functions" as *;
+@use "../mixins" as *;
+
+// tasks view (cross-project list)
+
+.tasks {
+  &__filter {
+    max-width: pxtorem(200);
+  }
+
+  .card {
+    margin-bottom: var(--gap);
+  }
+}

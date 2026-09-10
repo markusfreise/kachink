@@ -1,0 +1,72 @@
+@use "../functions" as *;
+@use "../mixins" as *;
+
+// task-form: create/edit modal for project tasks
+
+.task-form {
+  &__parent {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 0 0 var(--gap);
+    padding: var(--gap-05x) var(--gap-075x);
+    border-radius: var(--radius-small);
+    background: var(--c-surface-2);
+  }
+
+  &__parent-label {
+    font-size: var(--fs-mini);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--c-copy-light);
+  }
+
+  &__parent-title {
+    font-weight: 500;
+    color: var(--c-head);
+  }
+
+  &__estimate {
+    @include tablet {
+      grid-template-columns: 1fr 1fr 1.4fr;
+    }
+  }
+
+  &__tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: pxtorem(6);
+  }
+
+  &__tag {
+    display: inline-flex;
+    align-items: center;
+    gap: pxtorem(6);
+    min-height: var(--control-height-sm);
+    padding: 0 pxtorem(12);
+    border: 1px solid var(--c-border-strong);
+    border-radius: 999px;
+    background: var(--c-surface);
+    font: inherit;
+    font-size: var(--fs-small);
+    color: var(--c-copy);
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+
+    &:hover {
+      border-color: var(--c-corporate);
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+
+    &--active {
+      border-color: var(--c-corporate);
+      background: var(--c-corporate-soft);
+      color: var(--c-corporate);
+      font-weight: 600;
+    }
+  }
+}

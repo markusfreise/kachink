@@ -86,3 +86,10 @@
     }
   }
 }
+
+.project-detail__task-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gap-05x);
+}

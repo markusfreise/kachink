@@ -64,6 +64,16 @@ const router = createRouter({
           component: () => import('@/views/ReportDetailView.vue'),
         },
         {
+          path: 'tasks',
+          name: 'tasks',
+          component: () => import('@/views/TasksView.vue'),
+        },
+        {
+          path: 'tasks/:id',
+          name: 'task-detail',
+          component: () => import('@/views/TaskDetailView.vue'),
+        },
+        {
           path: 'tags',
           name: 'tags',
           component: () => import('@/views/TagsView.vue'),

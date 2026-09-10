@@ -228,3 +228,88 @@ export interface ScopedReport {
   by_user: ReportGroupRow[]
   days: ReportDay[]
 }
+
+// Task management (project tasks with subtasks)
+export type TaskPriority = 'immediate' | 'urgent' | 'soon' | 'easy'
+
+export type TaskHistoryAction =
+  | 'created'
+  | 'updated'
+  | 'completed'
+  | 'reopened'
+  | 'comment_added'
+  | 'comment_deleted'
+  | 'attachment_added'
+  | 'attachment_removed'
+
+export interface ProjectTaskComment {
+  id: string
+  project_task_id: string
+  user_id: string | null
+  body: string
+  user?: User | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ProjectTaskAttachment {
+  id: string
+  project_task_id: string
+  user_id: string | null
+  original_name: string
+  mime_type: string | null
+  size: number
+  user?: User | null
+  created_at: string
+}
+
+export interface ProjectTaskHistory {
+  id: string
+  user_id: string | null
+  action: TaskHistoryAction
+  changes: Record<string, { from: unknown; to: unknown } | unknown> | null
+  user?: User | null
+  created_at: string
+}
+
+export interface ProjectTaskRef {
+  id: string
+  title: string
+  is_completed?: boolean
+}
+
+export interface ProjectTask {
+  id: string
+  project_id: string
+  parent_id: string | null
+  title: string
+  description: string | null
+  assignee_id: string | null
+  created_by: string | null
+  priority: TaskPriority
+  estimate_minutes: number | null
+  budget: number | null
+  deadline: string | null
+  reminder_at: string | null
+  reminder_sent_at: string | null
+  completed_at: string | null
+  is_completed: boolean
+  is_overdue: boolean
+  position: number
+  assignee?: User | null
+  creator?: User | null
+  project?: Project
+  parent?: ProjectTaskRef | null
+  ancestors?: ProjectTaskRef[]
+  tags?: Tag[]
+  children?: ProjectTask[]
+  comments?: ProjectTaskComment[]
+  attachments?: ProjectTaskAttachment[]
+  history?: ProjectTaskHistory[]
+  children_count?: number
+  open_children_count?: number
+  comments_count?: number
+  attachments_count?: number
+  created_at: string
+  updated_at: string
+}

@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { useRoute, RouterLink } from 'vue-router'
+import { useRoute, useRouter, RouterLink } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import api from '@/api/client'
-import type { Project, Client, TimeEntry, PaginationMeta } from '@/types'
-import { ArrowLeftIcon, DocumentTextIcon, PencilSquareIcon, ClockIcon } from '@heroicons/vue/24/outline'
+import type { Project, Client, TimeEntry, PaginationMeta, ProjectTask } from '@/types'
+import { ArrowLeftIcon, DocumentTextIcon, PencilSquareIcon, ClockIcon, PlusIcon, ClipboardDocumentListIcon } from '@heroicons/vue/24/outline'
+import TaskRow from '@/components/TaskRow.vue'
+import TaskFormModal from '@/components/TaskFormModal.vue'
 import ProjectFormModal from '@/components/ProjectFormModal.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import { useToastStore, errorMessage } from '@/stores/toast'
@@ -19,6 +21,7 @@ interface ProjectWithSummary extends Project {
 
 const { t } = useI18n()
 const route = useRoute()
+const router = useRouter()
 const toast = useToastStore()
 
 const project = ref<ProjectWithSummary | null>(null)
@@ -30,6 +33,12 @@ const entriesMeta = ref<PaginationMeta | null>(null)
 const entriesLoading = ref(true)
 
 const clients = ref<Client[]>([])
+
+const tasks = ref<ProjectTask[]>([])
+const tasksMeta = ref<PaginationMeta | null>(null)
+const tasksLoading = ref(true)
+const showTaskForm = ref(false)
+const busyTaskId = ref<string | null>(null)
 const showForm = ref(false)
 const showArchive = ref(false)
 const archiveBusy = ref(false)
@@ -87,6 +96,38 @@ async function fetchEntries() {
   }
 }
 
+async function fetchTasks() {
+  tasksLoading.value = true
+  try {
+    const { data } = await api.get('/project-tasks', {
+      params: { 'filter[project_id]': projectId.value, 'filter[parent_id]': 'root', 'filter[status]': 'open', per_page: 10 },
+    })
+    tasks.value = data.data
+    tasksMeta.value = data.meta ?? null
+  } catch (e) {
+    toast.error(errorMessage(e, t('common.loadFailed')))
+  } finally {
+    tasksLoading.value = false
+  }
+}
+
+async function toggleTask(task: ProjectTask, completed: boolean) {
+  busyTaskId.value = task.id
+  try {
+    await api.put(`/project-tasks/${task.id}`, { completed })
+    await fetchTasks()
+  } catch (e) {
+    toast.error(errorMessage(e, t('common.failedToSave')))
+  } finally {
+    busyTaskId.value = null
+  }
+}
+
+function onTaskSaved(task: ProjectTask) {
+  showTaskForm.value = false
+  router.push({ name: 'task-detail', params: { id: task.id } })
+}
+
 async function openEdit() {
   if (clients.value.length === 0) {
     try {
@@ -124,8 +165,13 @@ async function setActive(isActive: boolean) {
 async function load() {
   // Entries are only requested for an existing project: an unknown id would just add a second failure.
   await fetchProject()
-  if (project.value) fetchEntries()
-  else entriesLoading.value = false
+  if (project.value) {
+    fetchEntries()
+    fetchTasks()
+  } else {
+    entriesLoading.value = false
+    tasksLoading.value = false
+  }
 }
 
 onMounted(load)
@@ -227,6 +273,33 @@ watch(projectId, load)
 
       <section class="card page__section">
         <div class="card__header">
+          <h2 class="card__title">{{ $t('tasks.title') }}</h2>
+          <div class="project-detail__task-actions">
+            <span v-if="tasksMeta && tasks.length" class="toolbar__count">{{ $t('tasks.openCount', { count: tasksMeta.total }) }}</span>
+            <RouterLink class="btn btn--ghost btn--sm" :to="{ name: 'tasks', query: { project: project.id } }">{{ $t('tasks.allTasksOfProject') }}</RouterLink>
+            <button type="button" class="btn btn--secondary btn--sm" @click="showTaskForm = true">
+              <PlusIcon class="btn__icon" aria-hidden="true" />
+              {{ $t('tasks.newTask') }}
+            </button>
+          </div>
+        </div>
+        <div class="card__body card__body--flush">
+          <div v-if="tasksLoading" class="loading">
+            <span class="spinner" role="status"></span>
+          </div>
+          <div v-else-if="tasks.length === 0" class="empty">
+            <ClipboardDocumentListIcon class="empty__icon" aria-hidden="true" />
+            <p class="empty__title">{{ $t('tasks.noTasks') }}</p>
+            <p class="empty__text">{{ $t('tasks.noTasksText') }}</p>
+          </div>
+          <ul v-else class="task-list">
+            <TaskRow v-for="task in tasks" :key="task.id" :task="task" :busy="busyTaskId === task.id" @toggle="toggleTask" />
+          </ul>
+        </div>
+      </section>
+
+      <section class="card page__section">
+        <div class="card__header">
           <h2 class="card__title">{{ $t('projectDetail.recentEntries') }}</h2>
           <span v-if="entriesMeta && entries.length" class="toolbar__count">
             {{ $t('projectDetail.recentEntriesSub', { count: entries.length, total: entriesMeta.total }) }}
@@ -279,6 +352,8 @@ watch(projectId, load)
       @close="showForm = false"
       @saved="onSaved"
     />
+
+    <TaskFormModal v-if="showTaskForm && project" :task="null" :project-id="project.id" @close="showTaskForm = false" @saved="onTaskSaved" />
 
     <ConfirmDialog
       v-if="showArchive && project"

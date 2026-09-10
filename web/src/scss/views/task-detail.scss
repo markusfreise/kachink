@@ -1,0 +1,371 @@
+@use "../functions" as *;
+@use "../mixins" as *;
+
+// task-detail view
+
+.task-detail {
+  &__crumbs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: pxtorem(6);
+    margin-bottom: var(--gap-05x);
+    font-size: var(--fs-small);
+    color: var(--c-copy-light);
+  }
+
+  &__crumb {
+    display: inline-flex;
+    align-items: center;
+    gap: pxtorem(6);
+    color: var(--c-copy-light);
+    text-decoration: none;
+
+    &:hover {
+      color: var(--c-corporate);
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+      border-radius: var(--radius-small);
+    }
+  }
+
+  &__crumb-sep {
+    color: var(--c-copy-lighter);
+  }
+
+  &__ident {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--gap-075x);
+    min-width: 0;
+  }
+
+  &__check {
+    width: pxtorem(28);
+    height: pxtorem(28);
+    margin-top: pxtorem(6);
+
+    .task-row__check-icon {
+      width: pxtorem(18);
+      height: pxtorem(18);
+    }
+  }
+
+  &__titles {
+    min-width: 0;
+  }
+
+  &__title {
+    overflow-wrap: anywhere;
+
+    &--done {
+      color: var(--c-copy-light);
+      text-decoration: line-through;
+    }
+  }
+
+  &__badges {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--gap-05x);
+    margin-top: var(--gap-025x);
+  }
+
+  &__creator {
+    font-size: var(--fs-small);
+    color: var(--c-copy-light);
+  }
+
+  &__layout {
+    display: grid;
+    gap: 0 var(--gap);
+    grid-template-columns: minmax(0, 1fr);
+
+    @include desktop {
+      grid-template-columns: minmax(0, 2fr) minmax(pxtorem(280), 1fr);
+    }
+  }
+
+  &__main,
+  &__side {
+    min-width: 0;
+  }
+
+  &__description {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  &__none {
+    margin: 0 0 var(--gap);
+  }
+}
+
+// ---------------------------------------------------------------- meta list
+
+.task-meta {
+  display: grid;
+  gap: var(--gap-075x);
+  margin: 0;
+
+  &__item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  &__label {
+    font-size: var(--fs-mini);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--c-copy-light);
+  }
+
+  &__value {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: pxtorem(6);
+    margin: 0;
+    font-weight: 500;
+    color: var(--c-head);
+    @include tabular;
+
+    &--muted {
+      color: var(--c-copy-lighter);
+      font-weight: 400;
+    }
+
+    &--danger {
+      color: var(--c-danger);
+    }
+  }
+
+  &__hint {
+    font-weight: 400;
+    color: var(--c-copy-light);
+  }
+}
+
+// ---------------------------------------------------------------- comments
+
+.comments {
+  list-style: none;
+  margin: 0 0 var(--gap);
+  padding: 0;
+}
+
+.comment {
+  display: flex;
+  gap: var(--gap-075x);
+  padding: var(--gap-075x) 0;
+  border-bottom: 1px solid var(--c-border);
+
+  &:first-child {
+    padding-top: 0;
+  }
+
+  &__avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: pxtorem(32);
+    height: pxtorem(32);
+    border-radius: 50%;
+    background: var(--c-corporate-soft);
+    color: var(--c-corporate);
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  &__main {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: pxtorem(4) var(--gap-05x);
+  }
+
+  &__author {
+    font-weight: 600;
+    color: var(--c-head);
+  }
+
+  &__time {
+    font-size: var(--fs-small);
+    color: var(--c-copy-light);
+  }
+
+  &__actions {
+    display: flex;
+    gap: pxtorem(2);
+    margin-left: auto;
+  }
+
+  &__body {
+    margin: pxtorem(4) 0 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  &__edit {
+    margin-top: pxtorem(6);
+  }
+}
+
+.comment-form {
+  .form__actions {
+    justify-content: flex-end;
+  }
+}
+
+// ---------------------------------------------------------------- attachments
+
+.attachments {
+  list-style: none;
+  margin: 0 0 var(--gap-05x);
+  padding: 0;
+}
+
+.attachment {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: pxtorem(2) var(--gap-05x);
+  padding: var(--gap-05x) 0;
+  border-bottom: 1px solid var(--c-border);
+
+  &:last-child {
+    border-bottom: 0;
+  }
+
+  &__name {
+    display: inline-flex;
+    align-items: center;
+    gap: pxtorem(6);
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-weight: 500;
+    color: var(--c-corporate);
+    text-align: left;
+    cursor: pointer;
+
+    &:hover {
+      text-decoration: underline;
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+      border-radius: var(--radius-small);
+    }
+  }
+
+  &__icon {
+    flex-shrink: 0;
+    width: pxtorem(16);
+    height: pxtorem(16);
+  }
+
+  &__label {
+    @include truncate;
+  }
+
+  &__meta {
+    grid-column: 1;
+    font-size: var(--fs-small);
+    color: var(--c-copy-light);
+  }
+
+  > .btn {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+}
+
+// ---------------------------------------------------------------- history
+
+.history {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+
+  &__item {
+    display: flex;
+    gap: var(--gap-05x);
+    padding: var(--gap-05x) 0;
+    border-bottom: 1px solid var(--c-border);
+
+    &:last-child {
+      border-bottom: 0;
+    }
+  }
+
+  &__icon {
+    flex-shrink: 0;
+    width: pxtorem(16);
+    height: pxtorem(16);
+    margin-top: pxtorem(2);
+    color: var(--c-copy-lighter);
+  }
+
+  &__main {
+    flex: 1;
+    min-width: 0;
+    font-size: var(--fs-small);
+  }
+
+  &__text {
+    margin: 0;
+    color: var(--c-copy);
+  }
+
+  &__user {
+    font-weight: 600;
+    color: var(--c-head);
+  }
+
+  &__changes {
+    list-style: none;
+    margin: pxtorem(4) 0 0;
+    padding: 0;
+  }
+
+  &__change {
+    display: flex;
+    flex-wrap: wrap;
+    gap: pxtorem(4);
+    color: var(--c-copy-light);
+  }
+
+  &__field {
+    font-weight: 600;
+  }
+
+  &__from {
+    text-decoration: line-through;
+    color: var(--c-copy-lighter);
+  }
+
+  &__to {
+    color: var(--c-copy);
+  }
+
+  &__time {
+    display: block;
+    margin-top: pxtorem(2);
+    font-size: var(--fs-mini);
+    color: var(--c-copy-lighter);
+  }
+}
