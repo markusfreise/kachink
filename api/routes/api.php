@@ -6,6 +6,9 @@ use App\Http\Controllers\Api\DeviceAuthController;
 use App\Http\Controllers\Api\OrganizationController;
 use App\Http\Controllers\Api\PasswordResetController;
 use App\Http\Controllers\Api\ProjectController;
+use App\Http\Controllers\Api\ProjectTaskAttachmentController;
+use App\Http\Controllers\Api\ProjectTaskCommentController;
+use App\Http\Controllers\Api\ProjectTaskController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\TagController;
 use App\Http\Controllers\Api\TaskController;
@@ -56,6 +59,17 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Tasks
         Route::apiResource('tasks', TaskController::class)->only(['index', 'store', 'update', 'destroy']);
+
+        // Project tasks (task management with subtasks, comments, attachments, history)
+        Route::apiResource('project-tasks', ProjectTaskController::class)->parameters([
+            'project-tasks' => 'project_task',
+        ]);
+        Route::post('/project-tasks/{project_task}/comments', [ProjectTaskCommentController::class, 'store']);
+        Route::put('/project-tasks/{project_task}/comments/{comment}', [ProjectTaskCommentController::class, 'update']);
+        Route::delete('/project-tasks/{project_task}/comments/{comment}', [ProjectTaskCommentController::class, 'destroy']);
+        Route::post('/project-tasks/{project_task}/attachments', [ProjectTaskAttachmentController::class, 'store']);
+        Route::get('/project-tasks/{project_task}/attachments/{attachment}/download', [ProjectTaskAttachmentController::class, 'download']);
+        Route::delete('/project-tasks/{project_task}/attachments/{attachment}', [ProjectTaskAttachmentController::class, 'destroy']);
 
         // Time Entries
         Route::post('/time-entries/start', [TimeEntryController::class, 'start']);

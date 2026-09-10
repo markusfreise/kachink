@@ -17,7 +17,7 @@ return new class extends Migration
             $table->uuid('id')->primary();
             $table->foreignUuid('organization_id')->constrained()->cascadeOnDelete();
             $table->foreignUuid('project_id')->constrained()->cascadeOnDelete();
-            $table->foreignUuid('parent_id')->nullable()->constrained('project_tasks')->cascadeOnDelete();
+            $table->uuid('parent_id')->nullable();
             $table->string('title');
             $table->text('description')->nullable();
             $table->foreignUuid('assignee_id')->nullable()->constrained('users')->nullOnDelete();
@@ -37,6 +37,11 @@ return new class extends Migration
             $table->index(['organization_id', 'assignee_id'], 'project_tasks_org_assignee_idx');
             $table->index(['organization_id', 'reminder_at'], 'project_tasks_org_reminder_idx');
             $table->index('parent_id', 'project_tasks_parent_idx');
+        });
+
+        // Self-reference after the primary key exists; Postgres rejects it inside the create statement.
+        Schema::table('project_tasks', function (Blueprint $table) {
+            $table->foreign('parent_id')->references('id')->on('project_tasks')->cascadeOnDelete();
         });
 
         Schema::create('project_task_tag', function (Blueprint $table) {
