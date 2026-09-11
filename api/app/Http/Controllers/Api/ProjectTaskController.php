@@ -86,7 +86,7 @@ class ProjectTaskController extends Controller
 
         if ($request->filled('filter.q')) {
             $term = '%'.str_replace(['%', '_'], ['\\%', '\\_'], $request->input('filter.q')).'%';
-            $query->where(fn ($q) => $q->where('title', 'like', $term)->orWhere('description', 'like', $term));
+            $query->where(fn ($q) => $q->where('title', \App\Support\Sql::like(), $term)->orWhere('description', \App\Support\Sql::like(), $term));
         }
 
         $this->applySort($query, $request->input('sort', 'priority'));

@@ -122,7 +122,7 @@ class AsanaImportController extends Controller
         $asTasks = ProjectTask::whereIn('asana_task_gid', $gids)->with('project')->get()->keyBy('asana_task_gid');
         $asProjects = Project::whereIn('asana_task_gid', $gids)->get()->keyBy('asana_task_gid');
 
-        $rows = array_map(function ($t) use ($asTasks, $asProjects) {
+        $rows = array_map(function ($t) use ($asTasks, $asProjects, $gid) {
             $amount = null;
             foreach ($t['custom_fields'] ?? [] as $f) {
                 if (($f['name'] ?? '') === AsanaImporter::AMOUNT_FIELD && isset($f['number_value'])) {
@@ -142,7 +142,7 @@ class AsanaImportController extends Controller
                 'notes' => mb_substr((string) ($t['notes'] ?? ''), 0, 300),
                 'due_on' => $t['due_on'] ?? null,
                 'assignee' => $t['assignee']['name'] ?? null,
-                'section' => $t['memberships'][0]['section']['name'] ?? null,
+                'section' => AsanaImporter::section($t, $gid),
                 'tags' => array_column($t['tags'] ?? [], 'name'),
                 'num_subtasks' => $t['num_subtasks'] ?? 0,
                 'amount' => $amount,
@@ -177,6 +177,7 @@ class AsanaImportController extends Controller
             'import_completed' => ['sometimes', 'boolean'],
             'with_comments' => ['sometimes', 'boolean'],
             'completed_with_comments' => ['sometimes', 'boolean'],
+            'sections_as_status' => ['sometimes', 'boolean'],
         ]);
 
         $client = Client::where('asana_project_gid', $gid)->first();
@@ -186,6 +187,8 @@ class AsanaImportController extends Controller
         set_time_limit(0);
         $asana = $this->asana();
         $importer = new AsanaImporter($asana, $this->org(), $request->user(), (bool) ($data['with_comments'] ?? true));
+        $sectionsAsStatus = (bool) ($data['sections_as_status'] ?? true);
+        $importer->sectionProjectGid = $sectionsAsStatus ? $gid : null;
 
         $decisions = collect($data['decisions'] ?? [])->where('mode', '!=', 'skip')->keyBy('gid');
         if ($decisions->isNotEmpty()) {
@@ -214,6 +217,7 @@ class AsanaImportController extends Controller
         if (! empty($data['import_completed'])) {
             $withComments = (bool) ($data['completed_with_comments'] ?? false);
             $done = new AsanaImporter($asana, $this->org(), $request->user(), $withComments);
+            $done->sectionProjectGid = $sectionsAsStatus ? $gid : null;
             $project = $done->doneProjectFor($client);
             $completed = array_values(array_filter($asana->tasks($gid, true), fn ($t) => empty($t['parent'])));
             $known = ProjectTask::whereIn('asana_task_gid', array_column($completed, 'gid'))->pluck('asana_task_gid')->flip();

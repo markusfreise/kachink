@@ -8,6 +8,7 @@ use App\Models\Project;
 use App\Models\ProjectTask;
 use App\Models\ProjectTaskComment;
 use App\Models\Tag;
+use App\Models\TaskStatus;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 
@@ -30,6 +31,12 @@ class AsanaImporter
 
     /** @var array<string, Tag> lower-case name -> tag */
     private array $tags = [];
+
+    /** @var array<string, TaskStatus> lower-case name -> status */
+    private array $statuses = [];
+
+    /** Asana project whose sections become statuses; null keeps statuses untouched. */
+    public ?string $sectionProjectGid = null;
 
     public function __construct(
         private readonly AsanaClient $asana,
@@ -58,6 +65,9 @@ class AsanaImporter
         $amount = $this->amount($t);
         if ($amount !== null) {
             $attributes['budget'] = $amount;
+        }
+        if ($this->sectionProjectGid && ($section = self::section($t, $this->sectionProjectGid)) !== null) {
+            $attributes['status_id'] = $this->statusFor($section)?->id;
         }
 
         if ($existing) {
@@ -131,6 +141,40 @@ class AsanaImporter
     }
 
     // ------------------------------------------------------------------
+
+    /** Section name of the task inside the given Asana project, if any. */
+    public static function section(array $t, string $projectGid): ?string
+    {
+        foreach ($t['memberships'] ?? [] as $m) {
+            if (($m['project']['gid'] ?? null) === $projectGid && ! empty($m['section']['name'])) {
+                $name = trim($m['section']['name']);
+
+                return $name === '' || strcasecmp($name, 'Untitled section') === 0 || strcasecmp($name, 'Unbenannter Bereich') === 0 ? null : $name;
+            }
+        }
+
+        return null;
+    }
+
+    /** Status named like the section, created on demand ("Heute" maps to the fixed one). */
+    private function statusFor(string $section): ?TaskStatus
+    {
+        $key = strtolower($section);
+        if (! isset($this->statuses[$key])) {
+            $status = TaskStatus::whereRaw('lower(name) = ?', [$key])->first();
+            if (! $status) {
+                $status = TaskStatus::create([
+                    'organization_id' => $this->organization->id,
+                    'name' => mb_substr($section, 0, 80),
+                    'color' => '#6B7280',
+                    'position' => (int) TaskStatus::max('position') + 1,
+                ]);
+            }
+            $this->statuses[$key] = $status;
+        }
+
+        return $this->statuses[$key];
+    }
 
     private function memberFor(?array $assignee): ?User
     {

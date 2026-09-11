@@ -12,7 +12,7 @@ class AsanaClient
     public const BASE = 'https://app.asana.com/api/1.0';
 
     public const TASK_FIELDS = 'gid,name,notes,completed,completed_at,due_on,created_at,modified_at,num_subtasks,parent.gid,'
-        .'assignee.gid,assignee.name,assignee.email,tags.gid,tags.name,memberships.section.name,'
+        .'assignee.gid,assignee.name,assignee.email,tags.gid,tags.name,memberships.section.name,memberships.project.gid,'
         .'custom_fields.gid,custom_fields.name,custom_fields.type,custom_fields.number_value,custom_fields.display_value';
 
     public function __construct(private readonly string $token) {}

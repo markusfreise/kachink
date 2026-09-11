@@ -23,7 +23,7 @@ class ClientController extends Controller
         }
 
         if ($request->filled('filter.name')) {
-            $query->where('name', 'like', '%' . $request->input('filter.name') . '%');
+            $query->where('name', \App\Support\Sql::like(), '%'.$request->input('filter.name').'%');
         }
 
         $sort = $request->input('sort', 'name');

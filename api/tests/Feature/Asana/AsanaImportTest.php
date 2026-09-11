@@ -60,7 +60,7 @@ class AsanaImportTest extends TestCase
                 'tags' => [['gid' => 'g1', 'name' => 'Web']],
                 'custom_fields' => [['gid' => 'cf', 'name' => 'Betrag', 'type' => 'number', 'number_value' => 4080]],
             ]),
-            $this->task('t2', 'Immo Kunde'),
+            $this->task('t2', 'Immo Kunde', ['memberships' => [['project' => ['gid' => 'p1'], 'section' => ['name' => 'Leads']]]]),
             $this->task('t3', 'Milkids Refactoring', ['custom_fields' => [['gid' => 'cf', 'name' => 'Betrag', 'type' => 'number', 'number_value' => 3200]]]),
             $this->task('t1a', 'Subtask (not top-level)', ['parent' => ['gid' => 't1']]),
         ];
@@ -122,6 +122,8 @@ class AsanaImportTest extends TestCase
         $this->assertNull($sub->parent_id);
 
         $this->assertSame($existingProject->id, ProjectTask::where('asana_task_gid', 't2')->first()->project_id);
+        $this->assertSame('Leads', ProjectTask::where('asana_task_gid', 't2')->first()->status->name, 'section becomes a status');
+        $this->assertSame('Leads', collect($rows)->firstWhere('gid', 't2')['section']);
         $this->assertSame('Milkids', ProjectTask::where('asana_task_gid', 't3')->first()->project->name);
 
         $done = Project::where('client_id', $clientId)->where('name', AsanaImporter::DONE_PROJECT_NAME)->first();

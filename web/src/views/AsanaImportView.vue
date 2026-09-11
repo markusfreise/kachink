@@ -70,6 +70,7 @@ const importCompleted = ref(true)
 const stepTwo = ref<HTMLElement | null>(null)
 const withComments = ref(true)
 const completedWithComments = ref(false)
+const sectionsAsStatus = ref(true)
 const importing = ref(false)
 
 // Batch: tick tasks, then apply one decision to all of them
@@ -78,6 +79,40 @@ const batchMode = ref<Mode>('task')
 const batchProjectId = ref('')
 const batchNewProjectName = ref('')
 const allChecked = computed(() => tasks.value.length > 0 && tasks.value.every((task) => checked.value.has(task.gid)))
+
+interface SectionGroup {
+  name: string | null
+  tasks: AsanaTask[]
+}
+
+/** Tasks grouped by their Asana section, in the order they appear. */
+const sections = computed<SectionGroup[]>(() => {
+  const groups: SectionGroup[] = []
+  for (const task of tasks.value) {
+    const key = task.section ?? null
+    let group = groups.find((g) => g.name === key)
+    if (!group) {
+      group = { name: key, tasks: [] }
+      groups.push(group)
+    }
+    group.tasks.push(task)
+  }
+  return groups
+})
+
+function sectionChecked(group: SectionGroup) {
+  return group.tasks.every((task) => checked.value.has(task.gid))
+}
+
+function toggleSection(group: SectionGroup) {
+  const next = new Set(checked.value)
+  const all = sectionChecked(group)
+  for (const task of group.tasks) {
+    if (all) next.delete(task.gid)
+    else next.add(task.gid)
+  }
+  checked.value = next
+}
 
 function toggleChecked(gid: string) {
   const next = new Set(checked.value)
@@ -256,6 +291,7 @@ async function runImport() {
         import_completed: importCompleted.value,
         with_comments: withComments.value,
         completed_with_comments: completedWithComments.value,
+        sections_as_status: sectionsAsStatus.value,
       })
       const s: Summary = data.data
       acc.tasks_created += s.tasks_created
@@ -405,7 +441,15 @@ onMounted(loadSettings)
             </div>
           </div>
           <ul class="asana__tasks">
-            <li v-for="task in tasks" :key="task.gid" class="asana__task" :class="{ 'asana__task--imported': task.imported, 'asana__task--invalid': !decisionValid(task), 'asana__task--checked': checked.has(task.gid) }">
+            <template v-for="group in sections" :key="group.name ?? '__none'">
+            <li class="asana__section">
+              <label class="form__check asana__section-check">
+                <input type="checkbox" :checked="sectionChecked(group)" @change="toggleSection(group)" />
+                <span class="asana__section-name">{{ group.name ?? $t('asana.noSection') }}</span>
+                <span class="asana__section-count">{{ group.tasks.length }}</span>
+              </label>
+            </li>
+            <li v-for="task in group.tasks" :key="task.gid" class="asana__task" :class="{ 'asana__task--imported': task.imported, 'asana__task--invalid': !decisionValid(task), 'asana__task--checked': checked.has(task.gid) }">
               <label class="asana__task-check">
                 <input type="checkbox" :checked="checked.has(task.gid)" :aria-label="task.name" @change="toggleChecked(task.gid)" />
               </label>
@@ -415,7 +459,6 @@ onMounted(loadSettings)
                   {{ task.name }}
                 </div>
                 <div class="asana__task-meta">
-                  <span v-if="task.section">{{ task.section }}</span>
                   <span v-if="task.assignee">{{ task.assignee }}</span>
                   <span v-if="task.due_on">{{ formatDate(task.due_on) }}</span>
                   <span v-if="task.amount != null">{{ formatCurrency(task.amount) }}</span>
@@ -450,10 +493,15 @@ onMounted(loadSettings)
                 />
               </div>
             </li>
+            </template>
           </ul>
           </template>
 
           <div class="asana__options form">
+            <label class="form__check">
+              <input v-model="sectionsAsStatus" type="checkbox" />
+              <span>{{ $t('asana.sectionsAsStatus') }}</span>
+            </label>
             <label class="form__check">
               <input v-model="withComments" type="checkbox" />
               <span>{{ $t('asana.withComments') }}</span>

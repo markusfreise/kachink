@@ -109,6 +109,26 @@
     max-width: 100%;
   }
 
+  &__section {
+    padding: var(--gap-05x) var(--gap);
+    border-bottom: 1px solid var(--c-border);
+    background: var(--c-surface-2);
+  }
+
+  &__section-check {
+    font-weight: 600;
+    color: var(--c-head);
+  }
+
+  &__section-count {
+    padding: 0 pxtorem(8);
+    border-radius: 999px;
+    background: var(--c-surface-3);
+    font-size: var(--fs-mini);
+    font-weight: 600;
+    color: var(--c-copy-light);
+  }
+
   &__task {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
