@@ -19,3 +19,17 @@
 .sr-only { @include sr-only; }
 .hide-mobile { @include below-tablet { display: none !important; } }
 .hide-desktop { @include desktop { display: none !important; } }
+
+// iOS Safari zooms into focused controls whose font is smaller than 16px.
+// Below desktop width every control gets 16px, regardless of its size modifier.
+@include below-desktop {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="color"]),
+  select,
+  textarea,
+  .form__input,
+  .form__select,
+  .form__textarea,
+  .combobox__input {
+    font-size: #{pxtorem(16)};
+  }
+}
