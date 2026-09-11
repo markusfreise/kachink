@@ -307,16 +307,8 @@ const showFilters = computed(() => reportType.value !== 'budget')
 const showProjectFilter = computed(() => reportType.value === 'summary' || reportType.value === 'timesheet')
 const showPdf = computed(() => reportType.value === 'summary' || reportType.value === 'timesheet')
 
-/** Billable amount computed from the project grouping and the project hourly rates. */
-const billableAmount = computed(() => {
-  let total = 0
-  for (const row of chartData.value.project) {
-    if (!row.project_id) continue
-    const project = projects.value.find((p) => p.id === row.project_id)
-    if (project?.hourly_rate && row.billable_hours > 0) total += row.billable_hours * project.hourly_rate
-  }
-  return total
-})
+/** Billable amount as computed by the API from the rate hierarchy (member, client, project, default). */
+const billableAmount = computed(() => Number(totals.value?.amount ?? 0))
 
 interface ChartRow {
   key: string

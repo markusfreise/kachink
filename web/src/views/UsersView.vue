@@ -6,6 +6,7 @@ import api from '@/api/client'
 import type { User } from '@/types'
 import { useAuthStore } from '@/stores/auth'
 import { useToastStore, errorMessage } from '@/stores/toast'
+import { formatCurrency } from '@/utils/format'
 import BaseModal from '@/components/BaseModal.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import { PlusIcon, UserGroupIcon } from '@heroicons/vue/24/outline'
@@ -22,6 +23,7 @@ const editingUser = ref<User | null>(null)
 const formName = ref('')
 const formEmail = ref('')
 const formRole = ref<'admin' | 'member'>('member')
+const formRate = ref<number | null>(null)
 const saving = ref(false)
 const formError = ref('')
 
@@ -47,6 +49,7 @@ function openInvite() {
   formName.value = ''
   formEmail.value = ''
   formRole.value = 'member'
+  formRate.value = null
   formError.value = ''
   showForm.value = true
 }
@@ -56,6 +59,7 @@ function openEdit(user: User) {
   formName.value = user.name
   formEmail.value = user.email
   formRole.value = user.role
+  formRate.value = user.hourly_rate != null ? Number(user.hourly_rate) : null
   formError.value = ''
   showForm.value = true
 }
@@ -68,6 +72,7 @@ async function handleSave() {
       await api.put(`/users/${editingUser.value.id}`, {
         name: formName.value,
         role: formRole.value,
+        hourly_rate: formRate.value === null || Number.isNaN(formRate.value) ? null : formRate.value,
       })
       toast.success(t('users.saved'))
     } else {
@@ -143,6 +148,7 @@ onMounted(fetchUsers)
               <th>{{ $t('common.email') }}</th>
               <th>{{ $t('users.role') }}</th>
               <th>{{ $t('users.status') }}</th>
+              <th class="table__num">{{ $t('rates.memberRate') }}</th>
               <th class="users__actions-head">{{ $t('common.actions') }}</th>
             </tr>
           </thead>
@@ -171,6 +177,9 @@ onMounted(fetchUsers)
                 <span class="badge" :class="user.is_active ? 'badge--success' : 'badge--danger'">
                   {{ user.is_active ? $t('users.statusActive') : $t('users.statusInactive') }}
                 </span>
+              </td>
+              <td class="table__num" :class="{ 'table__muted': user.hourly_rate == null }">
+                {{ user.hourly_rate != null ? formatCurrency(Number(user.hourly_rate)) + '/h' : '–' }}
               </td>
               <td>
                 <div class="table__actions">
@@ -220,6 +229,11 @@ onMounted(fetchUsers)
             <option value="member">{{ $t('users.roleMember') }}</option>
             <option value="admin">{{ $t('users.roleAdmin') }}</option>
           </select>
+        </div>
+        <div v-if="editingUser" class="form__group">
+          <label for="user-rate" class="form__label">{{ $t('rates.memberRate') }} (EUR/h)</label>
+          <input id="user-rate" v-model.number="formRate" type="number" min="0" step="0.01" inputmode="decimal" class="form__input" :placeholder="$t('common.optional')" />
+          <span class="form__hint">{{ $t('rates.memberRateHint') }}</span>
         </div>
       </form>
       <template #footer>

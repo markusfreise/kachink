@@ -2,7 +2,7 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import api from '@/api/client'
-import type { Project, Client } from '@/types'
+import type { Project, Client, RateMode } from '@/types'
 import BaseModal from '@/components/BaseModal.vue'
 import ComboBox from '@/components/ComboBox.vue'
 import { useToastStore, errorMessage } from '@/stores/toast'
@@ -32,6 +32,8 @@ const clientId = ref('')
 const color = ref('#6D4FC2')
 const budgetHours = ref<number | null>(null)
 const hourlyRate = ref<number | null>(null)
+const rateMode = ref<RateMode>('standard')
+const RATE_MODES: RateMode[] = ['standard', 'user', 'client', 'project']
 const isBillable = ref(true)
 const saving = ref(false)
 const creatingClient = ref(false)
@@ -47,6 +49,7 @@ onMounted(() => {
     budgetHours.value = props.project.budget_hours != null ? Number(props.project.budget_hours) : null
     hourlyRate.value = props.project.hourly_rate != null ? Number(props.project.hourly_rate) : null
     isBillable.value = props.project.is_billable
+    rateMode.value = props.project.rate_mode ?? (props.project.hourly_rate != null ? 'project' : 'standard')
   }
 })
 
@@ -83,6 +86,7 @@ async function handleSave() {
       budget_hours: budgetHours.value === null || Number.isNaN(budgetHours.value) ? null : budgetHours.value,
       hourly_rate: hourlyRate.value === null || Number.isNaN(hourlyRate.value) ? null : hourlyRate.value,
       is_billable: isBillable.value,
+      rate_mode: rateMode.value,
     }
     const { data } = props.project
       ? await api.put(`/projects/${props.project.id}`, payload)
@@ -142,18 +146,26 @@ async function handleSave() {
           />
         </div>
         <div class="form__group">
-          <label class="form__label" for="project-form-rate">{{ $t('projectForm.hourlyRate') }}</label>
-          <input
-            id="project-form-rate"
-            v-model.number="hourlyRate"
-            type="number"
-            step="0.01"
-            min="0"
-            inputmode="decimal"
-            class="form__input"
-            :placeholder="$t('projectForm.ratePlaceholder')"
-          />
+          <label class="form__label" for="project-form-rate-mode">{{ $t('rates.mode') }}</label>
+          <select id="project-form-rate-mode" v-model="rateMode" class="form__select">
+            <option v-for="m in RATE_MODES" :key="m" :value="m">{{ $t(`rates.modes.${m}`) }}</option>
+          </select>
+          <span class="form__hint">{{ $t(`rates.modeHints.${rateMode}`) }}</span>
         </div>
+      </div>
+
+      <div v-if="rateMode === 'project'" class="form__group">
+        <label class="form__label" for="project-form-rate">{{ $t('rates.projectRate') }} (EUR/h)</label>
+        <input
+          id="project-form-rate"
+          v-model.number="hourlyRate"
+          type="number"
+          step="0.01"
+          min="0"
+          inputmode="decimal"
+          class="form__input"
+          :placeholder="$t('projectForm.ratePlaceholder')"
+        />
       </div>
 
       <div class="form__row project-form__meta">

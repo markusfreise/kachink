@@ -308,8 +308,10 @@ onMounted(() => {
           </div>
           <div class="project-card__stat">
             <dt class="project-card__stat-label">{{ $t('projects.rate') }}</dt>
-            <dd class="project-card__stat-value" :class="{ 'project-card__stat-value--muted': project.hourly_rate == null }">
-              {{ project.hourly_rate != null ? $t('projects.ratePerHour', { rate: formatCurrency(Number(project.hourly_rate)) }) : '–' }}
+            <dd class="project-card__stat-value" :class="{ 'project-card__stat-value--muted': project.effective_hourly_rate == null }">
+              <template v-if="project.rate_mode === 'user'">{{ $t('rates.byMember') }}</template>
+              <template v-else-if="project.effective_hourly_rate != null">{{ $t('projects.ratePerHour', { rate: formatCurrency(Number(project.effective_hourly_rate)) }) }}</template>
+              <template v-else>–</template>
             </dd>
           </div>
         </dl>

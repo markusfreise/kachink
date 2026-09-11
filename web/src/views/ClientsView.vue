@@ -56,6 +56,7 @@ let searchTimer: ReturnType<typeof setTimeout> | null = null
 const formName = ref('')
 const formColor = ref('#6B7280')
 const formNotes = ref('')
+const formRate = ref<number | null>(null)
 const saving = ref(false)
 const formError = ref('')
 
@@ -102,6 +103,7 @@ function openCreate() {
   formName.value = ''
   formColor.value = '#6B7280'
   formNotes.value = ''
+  formRate.value = null
   formError.value = ''
   showForm.value = true
 }
@@ -111,6 +113,7 @@ function openEdit(client: Client) {
   formName.value = client.name
   formColor.value = client.color
   formNotes.value = client.notes || ''
+  formRate.value = client.hourly_rate != null ? Number(client.hourly_rate) : null
   formError.value = ''
   showForm.value = true
 }
@@ -119,7 +122,12 @@ async function handleSave() {
   formError.value = ''
   saving.value = true
   try {
-    const payload = { name: formName.value, color: formColor.value, notes: formNotes.value || null }
+    const payload = {
+      name: formName.value,
+      color: formColor.value,
+      notes: formNotes.value || null,
+      hourly_rate: formRate.value === null || Number.isNaN(formRate.value) ? null : formRate.value,
+    }
     if (editingClient.value) {
       await api.put(`/clients/${editingClient.value.id}`, payload)
     } else {
@@ -313,6 +321,11 @@ onMounted(fetchClients)
           <label for="client-color" class="form__label">{{ $t('common.color') }}</label>
           <input id="client-color" v-model="formColor" type="color" class="form__input form__color" />
           <span class="form__hint">{{ $t('clients.colorHint') }}</span>
+        </div>
+        <div class="form__group">
+          <label for="client-rate" class="form__label">{{ $t('rates.clientRate') }} (EUR/h)</label>
+          <input id="client-rate" v-model.number="formRate" type="number" min="0" step="0.01" inputmode="decimal" class="form__input" :placeholder="$t('common.optional')" />
+          <span class="form__hint">{{ $t('rates.clientRateHint') }}</span>
         </div>
         <div class="form__group">
           <label for="client-notes" class="form__label">{{ $t('common.notes') }}</label>

@@ -1,7 +1,11 @@
+export type RateMode = 'standard' | 'user' | 'client' | 'project'
+export type RateSource = RateMode | 'none'
+
 export interface Organization {
   id: string
   name: string
   slug: string
+  hourly_rate: number | null
   is_active: boolean
   role: 'owner' | 'admin' | 'member'
 }
@@ -13,6 +17,8 @@ export interface User {
   role: 'admin' | 'member'
   avatar_url: string | null
   is_active: boolean
+  /** Rate of this member in the current organization (only in org member lists). */
+  hourly_rate?: number | null
   created_at: string
 }
 
@@ -21,6 +27,7 @@ export interface Client {
   name: string
   slug: string
   color: string
+  hourly_rate: number | null
   is_active: boolean
   notes: string | null
   projects_count?: number
@@ -39,6 +46,11 @@ export interface Project {
   asana_project_gid: string | null
   budget_hours: number | null
   hourly_rate: number | null
+  rate_mode: RateMode
+  /** Resolved rate (null when it depends on the member). */
+  effective_hourly_rate: number | null
+  rate_source: RateSource
+  billable_amount?: number | null
   is_billable: boolean
   is_active: boolean
   archived_at: string | null
@@ -107,6 +119,7 @@ export interface ReportTotals {
   billable_hours: number
   non_billable_hours: number
   entry_count: number
+  amount?: number
 }
 
 export interface SummaryRow {
@@ -121,6 +134,8 @@ export interface SummaryRow {
   total_hours: number
   billable_hours: number
   entry_count: number
+  hourly_rate?: number | null
+  amount?: number
 }
 
 export interface BudgetRow {
@@ -134,6 +149,7 @@ export interface BudgetRow {
   remaining_hours: number
   budget_used_percentage: number
   hourly_rate: number | null
+  rate_source?: RateSource
   revenue: number | null
   status: 'on_track' | 'at_risk' | 'over_budget'
 }

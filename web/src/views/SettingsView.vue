@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import api from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
 import { useSettingsStore } from '@/stores/settings'
+import { useOrgStore } from '@/stores/org'
 import { useToastStore, errorMessage } from '@/stores/toast'
 import { formatDate, formatDuration } from '@/utils/format'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
@@ -27,7 +28,30 @@ interface TokenInfo {
 const { t } = useI18n()
 const auth = useAuthStore()
 const settings = useSettingsStore()
+const org = useOrgStore()
 const toast = useToastStore()
+
+// Organization default hourly rate (admins and owners)
+const canEditRates = computed(() => auth.user?.role === 'admin' || org.currentOrg?.role === 'owner' || org.currentOrg?.role === 'admin')
+const defaultRate = ref<number | null>(org.currentOrg?.hourly_rate != null ? Number(org.currentOrg.hourly_rate) : null)
+watch(() => org.currentOrg?.hourly_rate, (v) => { defaultRate.value = v != null ? Number(v) : null })
+const savingRate = ref(false)
+
+async function saveDefaultRate() {
+  if (!org.currentOrg) return
+  savingRate.value = true
+  try {
+    await api.put(`/organizations/${org.currentOrg.id}`, {
+      hourly_rate: defaultRate.value === null || Number.isNaN(defaultRate.value) ? null : defaultRate.value,
+    })
+    await org.fetchOrganizations()
+    toast.success(t('rates.saved'))
+  } catch (e) {
+    toast.error(errorMessage(e, t('common.failedToSave')))
+  } finally {
+    savingRate.value = false
+  }
+}
 
 // Profile
 const roleLabel = computed(() => (auth.user?.role === 'admin' ? t('users.roleAdmin') : t('users.roleMember')))
@@ -178,6 +202,38 @@ fetchTokens()
               </i18n-t>
             </p>
           </div>
+        </div>
+      </section>
+
+      <!-- Hourly rates -->
+      <section class="card" aria-labelledby="settings-rates">
+        <div class="card__header">
+          <div>
+            <h2 id="settings-rates" class="card__title">{{ $t('rates.title') }}</h2>
+            <p class="settings__intro">{{ $t('rates.intro') }}</p>
+          </div>
+        </div>
+        <div class="card__body">
+          <form class="form" @submit.prevent="saveDefaultRate">
+            <div class="form__group">
+              <label class="form__label" for="settings-default-rate">{{ $t('rates.defaultRate') }} (EUR/h)</label>
+              <input
+                id="settings-default-rate"
+                v-model.number="defaultRate"
+                type="number"
+                min="0"
+                step="0.01"
+                inputmode="decimal"
+                class="form__input settings__select"
+                :placeholder="$t('common.optional')"
+                :disabled="!canEditRates"
+              />
+              <p class="form__hint">{{ canEditRates ? $t('rates.defaultRateHint') : $t('rates.noPermission') }}</p>
+            </div>
+            <div v-if="canEditRates" class="form__actions">
+              <button type="submit" class="btn btn--primary btn--sm" :disabled="savingRate">{{ savingRate ? $t('common.saving') : $t('common.save') }}</button>
+            </div>
+          </form>
         </div>
       </section>
 

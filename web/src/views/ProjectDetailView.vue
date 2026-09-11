@@ -17,6 +17,7 @@ interface ProjectWithSummary extends Project {
   tracked_seconds?: number
   billable_seconds?: number
   billable_hours?: number
+  billable_amount?: number | null
 }
 
 const { t } = useI18n()
@@ -49,8 +50,13 @@ const trackedSeconds = computed(() => project.value?.tracked_seconds ?? 0)
 const billableSeconds = computed(() => project.value?.billable_seconds ?? 0)
 const billableShare = computed(() => (trackedSeconds.value > 0 ? Math.round((billableSeconds.value / trackedSeconds.value) * 100) : 0))
 const budgetPercent = computed(() => project.value?.budget_used_percentage ?? null)
-const hourlyRate = computed(() => (project.value?.hourly_rate != null ? Number(project.value.hourly_rate) : null))
-const revenue = computed(() => (hourlyRate.value != null ? (billableSeconds.value / 3600) * hourlyRate.value : null))
+const hourlyRate = computed(() => (project.value?.effective_hourly_rate != null ? Number(project.value.effective_hourly_rate) : null))
+const revenue = computed(() => (project.value?.billable_amount != null ? Number(project.value.billable_amount) : null))
+const rateLabel = computed(() => {
+  if (!project.value) return ''
+  if (project.value.rate_mode === 'user') return t('rates.byMember')
+  return hourlyRate.value != null ? t('projectDetail.revenueSub', { rate: formatCurrency(hourlyRate.value) }) : ''
+})
 
 const budgetTone = computed(() => {
   const p = budgetPercent.value ?? 0
@@ -260,9 +266,9 @@ watch(projectId, load)
         </div>
         <div class="stat">
           <span class="stat__label">{{ $t('projectDetail.revenue') }}</span>
-          <template v-if="hourlyRate != null && revenue != null">
+          <template v-if="revenue != null">
             <span class="stat__value">{{ formatCurrency(revenue) }}</span>
-            <span class="stat__sub">{{ $t('projectDetail.revenueSub', { rate: formatCurrency(hourlyRate) }) }}</span>
+            <span class="stat__sub">{{ rateLabel }}</span>
           </template>
           <template v-else>
             <span class="stat__value project-detail__stat-value--muted">&ndash;</span>
