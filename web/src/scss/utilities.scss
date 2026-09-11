@@ -21,15 +21,18 @@
 .hide-desktop { @include desktop { display: none !important; } }
 
 // iOS Safari zooms into focused controls whose font is smaller than 16px.
-// Below desktop width every control gets 16px, regardless of its size modifier.
+// Below desktop width every text control gets 16px, with !important so that
+// size modifiers and component selectors (.combobox--sm .combobox__input,
+// .sidebar__org-select, ...) cannot undercut it. Device quirk, not design.
 @include below-desktop {
-  input:not([type="checkbox"]):not([type="radio"]):not([type="color"]),
+  input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="range"]):not([type="file"]),
   select,
-  textarea,
-  .form__input,
-  .form__select,
-  .form__textarea,
-  .combobox__input {
-    font-size: #{pxtorem(16)};
+  textarea {
+    font-size: #{pxtorem(16)} !important;
+  }
+
+  // The inline title editor keeps its heading size.
+  .task-detail__title-input {
+    font-size: var(--fs-hl-large) !important;
   }
 }
