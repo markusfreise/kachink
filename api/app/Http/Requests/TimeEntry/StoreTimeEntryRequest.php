@@ -17,6 +17,9 @@ class StoreTimeEntryRequest extends FormRequest
         return [
             'project_id' => ['required', 'uuid', InOrganization::exists('projects')],
             'task_id' => ['nullable', 'uuid', InOrganization::exists('tasks')],
+            'project_task_id' => ['nullable', 'uuid', InOrganization::exists('project_tasks')],
+            'create_task' => ['sometimes', 'boolean'],
+            'complete_task' => ['sometimes', 'boolean'],
             'description' => ['nullable', 'string'],
             'date' => ['nullable', 'date'],
             'started_at' => ['nullable', 'date'],

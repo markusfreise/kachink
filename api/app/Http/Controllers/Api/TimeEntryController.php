@@ -8,19 +8,26 @@ use App\Http\Requests\TimeEntry\StoreTimeEntryRequest;
 use App\Http\Requests\TimeEntry\UpdateTimeEntryRequest;
 use App\Http\Resources\TimeEntryResource;
 use App\Models\TimeEntry;
+use App\Services\BooksTimeOnTasks;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class TimeEntryController extends Controller
 {
+    public function __construct(private readonly BooksTimeOnTasks $taskBooking) {}
+
     public function index(Request $request): AnonymousResourceCollection
     {
         $query = TimeEntry::query()
-            ->with(['project.client', 'task', 'tags', 'user']);
+            ->with(['project.client', 'task', 'projectTask', 'tags', 'user']);
+
+        if ($request->filled('filter.project_task_id')) {
+            $query->where('project_task_id', $request->input('filter.project_task_id'));
+        }
 
         // Scope to current user unless admin requesting all
-        if (!$request->user()->isAdmin() || !$request->boolean('all_users')) {
+        if (! $request->user()->isAdmin() || ! $request->boolean('all_users')) {
             $query->where('user_id', $request->user()->id);
         } elseif ($request->filled('filter.user_id')) {
             // Admins viewing all users may narrow the list to one team member
@@ -44,7 +51,7 @@ class TimeEntryController extends Controller
         }
 
         if ($request->has('filter.date_to')) {
-            $query->where('started_at', '<=', $request->input('filter.date_to') . ' 23:59:59');
+            $query->where('started_at', '<=', $request->input('filter.date_to').' 23:59:59');
         }
 
         if ($request->has('filter.is_running')) {
@@ -64,16 +71,17 @@ class TimeEntryController extends Controller
         $data = $request->validated();
         $data['user_id'] = $request->user()->id;
         $data['source'] = $data['source'] ?? 'manual';
+        $this->taskBooking->apply($data, $request->user());
 
         // Duration-only manual entry: compute started_at/stopped_at from date + duration
-        if (isset($data['duration_seconds']) && !isset($data['started_at'])) {
+        if (isset($data['duration_seconds']) && ! isset($data['started_at'])) {
             // Interpret the date in the report timezone, store in app timezone
             $tz = config('reports.timezone');
             $date = $data['date'] ?? now($tz)->toDateString();
             $data['started_at'] = \Carbon\Carbon::parse($date, $tz)->startOfDay()->addHours(9)->setTimezone(config('app.timezone'));
             $data['stopped_at'] = $data['started_at']->copy()->addSeconds($data['duration_seconds']);
             $data['is_running'] = false;
-        } elseif (isset($data['stopped_at']) && !isset($data['duration_seconds'])) {
+        } elseif (isset($data['stopped_at']) && ! isset($data['duration_seconds'])) {
             $started = \Carbon\Carbon::parse($data['started_at']);
             $stopped = \Carbon\Carbon::parse($data['stopped_at']);
             $data['duration_seconds'] = $started->diffInSeconds($stopped);
@@ -90,7 +98,7 @@ class TimeEntryController extends Controller
             $entry->tags()->sync($tagIds);
         }
 
-        $entry->load(['project.client', 'task', 'tags', 'user']);
+        $entry->load(['project.client', 'task', 'projectTask', 'tags', 'user']);
 
         return response()->json([
             'data' => new TimeEntryResource($entry),
@@ -99,11 +107,11 @@ class TimeEntryController extends Controller
 
     public function show(Request $request, TimeEntry $timeEntry): JsonResponse
     {
-        if (!$request->user()->isAdmin() && $timeEntry->user_id !== $request->user()->id) {
+        if (! $request->user()->isAdmin() && $timeEntry->user_id !== $request->user()->id) {
             abort(403);
         }
 
-        $timeEntry->load(['project.client', 'task', 'tags', 'user']);
+        $timeEntry->load(['project.client', 'task', 'projectTask', 'tags', 'user']);
 
         return response()->json([
             'data' => new TimeEntryResource($timeEntry),
@@ -114,7 +122,7 @@ class TimeEntryController extends Controller
     {
         $data = $request->validated();
 
-        if (isset($data['stopped_at']) && !isset($data['duration_seconds'])) {
+        if (isset($data['stopped_at']) && ! isset($data['duration_seconds'])) {
             $started = \Carbon\Carbon::parse($data['started_at'] ?? $timeEntry->started_at);
             $stopped = \Carbon\Carbon::parse($data['stopped_at']);
             $data['duration_seconds'] = $started->diffInSeconds($stopped);
@@ -124,13 +132,16 @@ class TimeEntryController extends Controller
         $tagIds = $data['tag_ids'] ?? null;
         unset($data['tag_ids']);
 
+        $data['project_id'] = $data['project_id'] ?? $timeEntry->project_id;
+        $this->taskBooking->apply($data, $request->user());
+
         $timeEntry->update($data);
 
         if ($tagIds !== null) {
             $timeEntry->tags()->sync($tagIds);
         }
 
-        $timeEntry->load(['project.client', 'task', 'tags', 'user']);
+        $timeEntry->load(['project.client', 'task', 'projectTask', 'tags', 'user']);
 
         return response()->json([
             'data' => new TimeEntryResource($timeEntry),
@@ -139,7 +150,7 @@ class TimeEntryController extends Controller
 
     public function destroy(Request $request, TimeEntry $timeEntry): JsonResponse
     {
-        if (!$request->user()->isAdmin() && $timeEntry->user_id !== $request->user()->id) {
+        if (! $request->user()->isAdmin() && $timeEntry->user_id !== $request->user()->id) {
             abort(403);
         }
 
@@ -162,6 +173,7 @@ class TimeEntryController extends Controller
         $data = $request->validated();
         $data['user_id'] = $request->user()->id;
         $data['started_at'] = now();
+        $this->taskBooking->apply($data, $request->user());
         $data['is_running'] = true;
         $data['source'] = $data['source'] ?? 'web';
 
@@ -177,7 +189,7 @@ class TimeEntryController extends Controller
             $entry->tags()->sync($tagIds);
         }
 
-        $entry->load(['project.client', 'task', 'tags', 'user']);
+        $entry->load(['project.client', 'task', 'projectTask', 'tags', 'user']);
 
         return response()->json([
             'data' => new TimeEntryResource($entry),
@@ -190,12 +202,12 @@ class TimeEntryController extends Controller
             ->where('is_running', true)
             ->first();
 
-        if (!$entry) {
+        if (! $entry) {
             return response()->json(['message' => 'No timer is running.', 'data' => null], 409);
         }
 
         $entry->stop();
-        $entry->load(['project.client', 'task', 'tags', 'user']);
+        $entry->load(['project.client', 'task', 'projectTask', 'tags', 'user']);
 
         return response()->json([
             'data' => new TimeEntryResource($entry),

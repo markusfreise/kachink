@@ -57,6 +57,7 @@ class ProjectTaskResource extends JsonResource
             'open_children_count' => $this->when(array_key_exists('open_children_count', $attributes), fn () => (int) $this->open_children_count),
             'comments_count' => $this->when(array_key_exists('comments_count', $attributes), fn () => (int) $this->comments_count),
             'attachments_count' => $this->when(array_key_exists('attachments_count', $attributes), fn () => (int) $this->attachments_count),
+            'tracked_seconds' => $this->when(array_key_exists('tracked_seconds', $attributes), fn () => (int) ($this->tracked_seconds ?? 0)),
             'earliest_child_deadline' => $this->when(array_key_exists('earliest_child_deadline', $attributes), fn () => $this->earliest_child_deadline ? substr((string) $this->earliest_child_deadline, 0, 10) : null),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,

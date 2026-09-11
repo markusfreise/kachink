@@ -17,6 +17,9 @@ class StartTimerRequest extends FormRequest
         return [
             'project_id' => ['required', 'uuid', InOrganization::exists('projects')],
             'task_id' => ['nullable', 'uuid', InOrganization::exists('tasks')],
+            'project_task_id' => ['nullable', 'uuid', InOrganization::exists('project_tasks')],
+            'create_task' => ['sometimes', 'boolean'],
+            'complete_task' => ['sometimes', 'boolean'],
             'description' => ['nullable', 'string'],
             'is_billable' => ['sometimes', 'boolean'],
             'source' => ['sometimes', 'string', 'in:web,menubar,manual,api,harvest'],

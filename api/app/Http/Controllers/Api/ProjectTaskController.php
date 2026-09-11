@@ -269,6 +269,7 @@ class ProjectTaskController extends Controller
             ])->withMin(['children as earliest_child_deadline' => fn ($c) => $c->whereNull('completed_at')], 'deadline'),
             'comments.user', 'attachments.user', 'histories.user',
         ]);
+        $task->loadSum(['timeEntries as tracked_seconds' => fn ($q) => $q->where('is_running', false)], 'duration_seconds');
         $task->loadCount([
             'children',
             'children as open_children_count' => fn ($q) => $q->whereNull('completed_at'),

@@ -18,6 +18,7 @@ class TimeEntry extends Model
         'user_id',
         'project_id',
         'task_id',
+        'project_task_id',
         'description',
         'started_at',
         'stopped_at',
@@ -53,6 +54,11 @@ class TimeEntry extends Model
     public function task(): BelongsTo
     {
         return $this->belongsTo(Task::class);
+    }
+
+    public function projectTask(): BelongsTo
+    {
+        return $this->belongsTo(ProjectTask::class, 'project_task_id');
     }
 
     public function tags(): BelongsToMany

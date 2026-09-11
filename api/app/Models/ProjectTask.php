@@ -156,6 +156,11 @@ class ProjectTask extends Model
         return $this->belongsToMany(Tag::class, 'project_task_tag');
     }
 
+    public function timeEntries(): HasMany
+    {
+        return $this->hasMany(TimeEntry::class, 'project_task_id');
+    }
+
     public function comments(): HasMany
     {
         return $this->hasMany(ProjectTaskComment::class)->orderBy('created_at');

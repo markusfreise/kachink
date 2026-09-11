@@ -17,6 +17,7 @@ class UpdateTimeEntryRequest extends FormRequest
         return [
             'project_id' => ['sometimes', 'uuid', InOrganization::exists('projects')],
             'task_id' => ['nullable', 'uuid', InOrganization::exists('tasks')],
+            'project_task_id' => ['nullable', 'uuid', InOrganization::exists('project_tasks')],
             'description' => ['nullable', 'string'],
             'started_at' => ['sometimes', 'date'],
             'stopped_at' => ['nullable', 'date', 'after:started_at'],

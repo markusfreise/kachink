@@ -25,6 +25,12 @@ class TimeEntryResource extends JsonResource
             'user' => new UserResource($this->whenLoaded('user')),
             'project' => new ProjectResource($this->whenLoaded('project')),
             'task' => new TaskResource($this->whenLoaded('task')),
+            'project_task_id' => $this->project_task_id,
+            'project_task' => $this->whenLoaded('projectTask', fn () => $this->projectTask ? [
+                'id' => $this->projectTask->id,
+                'title' => $this->projectTask->title,
+                'is_completed' => $this->projectTask->completed_at !== null,
+            ] : null),
             'tags' => TagResource::collection($this->whenLoaded('tags')),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,

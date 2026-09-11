@@ -448,6 +448,55 @@ class ProjectTaskTest extends TestCase
             ->assertUnprocessable();
     }
 
+    public function test_time_can_be_booked_on_tasks_and_entries_can_create_tasks(): void
+    {
+        $org = $this->createOrganization();
+        $project = $this->projectIn($org);
+        $otherProject = Project::factory()->create(['client_id' => $project->client_id]);
+        $user = $this->memberOf($org);
+        $task = ProjectTask::factory()->create(['project_id' => $project->id]);
+        $foreign = ProjectTask::factory()->create(['project_id' => $otherProject->id]);
+
+        // Timer on a task
+        $this->actingInOrg($user, $org)
+            ->postJson('/api/time-entries/start', ['project_id' => $project->id, 'project_task_id' => $task->id, 'description' => $task->title])
+            ->assertCreated()
+            ->assertJsonPath('data.project_task.id', $task->id);
+        $this->actingInOrg($user, $org)->postJson('/api/time-entries/stop')->assertOk();
+
+        // Task of another project is rejected
+        $this->actingInOrg($user, $org)
+            ->postJson('/api/time-entries', ['project_id' => $project->id, 'project_task_id' => $foreign->id, 'date' => now()->toDateString(), 'duration_seconds' => 600])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('project_task_id');
+
+        // Manual entry that creates a completed task assigned to the booking user
+        $entry = $this->actingInOrg($user, $org)
+            ->postJson('/api/time-entries', [
+                'project_id' => $project->id, 'description' => 'Logo angepasst', 'date' => now()->toDateString(),
+                'duration_seconds' => 1800, 'create_task' => true, 'complete_task' => true,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.project_task.title', 'Logo angepasst')
+            ->assertJsonPath('data.project_task.is_completed', true)
+            ->json('data');
+        $created = ProjectTask::find($entry['project_task_id']);
+        $this->assertSame($user->id, $created->assignee_id);
+        $this->assertSame($user->id, $created->created_by);
+
+        // Without a description no task can be created
+        $this->actingInOrg($user, $org)
+            ->postJson('/api/time-entries', ['project_id' => $project->id, 'date' => now()->toDateString(), 'duration_seconds' => 60, 'create_task' => true])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('description');
+
+        // Tracked time shows on the task
+        $this->actingInOrg($user, $org)
+            ->getJson("/api/project-tasks/{$created->id}")
+            ->assertOk()
+            ->assertJsonPath('data.tracked_seconds', 1800);
+    }
+
     public function test_reminder_command_notifies_assignee_once(): void
     {
         Notification::fake();
