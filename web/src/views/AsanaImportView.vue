@@ -70,6 +70,36 @@ const importCompleted = ref(false)
 const withComments = ref(true)
 const completedWithComments = ref(false)
 const importing = ref(false)
+
+// Batch: tick tasks, then apply one decision to all of them
+const checked = ref<Set<string>>(new Set())
+const batchMode = ref<Mode>('task')
+const batchProjectId = ref('')
+const batchNewProjectName = ref('')
+const allChecked = computed(() => tasks.value.length > 0 && tasks.value.every((task) => checked.value.has(task.gid)))
+
+function toggleChecked(gid: string) {
+  const next = new Set(checked.value)
+  if (next.has(gid)) next.delete(gid)
+  else next.add(gid)
+  checked.value = next
+}
+
+function toggleAll() {
+  checked.value = allChecked.value ? new Set() : new Set(tasks.value.map((task) => task.gid))
+}
+
+function applyBatch() {
+  for (const gid of checked.value) {
+    const d = decisions.value[gid]
+    const task = tasks.value.find((x) => x.gid === gid)
+    if (!d || task?.imported?.type === 'project') continue
+    d.mode = batchMode.value
+    d.project_id = batchMode.value === 'task' ? batchProjectId.value : ''
+    d.new_project_name = batchMode.value === 'task_new_project' ? batchNewProjectName.value : ''
+  }
+  checked.value = new Set()
+}
 const summary = ref<Summary | null>(null)
 const totals = ref<Summary | null>(null)
 
@@ -180,6 +210,7 @@ async function loadTasks(project: AsanaProject) {
       else next[task.gid] = { mode: 'skip', project_id: '', new_project_name: '' }
     }
     decisions.value = next
+    checked.value = new Set()
   } catch (e) {
     toast.error(errorMessage(e, t('common.loadFailed')))
   } finally {
@@ -345,7 +376,6 @@ onMounted(loadSettings)
             <p class="small muted">{{ $t('asana.step2Text', { client: selected.client?.name ?? '' }) }}</p>
           </div>
           <div class="asana__head-actions">
-            <button type="button" class="btn btn--ghost btn--sm" @click="setAll('project')">{{ $t('asana.allAsProjects') }}</button>
             <button type="button" class="btn btn--ghost btn--sm" @click="setAll('skip')">{{ $t('asana.allSkip') }}</button>
           </div>
         </div>
@@ -353,8 +383,29 @@ onMounted(loadSettings)
         <div v-if="tasksLoading" class="loading"><span class="spinner" role="status"></span></div>
         <template v-else>
           <p v-if="tasks.length === 0" class="empty__text asana__empty">{{ $t('asana.noOpenTasks') }}</p>
-          <ul v-else class="asana__tasks">
-            <li v-for="task in tasks" :key="task.gid" class="asana__task" :class="{ 'asana__task--imported': task.imported, 'asana__task--invalid': !decisionValid(task) }">
+          <template v-else>
+          <div class="asana__batch form">
+            <label class="form__check asana__batch-all">
+              <input type="checkbox" :checked="allChecked" @change="toggleAll" />
+              <span>{{ checked.size ? $t('asana.selected', { count: checked.size }) : $t('asana.selectAll') }}</span>
+            </label>
+            <div class="asana__batch-controls" :class="{ 'asana__batch-controls--idle': checked.size === 0 }">
+              <select v-model="batchMode" class="form__select form__select--sm form__select--inline" :aria-label="$t('asana.decision')">
+                <option value="skip">{{ $t('asana.modeSkip') }}</option>
+                <option value="task">{{ $t('asana.modeTask') }}</option>
+                <option value="task_new_project">{{ $t('asana.modeTaskNewProject') }}</option>
+                <option value="project">{{ $t('asana.modeProject') }}</option>
+              </select>
+              <ComboBox v-if="batchMode === 'task'" v-model="batchProjectId" :options="projectOptions" :placeholder="$t('asana.chooseProject')" size="sm" class="asana__batch-project" />
+              <input v-if="batchMode === 'task_new_project'" v-model="batchNewProjectName" type="text" class="form__input form__input--sm asana__batch-project" :placeholder="$t('asana.newProjectName')" :aria-label="$t('asana.newProjectName')" />
+              <button type="button" class="btn btn--secondary btn--sm" :disabled="checked.size === 0" @click="applyBatch">{{ $t('asana.applyToSelected', { count: checked.size }) }}</button>
+            </div>
+          </div>
+          <ul class="asana__tasks">
+            <li v-for="task in tasks" :key="task.gid" class="asana__task" :class="{ 'asana__task--imported': task.imported, 'asana__task--invalid': !decisionValid(task), 'asana__task--checked': checked.has(task.gid) }">
+              <label class="asana__task-check">
+                <input type="checkbox" :checked="checked.has(task.gid)" :aria-label="task.name" @change="toggleChecked(task.gid)" />
+              </label>
               <div class="asana__task-main">
                 <div class="asana__task-title">
                   <CheckCircleIcon v-if="task.imported" class="asana__task-imported-icon" aria-hidden="true" />
@@ -397,6 +448,7 @@ onMounted(loadSettings)
               </div>
             </li>
           </ul>
+          </template>
 
           <div class="asana__options form">
             <label class="form__check">
