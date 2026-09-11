@@ -5,6 +5,7 @@ import { CalendarIcon, ChatBubbleLeftIcon, PaperClipIcon, CheckIcon, ChevronRigh
 import type { ProjectTask } from '@/types'
 import { priorityBadgeClass, formatEstimate } from '@/utils/tasks'
 import { formatDate } from '@/utils/format'
+import UserAvatar from '@/components/UserAvatar.vue'
 
 const props = withDefaults(defineProps<{
   task: ProjectTask
@@ -103,7 +104,7 @@ const indent = computed(() => ({ paddingLeft: `calc(var(--gap) + ${props.depth} 
     <div class="task-row__side">
       <span class="badge" :class="priorityBadgeClass(task.priority)">{{ $t(`tasks.priorities.${task.priority}`) }}</span>
       <span v-if="task.assignee" class="task-row__assignee" :title="task.assignee.name">
-        <span class="task-row__avatar" aria-hidden="true">{{ task.assignee.name.charAt(0) }}</span>
+        <UserAvatar :name="task.assignee.name" :avatar-url="task.assignee.avatar_url" size="sm" />
         <span class="task-row__assignee-name">{{ task.assignee.name }}</span>
       </span>
     </div>

@@ -11,6 +11,7 @@ import TaskTree from '@/components/TaskTree.vue'
 import TaskFormModal from '@/components/TaskFormModal.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import ComboBox from '@/components/ComboBox.vue'
+import UserAvatar from '@/components/UserAvatar.vue'
 import {
   ArrowLeftIcon,
   CheckIcon,
@@ -77,7 +78,7 @@ const childrenDone = computed(() => children.value.filter((c) => c.is_completed)
 const parentForSubtask = computed(() =>
   task.value ? { id: task.value.id, title: task.value.title, project_id: task.value.project_id } : null,
 )
-const userOptions = computed(() => users.value.map((u) => ({ id: u.id, label: u.name })))
+const userOptions = computed(() => users.value.map((u) => ({ id: u.id, label: u.name, avatar: true, avatarUrl: u.avatar_url })))
 const statusOptions = computed(() => statuses.value.map((s) => ({ id: s.id, label: s.name, color: s.color })))
 const dayChips = [1, 3, 7, 14]
 
@@ -529,6 +530,10 @@ watch(taskId, fetchTask)
               <span v-if="task.status" class="badge" :style="{ backgroundColor: task.status.color + '22', color: task.status.color }">{{ task.status.name }}</span>
               <span v-if="task.is_completed && task.completed_at" class="badge badge--success">{{ $t('tasks.completedAt', { date: formatDate(task.completed_at) }) }}</span>
               <span v-else-if="task.is_overdue" class="badge badge--danger">{{ $t('tasks.overdue') }}</span>
+              <span v-if="task.assignee" class="task-detail__assignee">
+                <UserAvatar :name="task.assignee.name" :avatar-url="task.assignee.avatar_url" size="sm" />
+                {{ task.assignee.name }}
+              </span>
               <span v-if="task.creator" class="task-detail__creator">{{ $t('tasks.createdBy', { name: task.creator.name }) }}</span>
             </div>
           </div>
@@ -598,7 +603,7 @@ watch(taskId, fetchTask)
               <p v-if="!task.comments?.length" class="muted task-detail__none">{{ $t('tasks.noComments') }}</p>
               <ul v-else class="comments">
                 <li v-for="c in task.comments" :key="c.id" class="comment">
-                  <span class="comment__avatar" aria-hidden="true">{{ c.user?.name?.charAt(0) ?? '?' }}</span>
+                  <UserAvatar :name="c.user?.name" :avatar-url="c.user?.avatar_url" size="lg" />
                   <div class="comment__main">
                     <div class="comment__head">
                       <span class="comment__author">{{ c.user?.name ?? $t('tasks.someone') }}</span>

@@ -2,12 +2,16 @@
 import { ref, computed, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ChevronDownIcon, XMarkIcon } from '@heroicons/vue/24/outline'
+import UserAvatar from '@/components/UserAvatar.vue'
 
 export interface ComboOption {
   id: string
   label: string
   subtitle?: string
   color?: string
+  /** Picture shown in front of the label (falls back to the initial). */
+  avatarUrl?: string | null
+  avatar?: boolean
 }
 
 const props = withDefaults(defineProps<{
@@ -186,8 +190,9 @@ function focusInput() {
 <template>
   <div class="combobox" :class="{ 'combobox--disabled': disabled, 'combobox--open': isOpen, 'combobox--sm': size === 'sm' }">
     <div class="combobox__control" @mousedown.prevent="focusInput(); isOpen ? close() : open()">
+      <UserAvatar v-if="!isOpen && selectedOption?.avatar" :name="selectedOption.label" :avatar-url="selectedOption.avatarUrl" size="sm" />
       <span
-        v-if="!isOpen && selectedOption?.color"
+        v-else-if="!isOpen && selectedOption?.color"
         class="color-dot"
         :style="{ backgroundColor: selectedOption.color }"
       ></span>
@@ -241,7 +246,8 @@ function focusInput() {
       >
         <template v-if="row.kind === 'clear'">{{ clearLabel || $t('common.all') }}</template>
         <template v-else-if="row.kind === 'option'">
-          <span v-if="row.option.color" class="color-dot" :style="{ backgroundColor: row.option.color }"></span>
+          <UserAvatar v-if="row.option.avatar" :name="row.option.label" :avatar-url="row.option.avatarUrl" size="sm" />
+          <span v-else-if="row.option.color" class="color-dot" :style="{ backgroundColor: row.option.color }"></span>
           <span class="combobox__label">{{ row.option.label }}</span>
           <span v-if="row.option.subtitle" class="combobox__subtitle">{{ row.option.subtitle }}</span>
         </template>

@@ -41,6 +41,8 @@ export default {
       member: 'Team member',
       running: 'Running',
       noTask: 'No task',
+      moreEntries: 'More entries',
+      monthSum: 'Sum of the loaded entries',
     },
     projectForm: {
       clientCreated: 'Client "{name}" created',
@@ -87,6 +89,8 @@ export default {
       member: 'Teammitglied',
       running: 'Läuft',
       noTask: 'Keine Aufgabe',
+      moreEntries: 'Weitere Einträge',
+      monthSum: 'Summe der geladenen Einträge',
     },
     projectForm: {
       clientCreated: 'Kunde "{name}" angelegt',

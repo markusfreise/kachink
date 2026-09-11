@@ -5,12 +5,13 @@ import { useI18n } from 'vue-i18n'
 import api from '@/api/client'
 import type { Project, Client, TimeEntry, PaginationMeta, ProjectTask } from '@/types'
 import { ArrowLeftIcon, DocumentTextIcon, PencilSquareIcon, ClockIcon, PlusIcon, ClipboardDocumentListIcon } from '@heroicons/vue/24/outline'
-import TaskRow from '@/components/TaskRow.vue'
+import TaskTree from '@/components/TaskTree.vue'
+import UserAvatar from '@/components/UserAvatar.vue'
 import TaskFormModal from '@/components/TaskFormModal.vue'
 import ProjectFormModal from '@/components/ProjectFormModal.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import { useToastStore, errorMessage } from '@/stores/toast'
-import { formatDuration, formatHoursDecimal, formatCurrency, formatDate } from '@/utils/format'
+import { formatDuration, formatHoursDecimal, formatCurrency, formatDate, formatMonth } from '@/utils/format'
 
 /** Project with the time summary the API adds on show. */
 interface ProjectWithSummary extends Project {
@@ -32,6 +33,8 @@ const notFound = ref(false)
 const entries = ref<TimeEntry[]>([])
 const entriesMeta = ref<PaginationMeta | null>(null)
 const entriesLoading = ref(true)
+const entriesPage = ref(1)
+const entriesLoadingMore = ref(false)
 
 const clients = ref<Client[]>([])
 
@@ -82,25 +85,54 @@ async function fetchProject() {
   }
 }
 
-async function fetchEntries() {
-  entriesLoading.value = true
+async function fetchEntries(page = 1) {
+  if (page === 1) entriesLoading.value = true
+  else entriesLoadingMore.value = true
   try {
     const { data } = await api.get('/time-entries', {
       params: {
         'filter[project_id]': projectId.value,
         all_users: 1,
         per_page: 25,
+        page,
         sort: '-started_at',
       },
     })
-    entries.value = data.data
+    entries.value = page === 1 ? data.data : [...entries.value, ...data.data]
     entriesMeta.value = data.meta ?? null
+    entriesPage.value = page
   } catch (e) {
     toast.error(errorMessage(e, t('common.loadFailed')))
   } finally {
     entriesLoading.value = false
+    entriesLoadingMore.value = false
   }
 }
+
+const hasMoreEntries = computed(() => !!entriesMeta.value && entriesMeta.value.current_page < entriesMeta.value.last_page)
+
+interface MonthGroup {
+  key: string
+  label: string
+  seconds: number
+  entries: TimeEntry[]
+}
+
+/** Loaded entries clustered by month (newest first) with the sum of the loaded entries per month. */
+const entryMonths = computed<MonthGroup[]>(() => {
+  const groups: MonthGroup[] = []
+  for (const entry of entries.value) {
+    const key = entry.started_at.slice(0, 7)
+    let group = groups[groups.length - 1]
+    if (!group || group.key !== key) {
+      group = { key, label: formatMonth(`${key}-01`), seconds: 0, entries: [] }
+      groups.push(group)
+    }
+    group.entries.push(entry)
+    if (!entry.is_running) group.seconds += entry.duration_seconds ?? 0
+  }
+  return groups
+})
 
 async function fetchTasks() {
   tasksLoading.value = true
@@ -299,7 +331,7 @@ watch(projectId, load)
             <p class="empty__text">{{ $t('tasks.noTasksText') }}</p>
           </div>
           <ul v-else class="task-list">
-            <TaskRow v-for="task in tasks" :key="task.id" :task="task" :busy="busyTaskId === task.id" @toggle="toggleTask" />
+            <TaskTree v-for="task in tasks" :key="task.id" :task="task" :busy-id="busyTaskId" @toggle="toggleTask" />
           </ul>
         </div>
       </section>
@@ -331,10 +363,19 @@ watch(projectId, load)
                   <th scope="col" class="table__num">{{ $t('common.duration') }}</th>
                 </tr>
               </thead>
-              <tbody>
-                <tr v-for="entry in entries" :key="entry.id" class="table__row">
+              <tbody v-for="month in entryMonths" :key="month.key">
+                <tr class="table__group project-detail__month">
+                  <th scope="rowgroup" colspan="4">{{ month.label }}</th>
+                  <td class="table__num">{{ formatDuration(month.seconds) }}</td>
+                </tr>
+                <tr v-for="entry in month.entries" :key="entry.id" class="table__row">
                   <td class="table__time">{{ formatDate(entry.started_at) }}</td>
-                  <td class="project-detail__member">{{ entry.user?.name ?? '–' }}</td>
+                  <td class="project-detail__member">
+                    <span class="cell">
+                      <UserAvatar :name="entry.user?.name" :avatar-url="entry.user?.avatar_url" size="sm" />
+                      <span class="cell__title">{{ entry.user?.name ?? '–' }}</span>
+                    </span>
+                  </td>
                   <td :class="{ 'table__muted': !entry.task }">{{ entry.task?.name ?? $t('projectDetail.noTask') }}</td>
                   <td class="table__truncate" :class="{ 'table__muted': !entry.description }" :title="entry.description ?? undefined">
                     {{ entry.description || '–' }}
@@ -346,6 +387,11 @@ watch(projectId, load)
                 </tr>
               </tbody>
             </table>
+            <div v-if="hasMoreEntries" class="project-detail__more">
+              <button type="button" class="btn btn--secondary btn--sm" :disabled="entriesLoadingMore" @click="fetchEntries(entriesPage + 1)">
+                {{ entriesLoadingMore ? $t('common.saving') : $t('projectDetail.moreEntries') }}
+              </button>
+            </div>
           </div>
         </div>
       </section>

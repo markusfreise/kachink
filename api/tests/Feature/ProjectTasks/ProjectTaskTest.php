@@ -385,6 +385,44 @@ class ProjectTaskTest extends TestCase
         $this->assertFileDoesNotExist($dir.'/'.basename($url));
     }
 
+    public function test_tasks_due_today_move_into_heute_and_blink_until_confirmed(): void
+    {
+        $org = $this->createOrganization();
+        $project = $this->projectIn($org);
+        $user = $this->memberOf($org);
+        $today = ProjectTask::today();
+
+        $due = ProjectTask::factory()->create(['project_id' => $project->id, 'deadline' => $today]);
+        $other = ProjectTask::factory()->create(['project_id' => $project->id, 'deadline' => now()->addDays(2)->toDateString()]);
+
+        $list = $this->actingInOrg($user, $org)->getJson('/api/project-tasks')->assertOk()->json('data');
+        $row = collect($list)->firstWhere('id', $due->id);
+        $this->assertSame('Heute', $row['status']['name']);
+        $this->assertTrue($row['is_due_today_alert']);
+        $this->assertNull(collect($list)->firstWhere('id', $other->id)['status_id']);
+
+        // Moving it out of Heute by hand is respected for the rest of the day.
+        $this->actingInOrg($user, $org)->putJson("/api/project-tasks/{$due->id}", ['status_id' => null])->assertOk();
+        $this->actingInOrg($user, $org)->getJson('/api/project-tasks')->assertOk();
+        $this->assertNull($due->fresh()->status_id);
+
+        $this->actingInOrg($user, $org)
+            ->putJson("/api/project-tasks/{$due->id}", ['acknowledge_today' => true])
+            ->assertOk()
+            ->assertJsonPath('data.is_due_today_alert', false);
+
+        $this->actingInOrg($user, $org)
+            ->putJson("/api/project-tasks/{$due->id}", ['deadline' => $today])
+            ->assertOk()
+            ->assertJsonPath('data.is_due_today_alert', false, 'same deadline keeps the confirmation');
+
+        $this->actingInOrg($user, $org)
+            ->putJson("/api/project-tasks/{$due->id}", ['deadline' => now()->addDay()->toDateString()])
+            ->assertOk()
+            ->assertJsonPath('data.is_due_today_alert', false);
+        $this->assertNull($due->fresh()->today_acknowledged_on);
+    }
+
     public function test_reminder_command_notifies_assignee_once(): void
     {
         Notification::fake();

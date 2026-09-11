@@ -288,6 +288,15 @@ export interface ProjectTaskHistory {
   created_at: string
 }
 
+export interface TaskStatus {
+  id: string
+  name: string
+  color: string
+  position: number
+  is_locked: boolean
+  tasks_count?: number
+}
+
 export interface ProjectTaskRef {
   id: string
   title: string
@@ -303,8 +312,13 @@ export interface ProjectTask {
   assignee_id: string | null
   created_by: string | null
   priority: TaskPriority
+  status_id: string | null
+  status?: TaskStatus | null
   estimate_minutes: number | null
   budget: number | null
+  /** Budget derived from estimate and hourly rate when no fixed budget is set. */
+  calculated_budget: number | null
+  calculated_rate: number | null
   deadline: string | null
   reminder_at: string | null
   reminder_sent_at: string | null
@@ -326,6 +340,7 @@ export interface ProjectTask {
   open_children_count?: number
   comments_count?: number
   attachments_count?: number
+  earliest_child_deadline?: string | null
   created_at: string
   updated_at: string
 }

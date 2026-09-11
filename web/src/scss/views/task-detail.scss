@@ -369,3 +369,134 @@
     color: var(--c-copy-lighter);
   }
 }
+
+// ---------------------------------------------------------------- inline editing
+
+.task-detail {
+  &__check {
+    width: pxtorem(36);
+    height: pxtorem(36);
+    margin-top: pxtorem(2);
+
+    .task-row__check-icon {
+      width: pxtorem(22);
+      height: pxtorem(22);
+    }
+  }
+
+  &__editable {
+    cursor: text;
+    border-radius: var(--radius-small);
+    transition: background 0.15s;
+
+    &:hover {
+      background: var(--c-corporate-soft);
+      box-shadow: 0 0 0 pxtorem(6) var(--c-corporate-soft);
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+
+  &__title-input {
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-bottom: 2px solid var(--c-corporate);
+    background: transparent;
+    outline: none;
+  }
+
+  &__assignee {
+    display: inline-flex;
+    align-items: center;
+    gap: pxtorem(6);
+    font-size: var(--fs-small);
+    color: var(--c-copy);
+  }
+
+  &__subtask-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--gap-05x);
+  }
+}
+
+.task-meta {
+  &__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: pxtorem(4);
+    margin-top: pxtorem(6);
+  }
+
+  &__chip {
+    padding: pxtorem(2) pxtorem(8);
+    border: 1px solid var(--c-border);
+    border-radius: 999px;
+    background: var(--c-surface);
+    font: inherit;
+    font-size: var(--fs-mini);
+    color: var(--c-copy-light);
+    cursor: pointer;
+
+    &:hover {
+      border-color: var(--c-corporate);
+      color: var(--c-corporate);
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+
+  &__estimate {
+    display: flex;
+    gap: var(--gap-05x);
+  }
+
+  &__unit {
+    display: flex;
+    align-items: center;
+    gap: pxtorem(4);
+    flex: 1;
+    font-size: var(--fs-small);
+    color: var(--c-copy-light);
+
+    .form__input {
+      width: 100%;
+    }
+  }
+
+  &__input--danger {
+    color: var(--c-danger);
+    border-color: var(--c-danger);
+  }
+}
+
+// ---------------------------------------------------------------- drop zone
+
+.dropzone {
+  position: relative;
+  border: 2px dashed transparent;
+  border-radius: var(--radius-medium);
+  transition: border-color 0.15s, background 0.15s;
+
+  &--active {
+    border-color: var(--c-corporate);
+    background: var(--c-corporate-soft);
+  }
+
+  &--busy {
+    opacity: 0.6;
+  }
+
+  &__hint {
+    margin: var(--gap-05x) 0 0;
+    font-size: var(--fs-mini);
+    color: var(--c-copy-lighter);
+  }
+}

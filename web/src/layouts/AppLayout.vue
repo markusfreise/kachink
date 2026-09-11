@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useTimerStore } from '@/stores/timer'
 import { useOrgStore } from '@/stores/org'
+import UserAvatar from '@/components/UserAvatar.vue'
 import {
   Squares2X2Icon,
   ClockIcon,
@@ -115,7 +116,7 @@ async function handleLogout() {
 
       <div class="sidebar__footer">
         <RouterLink to="/settings" class="sidebar__user">
-          <span class="sidebar__avatar" aria-hidden="true">{{ auth.user?.name?.charAt(0) ?? '?' }}</span>
+          <UserAvatar :name="auth.user?.name" :avatar-url="auth.user?.avatar_url" size="md" />
           <span class="sidebar__user-info">
             <span class="sidebar__user-name">{{ auth.user?.name }}</span>
             <span class="sidebar__user-role">{{ roleLabel }}</span>

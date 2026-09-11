@@ -8,6 +8,7 @@ import { useOrgStore } from '@/stores/org'
 import { useToastStore, errorMessage } from '@/stores/toast'
 import { formatDate, formatDuration } from '@/utils/format'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import UserAvatar from '@/components/UserAvatar.vue'
 import {
   ClipboardDocumentIcon,
   TrashIcon,
@@ -56,6 +57,43 @@ async function saveDefaultRate() {
 // Profile
 const roleLabel = computed(() => (auth.user?.role === 'admin' ? t('users.roleAdmin') : t('users.roleMember')))
 const roleClass = computed(() => (auth.user?.role === 'admin' ? 'badge--brand' : 'badge--neutral'))
+
+// Profile picture
+const avatarInput = ref<HTMLInputElement | null>(null)
+const avatarBusy = ref(false)
+
+async function uploadAvatar(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file || !auth.user) return
+  avatarBusy.value = true
+  try {
+    const form = new FormData()
+    form.append('avatar', file)
+    await api.post(`/users/${auth.user.id}/avatar`, form, { headers: { 'Content-Type': 'multipart/form-data' } })
+    await auth.fetchUser()
+    toast.success(t('avatar.saved'))
+  } catch (e) {
+    toast.error(errorMessage(e, t('common.failedToSave')))
+  } finally {
+    avatarBusy.value = false
+    input.value = ''
+  }
+}
+
+async function removeAvatar() {
+  if (!auth.user) return
+  avatarBusy.value = true
+  try {
+    await api.delete(`/users/${auth.user.id}/avatar`)
+    await auth.fetchUser()
+    toast.success(t('avatar.removed'))
+  } catch (e) {
+    toast.error(errorMessage(e, t('common.error')))
+  } finally {
+    avatarBusy.value = false
+  }
+}
 
 // Reporting: rounding example (7 minutes rounded up with the current interval)
 const roundingExample = computed(() => {
@@ -154,6 +192,13 @@ fetchTokens()
           <h2 id="settings-profile" class="card__title">{{ $t('settings.profile') }}</h2>
         </div>
         <div class="card__body">
+          <div class="avatar-edit settings__avatar">
+            <UserAvatar :name="auth.user?.name" :avatar-url="auth.user?.avatar_url" size="lg" />
+            <button type="button" class="btn btn--secondary btn--sm" :disabled="avatarBusy" @click="avatarInput?.click()">{{ auth.user?.avatar_url ? $t('avatar.change') : $t('avatar.upload') }}</button>
+            <button v-if="auth.user?.avatar_url" type="button" class="btn btn--ghost btn--sm" :disabled="avatarBusy" @click="removeAvatar">{{ $t('avatar.remove') }}</button>
+            <input ref="avatarInput" type="file" accept="image/png,image/jpeg,image/webp" class="sr-only" @change="uploadAvatar" />
+            <span class="form__hint">{{ $t('avatar.hint') }}</span>
+          </div>
           <dl class="settings__profile">
             <dt class="settings__profile-label">{{ $t('settings.name') }}</dt>
             <dd class="settings__profile-value">{{ auth.user?.name }}</dd>

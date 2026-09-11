@@ -7,6 +7,7 @@ import type { User } from '@/types'
 import { useAuthStore } from '@/stores/auth'
 import { useToastStore, errorMessage } from '@/stores/toast'
 import { formatCurrency } from '@/utils/format'
+import UserAvatar from '@/components/UserAvatar.vue'
 import BaseModal from '@/components/BaseModal.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import { PlusIcon, UserGroupIcon } from '@heroicons/vue/24/outline'
@@ -28,6 +29,45 @@ const saving = ref(false)
 const formError = ref('')
 
 const toggleTarget = ref<User | null>(null)
+const avatarInput = ref<HTMLInputElement | null>(null)
+const avatarBusy = ref(false)
+
+async function uploadAvatar(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file || !editingUser.value) return
+  avatarBusy.value = true
+  try {
+    const form = new FormData()
+    form.append('avatar', file)
+    const { data } = await api.post(`/users/${editingUser.value.id}/avatar`, form, { headers: { 'Content-Type': 'multipart/form-data' } })
+    editingUser.value = data.data
+    if (editingUser.value?.id === auth.user?.id) await auth.fetchUser()
+    toast.success(t('avatar.saved'))
+    fetchUsers()
+  } catch (e) {
+    toast.error(errorMessage(e, t('common.failedToSave')))
+  } finally {
+    avatarBusy.value = false
+    input.value = ''
+  }
+}
+
+async function removeAvatar() {
+  if (!editingUser.value) return
+  avatarBusy.value = true
+  try {
+    const { data } = await api.delete(`/users/${editingUser.value.id}/avatar`)
+    editingUser.value = data.data
+    if (editingUser.value?.id === auth.user?.id) await auth.fetchUser()
+    toast.success(t('avatar.removed'))
+    fetchUsers()
+  } catch (e) {
+    toast.error(errorMessage(e, t('common.error')))
+  } finally {
+    avatarBusy.value = false
+  }
+}
 const toggling = ref(false)
 
 const currentUserId = computed(() => auth.user?.id ?? null)
@@ -161,7 +201,7 @@ onMounted(fetchUsers)
             >
               <td>
                 <div class="cell">
-                  <span class="users__avatar" aria-hidden="true">{{ user.name.charAt(0) }}</span>
+                  <UserAvatar :name="user.name" :avatar-url="user.avatar_url" size="md" />
                   <span class="cell__title">
                     {{ user.name }}<template v-if="user.id === currentUserId"> ({{ $t('users.you') }})</template>
                   </span>
@@ -229,6 +269,16 @@ onMounted(fetchUsers)
             <option value="member">{{ $t('users.roleMember') }}</option>
             <option value="admin">{{ $t('users.roleAdmin') }}</option>
           </select>
+        </div>
+        <div v-if="editingUser" class="form__group">
+          <span class="form__label">{{ $t('avatar.title') }}</span>
+          <div class="avatar-edit">
+            <UserAvatar :name="editingUser.name" :avatar-url="editingUser.avatar_url" size="lg" />
+            <button type="button" class="btn btn--secondary btn--sm" :disabled="avatarBusy" @click="avatarInput?.click()">{{ editingUser.avatar_url ? $t('avatar.change') : $t('avatar.upload') }}</button>
+            <button v-if="editingUser.avatar_url" type="button" class="btn btn--ghost btn--sm" :disabled="avatarBusy" @click="removeAvatar">{{ $t('avatar.remove') }}</button>
+            <input ref="avatarInput" type="file" accept="image/png,image/jpeg,image/webp" class="sr-only" @change="uploadAvatar" />
+          </div>
+          <span class="form__hint">{{ $t('avatar.hint') }}</span>
         </div>
         <div v-if="editingUser" class="form__group">
           <label for="user-rate" class="form__label">{{ $t('rates.memberRate') }} (EUR/h)</label>

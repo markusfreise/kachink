@@ -31,6 +31,7 @@ class UpdateProjectTaskRequest extends FormRequest
             'tag_ids.*' => ['uuid', InOrganization::exists('tags')],
             'position' => ['sometimes', 'integer', 'min:0'],
             'completed' => ['sometimes', 'boolean'],
+            'acknowledge_today' => ['sometimes', 'boolean'],
         ];
     }
 }

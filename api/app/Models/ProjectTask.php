@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
 /**
  * A task inside a project. Subtasks are tasks with a parent_id; they share
@@ -37,6 +38,8 @@ class ProjectTask extends Model
         'created_by',
         'priority',
         'status_id',
+        'today_moved_on',
+        'today_acknowledged_on',
         'estimate_minutes',
         'budget',
         'deadline',
@@ -53,6 +56,8 @@ class ProjectTask extends Model
             'budget' => 'decimal:2',
             'deadline' => 'date:Y-m-d',
             'reminder_at' => 'date:Y-m-d',
+            'today_moved_on' => 'date:Y-m-d',
+            'today_acknowledged_on' => 'date:Y-m-d',
             'reminder_sent_at' => 'datetime',
             'completed_at' => 'datetime',
             'position' => 'integer',
@@ -164,6 +169,63 @@ class ProjectTask extends Model
     public function histories(): HasMany
     {
         return $this->hasMany(ProjectTaskHistory::class)->orderByDesc('created_at');
+    }
+
+    // ------------------------------------------------------------ due today
+
+    public static function today(): string
+    {
+        return Carbon::now(config('reports.timezone'))->toDateString();
+    }
+
+    /** Deadline is today, still open and not confirmed for today: shows the blinking marker. */
+    public function isDueTodayAlert(): bool
+    {
+        if ($this->completed_at !== null || $this->deadline === null) {
+            return false;
+        }
+        $today = self::today();
+
+        return $this->deadline->toDateString() === $today && $this->today_acknowledged_on?->toDateString() !== $today;
+    }
+
+    /**
+     * Moves every open task of the organization whose deadline is today into
+     * the "Heute" status, once per day. Idempotent and cheap, so it runs when
+     * lists are loaded.
+     */
+    public static function moveDueTodayIntoHeute(Organization $organization): int
+    {
+        $heute = TaskStatus::withoutGlobalScopes()
+            ->where('organization_id', $organization->id)
+            ->where('is_locked', true)
+            ->first();
+        if (! $heute) {
+            return 0;
+        }
+        $today = self::today();
+
+        $due = static::withoutGlobalScopes()
+            ->where('organization_id', $organization->id)
+            ->whereNull('completed_at')
+            ->whereDate('deadline', $today)
+            ->where(fn ($q) => $q->whereNull('today_moved_on')->orWhereDate('today_moved_on', '<', $today))
+            ->where(fn ($q) => $q->whereNull('status_id')->orWhere('status_id', '!=', $heute->id))
+            ->get();
+
+        foreach ($due as $task) {
+            $task->forceFill(['status_id' => $heute->id, 'today_moved_on' => $today])->save();
+        }
+        // Tasks already in Heute only need the marker date.
+        static::withoutGlobalScopes()
+            ->where('organization_id', $organization->id)
+            ->whereNull('completed_at')
+            ->whereDate('deadline', $today)
+            ->where('status_id', $heute->id)
+            ->where(fn ($q) => $q->whereNull('today_moved_on')->orWhereDate('today_moved_on', '<', $today))
+            ->update(['today_moved_on' => $today]);
+
+        return $due->count();
     }
 
     // ------------------------------------------------------------ helpers

@@ -189,3 +189,124 @@
     text-transform: uppercase;
   }
 }
+
+// ---------------------------------------------------------------- tree
+
+.task-row {
+  &--nested {
+    background: var(--c-surface-2);
+  }
+
+  &__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: pxtorem(4) var(--gap-05x);
+  }
+
+  &__status {
+    font-weight: 600;
+  }
+
+  &__project {
+    color: var(--c-copy-light);
+    text-decoration: none;
+
+    &:hover {
+      color: var(--c-corporate);
+      text-decoration: underline;
+    }
+  }
+
+  &__expand {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: pxtorem(22);
+    height: pxtorem(22);
+    margin-top: pxtorem(1);
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-small);
+    background: none;
+    color: var(--c-copy-light);
+    cursor: pointer;
+
+    &:hover {
+      background: var(--c-surface-3);
+      color: var(--c-head);
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+
+    &--placeholder {
+      cursor: default;
+      pointer-events: none;
+    }
+
+    &--loading {
+      opacity: 0.5;
+    }
+  }
+
+  &__expand-icon {
+    width: pxtorem(16);
+    height: pxtorem(16);
+    transition: transform 0.15s;
+
+    .task-row__expand--open & {
+      transform: rotate(90deg);
+    }
+  }
+}
+
+// ---------------------------------------------------------------- avatar
+
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--c-corporate-soft);
+  color: var(--c-corporate);
+  font-weight: 700;
+  text-transform: uppercase;
+  line-height: 1;
+
+  &--sm {
+    width: pxtorem(24);
+    height: pxtorem(24);
+    font-size: var(--fs-mini);
+  }
+
+  &--md {
+    width: pxtorem(32);
+    height: pxtorem(32);
+    font-size: var(--fs-small);
+  }
+
+  &--lg {
+    width: pxtorem(48);
+    height: pxtorem(48);
+    font-size: var(--fs-medium);
+  }
+
+  &__img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+.avatar-edit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gap-05x);
+  margin-bottom: var(--gap);
+}

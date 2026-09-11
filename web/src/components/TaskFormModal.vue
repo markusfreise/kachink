@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import api from '@/api/client'
-import type { ProjectTask, Project, User, Tag, TaskPriority } from '@/types'
+import type { ProjectTask, Project, User, Tag, TaskPriority, TaskStatus } from '@/types'
 import BaseModal from '@/components/BaseModal.vue'
 import ComboBox from '@/components/ComboBox.vue'
 import { useToastStore, errorMessage } from '@/stores/toast'
@@ -28,6 +28,8 @@ const toast = useToastStore()
 const projects = ref<Project[]>([])
 const users = ref<User[]>([])
 const tags = ref<Tag[]>([])
+const statuses = ref<TaskStatus[]>([])
+const statusId = ref('')
 const optionsLoading = ref(true)
 
 const title = ref('')
@@ -54,7 +56,8 @@ const modalTitle = computed(() => {
 const projectOptions = computed(() =>
   projects.value.map((p) => ({ id: p.id, label: p.name, subtitle: p.client?.name, color: p.color })),
 )
-const userOptions = computed(() => users.value.map((u) => ({ id: u.id, label: u.name })))
+const userOptions = computed(() => users.value.map((u) => ({ id: u.id, label: u.name, avatar: true, avatarUrl: u.avatar_url })))
+const statusOptions = computed(() => statuses.value.map((s) => ({ id: s.id, label: s.name, color: s.color })))
 
 onMounted(async () => {
   if (props.task) {
@@ -63,6 +66,7 @@ onMounted(async () => {
     projectIdModel.value = props.task.project_id
     assigneeId.value = props.task.assignee_id ?? ''
     priority.value = props.task.priority
+    statusId.value = props.task.status_id ?? ''
     const est = splitEstimate(props.task.estimate_minutes)
     estimateHours.value = est.hours
     estimateMinutes.value = est.minutes
@@ -73,16 +77,18 @@ onMounted(async () => {
   }
 
   try {
-    const [projectsRes, usersRes, tagsRes] = await Promise.all([
+    const [projectsRes, usersRes, tagsRes, statusRes] = await Promise.all([
       projectLocked.value
         ? Promise.resolve(null)
         : api.get('/projects', { params: { 'filter[is_active]': 1, per_page: 500, sort: 'name' } }),
       api.get('/users', { params: { 'filter[is_active]': 1 } }),
       api.get('/tags'),
+      api.get('/task-statuses'),
     ])
     if (projectsRes) projects.value = projectsRes.data.data
     users.value = usersRes.data.data
     tags.value = tagsRes.data.data
+    statuses.value = statusRes.data.data
   } catch (e) {
     error.value = errorMessage(e, t('common.loadFailed'))
   } finally {
@@ -111,6 +117,7 @@ async function handleSave() {
       description: description.value.trim() || null,
       assignee_id: assigneeId.value || null,
       priority: priority.value,
+      status_id: statusId.value || null,
       estimate_minutes: joinEstimate(estimateHours.value, estimateMinutes.value),
       budget: numberOrNull(budget.value),
       deadline: deadline.value || null,
@@ -179,6 +186,21 @@ async function handleSave() {
             :disabled="optionsLoading"
           />
         </div>
+        <div class="form__group">
+          <label class="form__label" for="task-form-status">{{ $t('tasks.status') }}</label>
+          <ComboBox
+            id="task-form-status"
+            v-model="statusId"
+            :options="statusOptions"
+            :placeholder="$t('tasks.noStatus')"
+            :clear-label="$t('tasks.noStatus')"
+            clearable
+            :disabled="optionsLoading"
+          />
+        </div>
+      </div>
+
+      <div class="form__row">
         <div class="form__group">
           <label class="form__label" for="task-form-priority">{{ $t('tasks.priority') }}</label>
           <select id="task-form-priority" v-model="priority" class="form__select">

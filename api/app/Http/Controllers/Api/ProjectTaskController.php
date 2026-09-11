@@ -25,6 +25,8 @@ class ProjectTaskController extends Controller
 
     public function index(Request $request): AnonymousResourceCollection
     {
+        ProjectTask::moveDueTodayIntoHeute(app('current_organization'));
+
         $query = ProjectTask::query()
             ->with(['assignee', 'tags', 'status', 'project.client'])
             ->withCount([
@@ -121,6 +123,9 @@ class ProjectTaskController extends Controller
 
     public function show(ProjectTask $project_task): JsonResponse
     {
+        ProjectTask::moveDueTodayIntoHeute(app('current_organization'));
+        $project_task->refresh();
+
         return response()->json(['data' => new ProjectTaskResource($this->loadDetail($project_task))]);
     }
 
@@ -148,6 +153,16 @@ class ProjectTaskController extends Controller
             } elseif (! $completed && $project_task->completed_at) {
                 $data['completed_at'] = null;
             }
+        }
+
+        // Keeping a task in Heute confirms today's marker; a new deadline resets it.
+        if (! empty($data['acknowledge_today'])) {
+            $data['today_acknowledged_on'] = ProjectTask::today();
+        }
+        unset($data['acknowledge_today']);
+        if (array_key_exists('deadline', $data) && $data['deadline'] !== $project_task->deadline?->format('Y-m-d')) {
+            $data['today_acknowledged_on'] = null;
+            $data['today_moved_on'] = null;
         }
 
         // A new reminder date arms the reminder again.

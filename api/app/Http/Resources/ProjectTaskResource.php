@@ -33,6 +33,7 @@ class ProjectTaskResource extends JsonResource
             'reminder_sent_at' => $this->reminder_sent_at,
             'completed_at' => $this->completed_at,
             'is_completed' => $this->completed_at !== null,
+            'is_due_today_alert' => $this->resource->isDueTodayAlert(),
             'is_overdue' => $this->completed_at === null && $this->deadline !== null && $this->deadline->isPast() && ! $this->deadline->isToday(),
             'position' => $this->position,
             'assignee' => new UserResource($this->whenLoaded('assignee')),

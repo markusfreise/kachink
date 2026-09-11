@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UserAvatar from '@/components/UserAvatar.vue'
 import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import api from '@/api/client'
@@ -356,7 +357,12 @@ onMounted(() => {
               <td class="time-entries__desc" :class="{ table__muted: !entry.description }" :title="entry.description ?? undefined">
                 {{ entry.description || $t('timeEntries.noDescription') }}
               </td>
-              <td v-if="showUserColumn">{{ entry.user?.name }}</td>
+              <td v-if="showUserColumn">
+                <span class="cell">
+                  <UserAvatar :name="entry.user?.name" :avatar-url="entry.user?.avatar_url" size="sm" />
+                  <span class="cell__title">{{ entry.user?.name }}</span>
+                </span>
+              </td>
               <td class="time-entries__billable">
                 <span
                   class="time-entries__billable-dot"

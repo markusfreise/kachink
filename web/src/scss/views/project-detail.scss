@@ -93,3 +93,13 @@
   align-items: center;
   gap: var(--gap-05x);
 }
+
+.project-detail__month th {
+  text-align: left;
+}
+
+.project-detail__more {
+  padding: var(--gap-075x) var(--gap);
+  text-align: center;
+  border-top: 1px solid var(--c-border);
+}
