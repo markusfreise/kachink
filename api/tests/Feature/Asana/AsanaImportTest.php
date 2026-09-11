@@ -116,7 +116,7 @@ class AsanaImportTest extends TestCase
         $this->assertSame('2026-10-01', $root->deadline->toDateString());
         $this->assertSame(['Web'], $root->tags->pluck('name')->all());
         $this->assertSame(2, $root->comments()->count());
-        $this->assertStringStartsWith('Mareike (Asana): ', $root->comments()->orderByDesc('created_at')->first()->body);
+        $this->assertStringStartsWith('Mareike (Asana): ', $root->comments()->where('asana_story_gid', 's2')->first()->body);
         $sub = ProjectTask::where('asana_task_gid', 't1a')->first();
         $this->assertSame($asProject->id, $sub->project_id, 'subtasks of a task-as-project become top-level tasks');
         $this->assertNull($sub->parent_id);
