@@ -321,6 +321,15 @@ class ProjectTaskTest extends TestCase
             ->assertJsonPath('data.status.name', 'Warten auf Kunde');
         $this->assertSame([$heute['id'], $waiting['id']], array_values($task->fresh()->histories()->where('action', 'updated')->first()->changes['status_id']));
 
+        // Personal: a colleague does not see this status, its tasks show no work status for them
+        $other = $this->memberOf($org);
+        $names = collect($this->actingInOrg($other, $org)->getJson('/api/task-statuses')->json('data'))->pluck('name')->all();
+        $this->assertSame(['Heute'], $names);
+        $this->actingInOrg($other, $org)->getJson("/api/project-tasks/{$task->id}")->assertOk()->assertJsonPath('data.status', null);
+        $this->actingInOrg($other, $org)->putJson("/api/project-tasks/{$task->id}", ['status_id' => $waiting['id']])->assertUnprocessable();
+        $this->actingInOrg($other, $org)->deleteJson("/api/task-statuses/{$waiting['id']}")->assertNotFound();
+        $this->actingInOrg($other, $org)->postJson('/api/task-statuses', ['name' => 'Warten auf Kunde'])->assertCreated();
+
         // Deleting a status detaches it from tasks instead of deleting them.
         $this->actingInOrg($user, $org)
             ->deleteJson("/api/task-statuses/{$waiting['id']}")

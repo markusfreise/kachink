@@ -13,7 +13,7 @@ class TaskStatus extends Model
 
     public const DEFAULT_NAME = 'Heute';
 
-    protected $fillable = ['organization_id', 'name', 'color', 'position', 'is_locked'];
+    protected $fillable = ['organization_id', 'user_id', 'name', 'color', 'position', 'is_locked'];
 
     protected function casts(): array
     {
@@ -21,6 +21,17 @@ class TaskStatus extends Model
             'position' => 'integer',
             'is_locked' => 'boolean',
         ];
+    }
+
+    /** Visible to $userId: the shared fixed status and the member's own ones. */
+    public function scopeVisibleTo(\Illuminate\Database\Eloquent\Builder $query, string $userId): \Illuminate\Database\Eloquent\Builder
+    {
+        return $query->where(fn ($q) => $q->where('is_locked', true)->orWhere('user_id', $userId));
+    }
+
+    public function isVisibleTo(?string $userId): bool
+    {
+        return $this->is_locked || ($userId !== null && $this->user_id === $userId);
     }
 
     public function tasks(): HasMany

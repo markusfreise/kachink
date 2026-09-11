@@ -22,8 +22,8 @@ class ProjectTaskResource extends JsonResource
             'assignee_id' => $this->assignee_id,
             'created_by' => $this->created_by,
             'priority' => $this->priority,
-            'status_id' => $this->status_id,
-            'status' => new TaskStatusResource($this->whenLoaded('status')),
+            'status_id' => $this->when(true, fn () => $this->visibleStatus($request) ? $this->status_id : null),
+            'status' => $this->when($this->relationLoaded('status'), fn () => $this->visibleStatus($request) ? new TaskStatusResource($this->status) : null),
             'project_status_id' => $this->project_status_id,
             'project_status' => new TaskStatusResource($this->whenLoaded('projectStatus')),
             'estimate_minutes' => $this->estimate_minutes,
@@ -65,6 +65,17 @@ class ProjectTaskResource extends JsonResource
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];
+    }
+
+    /** Personal work statuses of other members are invisible; the shared Heute always shows. */
+    private function visibleStatus(Request $request): bool
+    {
+        if (! $this->status_id) {
+            return false;
+        }
+        $status = $this->relationLoaded('status') ? $this->status : $this->resource->status()->first();
+
+        return $status ? $status->isVisibleTo($request->user()?->id) : false;
     }
 
     /**

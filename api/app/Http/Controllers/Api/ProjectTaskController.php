@@ -9,6 +9,7 @@ use App\Http\Resources\ProjectTaskResource;
 use App\Models\ProjectStatus;
 use App\Models\ProjectTask;
 use App\Models\ProjectTaskAttachment;
+use App\Models\TaskStatus;
 use App\Rules\InOrganization;
 use App\Services\TaskNotifier;
 use Illuminate\Database\Eloquent\Builder;
@@ -63,7 +64,10 @@ class ProjectTaskController extends Controller
 
         if ($request->filled('filter.status_id')) {
             $statusId = $request->input('filter.status_id');
-            $statusId === 'none' ? $query->whereNull('status_id') : $query->where('status_id', $statusId);
+            $me = $request->user()->id;
+            $statusId === 'none'
+                ? $query->where(fn ($q) => $q->whereNull('status_id')->orWhereHas('status', fn ($s) => $s->where('is_locked', false)->where('user_id', '!=', $me)))
+                : $query->where('status_id', $statusId);
         }
 
         // Every task whose deadline is on or before the given day.
@@ -119,6 +123,9 @@ class ProjectTaskController extends Controller
         $data['priority'] = $data['priority'] ?? 'soon';
         $data['created_by'] = $request->user()->id;
         $this->assertProjectStatus($data['project_status_id'] ?? null, $data['project_id']);
+        if (! empty($data['status_id']) && ! TaskStatus::findOrFail($data['status_id'])->isVisibleTo($request->user()->id)) {
+            throw ValidationException::withMessages(['status_id' => 'This work status belongs to another member.']);
+        }
 
         $task = DB::transaction(function () use ($data, $tagIds) {
             $task = ProjectTask::create($data);
@@ -159,6 +166,9 @@ class ProjectTaskController extends Controller
 
         if (! empty($data['project_status_id'])) {
             $this->assertProjectStatus($data['project_status_id'], $project_task->project_id);
+        }
+        if (! empty($data['status_id']) && ! TaskStatus::findOrFail($data['status_id'])->isVisibleTo($request->user()->id)) {
+            throw ValidationException::withMessages(['status_id' => 'This work status belongs to another member.']);
         }
 
         if (array_key_exists('completed', $data)) {

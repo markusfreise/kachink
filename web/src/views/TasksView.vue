@@ -61,6 +61,8 @@ const boardColumns = computed<BoardColumn[]>(() => {
   return cols
 })
 const isTodayActive = computed(() => !!todayStatus.value && statusId.value === todayStatus.value.id)
+/** Work statuses are personal: the filter only makes sense on "my tasks". */
+const showsMine = computed(() => !!auth.user && assignee.value === auth.user.id)
 
 const statusOptions = computed(() => [
   { value: 'open' as const, label: t('tasks.open') },
@@ -295,7 +297,16 @@ watch([projectId, assignee, priority, statusId, status, sort, deadlineUntil], ()
 watch(page, fetchTasks)
 watch(view, (v) => {
   localStorage.setItem('tasks:view', v)
+  // The board sorts by personal work status, so it always shows my tasks.
+  if (v === 'board' && auth.user && assignee.value !== auth.user.id) {
+    assignee.value = auth.user.id
+    return
+  }
   refresh()
+})
+watch(showsMine, (mine) => {
+  // A personal status filter is meaningless once other people's tasks are shown.
+  if (!mine && statusId.value && statusId.value !== todayStatus.value?.id) statusId.value = ''
 })
 
 onMounted(() => {
@@ -364,7 +375,7 @@ onMounted(() => {
             {{ o.label }}
           </button>
         </div>
-        <select v-if="view === 'list'" id="tasks-status" v-model="statusId" class="form__select form__select--sm form__select--inline tasks__filter" :aria-label="$t('tasks.status')">
+        <select v-if="view === 'list' && showsMine" id="tasks-status" v-model="statusId" class="form__select form__select--sm form__select--inline tasks__filter" :aria-label="$t('tasks.status')">
           <option value="">{{ $t('tasks.allStatuses') }}</option>
           <option value="none">{{ $t('tasks.noStatus') }}</option>
           <option v-for="s in statuses" :key="s.id" :value="s.id">{{ s.name }}</option>
@@ -373,7 +384,7 @@ onMounted(() => {
           <option value="">{{ $t('tasks.allProjects') }}</option>
           <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
         </select>
-        <select id="tasks-assignee" v-model="assignee" class="form__select form__select--sm form__select--inline tasks__filter" :aria-label="$t('tasks.assignee')">
+        <select id="tasks-assignee" v-model="assignee" class="form__select form__select--sm form__select--inline tasks__filter" :aria-label="$t('tasks.assignee')" :disabled="view === 'board'" :title="view === 'board' ? $t('tasks.boardMineHint') : undefined">
           <option value="">{{ $t('tasks.allAssignees') }}</option>
           <option v-if="auth.user" :value="auth.user.id">{{ $t('tasks.me') }}</option>
           <option value="none">{{ $t('tasks.unassigned') }}</option>

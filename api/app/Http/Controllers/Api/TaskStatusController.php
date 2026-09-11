@@ -21,7 +21,7 @@ class TaskStatusController extends Controller
         TaskStatus::ensureDefaults(app('current_organization'));
 
         return TaskStatusResource::collection(
-            TaskStatus::withCount('tasks')->orderBy('position')->orderBy('name')->get()
+            TaskStatus::visibleTo(request()->user()->id)->withCount('tasks')->orderBy('position')->orderBy('name')->get()
         );
     }
 
@@ -32,7 +32,8 @@ class TaskStatusController extends Controller
             'color' => ['sometimes', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'position' => ['sometimes', 'integer', 'min:0'],
         ]);
-        $data['position'] = $data['position'] ?? ((int) TaskStatus::max('position') + 1);
+        $data['position'] = $data['position'] ?? ((int) TaskStatus::where('user_id', $request->user()->id)->max('position') + 1);
+        $data['user_id'] = $request->user()->id;
 
         $status = TaskStatus::create($data);
 
@@ -41,6 +42,7 @@ class TaskStatusController extends Controller
 
     public function update(Request $request, TaskStatus $task_status): JsonResponse
     {
+        abort_unless($task_status->isVisibleTo($request->user()->id), 404);
         $data = $request->validate([
             'name' => ['sometimes', 'string', 'max:80', $this->uniqueName($task_status)],
             'color' => ['sometimes', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
@@ -64,7 +66,7 @@ class TaskStatusController extends Controller
             'ordered_ids.*' => ['uuid'],
         ]);
 
-        $statuses = TaskStatus::whereIn('id', $data['ordered_ids'])->get()->keyBy('id');
+        $statuses = TaskStatus::where('user_id', $request->user()->id)->whereIn('id', $data['ordered_ids'])->get()->keyBy('id');
         foreach (array_values($data['ordered_ids']) as $position => $id) {
             $statuses->get($id)?->update(['position' => $position + 1]);
         }
@@ -74,6 +76,7 @@ class TaskStatusController extends Controller
 
     public function destroy(TaskStatus $task_status): JsonResponse
     {
+        abort_unless($task_status->isVisibleTo(request()->user()->id), 404);
         if ($task_status->is_locked) {
             abort(422, 'The default status cannot be deleted.');
         }
@@ -85,7 +88,9 @@ class TaskStatusController extends Controller
 
     private function uniqueName(?TaskStatus $ignore = null): \Illuminate\Validation\Rules\Unique
     {
-        $rule = Rule::unique('task_statuses', 'name')->where('organization_id', app('current_organization')->id);
+        $rule = Rule::unique('task_statuses', 'name')
+            ->where('organization_id', app('current_organization')->id)
+            ->where(fn ($q) => $q->where('user_id', request()->user()->id)->orWhere('is_locked', true));
 
         return $ignore ? $rule->ignore($ignore->id) : $rule;
     }
