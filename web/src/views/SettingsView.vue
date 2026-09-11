@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { RouterLink } from 'vue-router'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import api from '@/api/client'
@@ -279,6 +280,17 @@ fetchTokens()
               <button type="submit" class="btn btn--primary btn--sm" :disabled="savingRate">{{ savingRate ? $t('common.saving') : $t('common.save') }}</button>
             </div>
           </form>
+        </div>
+      </section>
+
+      <!-- Asana import (admins) -->
+      <section v-if="auth.user?.role === 'admin'" class="card" aria-labelledby="settings-asana">
+        <div class="card__header">
+          <div>
+            <h2 id="settings-asana" class="card__title">{{ $t('asana.title') }}</h2>
+            <p class="settings__intro">{{ $t('asana.settingsIntro') }}</p>
+          </div>
+          <RouterLink class="btn btn--secondary btn--sm" :to="{ name: 'asana-import' }">{{ $t('asana.open') }}</RouterLink>
         </div>
       </section>
 

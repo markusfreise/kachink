@@ -1,0 +1,183 @@
+@use "../functions" as *;
+@use "../mixins" as *;
+
+// asana-import view
+
+.asana {
+  &__back {
+    display: inline-flex;
+    align-items: center;
+    gap: pxtorem(4);
+    margin-bottom: var(--gap-05x);
+    font-size: var(--fs-small);
+    color: var(--c-copy-light);
+    text-decoration: none;
+
+    &:hover {
+      color: var(--c-corporate);
+    }
+  }
+
+  &__back-icon {
+    width: pxtorem(14);
+    height: pxtorem(14);
+  }
+
+  &__token {
+    max-width: pxtorem(560);
+  }
+
+  &__connected {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--gap-05x);
+
+    p {
+      margin: 0;
+    }
+  }
+
+  &__head-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--gap-05x);
+  }
+
+  &__projects {
+    min-width: pxtorem(640);
+
+    @include desktop {
+      min-width: 0;
+    }
+  }
+
+  &__client-cell {
+    min-width: pxtorem(220);
+  }
+
+  &__row--active td {
+    background: var(--c-corporate-soft);
+  }
+
+  &__empty {
+    padding: var(--gap);
+  }
+
+  &__tasks {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  &__task {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--gap-05x) var(--gap);
+    padding: var(--gap-075x) var(--gap);
+    border-bottom: 1px solid var(--c-border);
+
+    @include tablet {
+      grid-template-columns: minmax(0, 1fr) pxtorem(300);
+    }
+
+    &--imported {
+      background: var(--c-surface-2);
+    }
+
+    &--invalid .asana__task-decision {
+      outline: 2px solid var(--c-danger);
+      outline-offset: 4px;
+      border-radius: var(--radius-small);
+    }
+  }
+
+  &__task-main {
+    min-width: 0;
+  }
+
+  &__task-title {
+    display: flex;
+    align-items: center;
+    gap: pxtorem(6);
+    font-weight: 500;
+    color: var(--c-head);
+    overflow-wrap: anywhere;
+  }
+
+  &__task-imported-icon {
+    width: pxtorem(16);
+    height: pxtorem(16);
+    color: var(--c-accent);
+    flex-shrink: 0;
+  }
+
+  &__task-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: pxtorem(4) var(--gap-05x);
+    margin-top: pxtorem(2);
+    font-size: var(--fs-small);
+    color: var(--c-copy-light);
+  }
+
+  &__task-notes {
+    margin: pxtorem(4) 0 0;
+    font-size: var(--fs-small);
+    color: var(--c-copy-light);
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+  }
+
+  &__task-decision {
+    display: flex;
+    flex-direction: column;
+    gap: pxtorem(6);
+  }
+
+  &__options {
+    display: flex;
+    flex-direction: column;
+    gap: pxtorem(6);
+    padding: var(--gap) var(--gap) 0;
+  }
+
+  &__sub-option {
+    margin-left: var(--gap-15x);
+  }
+
+  &__run {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--gap);
+    padding: var(--gap);
+  }
+
+  &__spin {
+    animation: asana-spin 1s linear infinite;
+  }
+
+  &__summary-line {
+    margin: 0;
+  }
+
+  &__errors {
+    margin: var(--gap-05x) 0 0;
+    padding-left: var(--gap);
+    font-size: var(--fs-small);
+  }
+
+  .alert {
+    margin: 0 var(--gap) var(--gap);
+  }
+}
+
+@keyframes asana-spin {
+  to { transform: rotate(360deg); }
+}

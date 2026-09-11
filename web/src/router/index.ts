@@ -89,6 +89,11 @@ const router = createRouter({
           component: () => import('@/views/SettingsView.vue'),
         },
         {
+          path: 'settings/asana',
+          name: 'asana-import',
+          component: () => import('@/views/AsanaImportView.vue'),
+        },
+        {
           path: 'connect',
           name: 'connect',
           component: () => import('@/views/ConnectDeviceView.vue'),
