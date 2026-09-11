@@ -15,6 +15,7 @@ class Organization extends Model
     protected $fillable = [
         'name',
         'slug',
+        'hourly_rate',
         'is_active',
     ];
 
@@ -22,6 +23,7 @@ class Organization extends Model
     {
         return [
             'is_active' => 'boolean',
+            'hourly_rate' => 'float',
         ];
     }
 
@@ -37,7 +39,7 @@ class Organization extends Model
     public function users(): BelongsToMany
     {
         return $this->belongsToMany(User::class)
-            ->withPivot('role')
+            ->withPivot('role', 'hourly_rate')
             ->withTimestamps();
     }
 

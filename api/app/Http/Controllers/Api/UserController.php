@@ -28,20 +28,20 @@ class UserController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        if (!$request->user()->isAdmin()) {
+        if (! $request->user()->isAdmin()) {
             abort(403);
         }
 
         $validated = $request->validate([
-            'name'  => ['required', 'string', 'max:255'],
+            'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'unique:users,email'],
-            'role'  => ['sometimes', 'in:admin,member'],
+            'role' => ['sometimes', 'in:admin,member'],
         ]);
 
         $user = User::create([
-            'name'     => $validated['name'],
-            'email'    => $validated['email'],
-            'role'     => $validated['role'] ?? 'member',
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'role' => $validated['role'] ?? 'member',
             'password' => Hash::make(Str::random(32)),
         ]);
 
@@ -63,7 +63,7 @@ class UserController extends Controller
 
     public function update(Request $request, User $user): JsonResponse
     {
-        if (!$request->user()->isAdmin()) {
+        if (! $request->user()->isAdmin()) {
             abort(403);
         }
 
@@ -73,11 +73,19 @@ class UserController extends Controller
             'name' => ['sometimes', 'string', 'max:255'],
             'role' => ['sometimes', 'in:admin,member'],
             'is_active' => ['sometimes', 'boolean'],
+            'hourly_rate' => ['sometimes', 'nullable', 'numeric', 'min:0'],
         ]);
 
-        $user->update($validated);
+        // The rate belongs to the membership, not the user account.
+        if (array_key_exists('hourly_rate', $validated)) {
+            app('current_organization')->users()->updateExistingPivot($user->id, ['hourly_rate' => $validated['hourly_rate']]);
+            unset($validated['hourly_rate']);
+        }
 
-        if (array_key_exists('is_active', $validated) && !$validated['is_active']) {
+        $user->update($validated);
+        $user = app('current_organization')->users()->where('users.id', $user->id)->first();
+
+        if (array_key_exists('is_active', $validated) && ! $validated['is_active']) {
             $user->tokens()->delete();
         }
 
@@ -90,7 +98,7 @@ class UserController extends Controller
     {
         $isMember = app('current_organization')->users()->where('users.id', $user->id)->exists();
 
-        if (!$isMember) {
+        if (! $isMember) {
             abort(404);
         }
     }

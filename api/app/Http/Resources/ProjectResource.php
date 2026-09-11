@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Services\HourlyRates;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -13,6 +14,7 @@ class ProjectResource extends JsonResource
         $hasSummary = array_key_exists('tracked_seconds', $this->resource->getAttributes());
         $trackedSeconds = (int) ($this->tracked_seconds ?? 0);
         $billableSeconds = (int) ($this->billable_seconds ?? 0);
+        $rates = app(HourlyRates::class);
 
         return [
             'id' => $this->id,
@@ -23,6 +25,10 @@ class ProjectResource extends JsonResource
             'asana_project_gid' => $this->asana_project_gid,
             'budget_hours' => $this->budget_hours,
             'hourly_rate' => $this->hourly_rate,
+            'rate_mode' => $this->rate_mode ?? 'standard',
+            'effective_hourly_rate' => $rates->displayRate($this->resource),
+            'rate_source' => $rates->source($this->resource),
+            'billable_amount' => $this->when(array_key_exists('billable_amount', $this->resource->getAttributes()), fn () => $this->billable_amount),
             'is_billable' => $this->is_billable,
             'is_active' => $this->is_active,
             'archived_at' => $this->archived_at,

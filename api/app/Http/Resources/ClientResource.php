@@ -14,6 +14,7 @@ class ClientResource extends JsonResource
             'name' => $this->name,
             'slug' => $this->slug,
             'color' => $this->color,
+            'hourly_rate' => $this->hourly_rate,
             'is_active' => $this->is_active,
             'notes' => $this->notes,
             'projects_count' => $this->whenCounted('projects'),

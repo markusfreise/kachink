@@ -17,6 +17,7 @@ class UpdateClientRequest extends FormRequest
             'name' => ['sometimes', 'string', 'max:255'],
             'color' => ['sometimes', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'is_active' => ['sometimes', 'boolean'],
+            'hourly_rate' => ['nullable', 'numeric', 'min:0'],
             'notes' => ['nullable', 'string'],
         ];
     }

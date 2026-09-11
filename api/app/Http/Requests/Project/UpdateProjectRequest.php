@@ -3,7 +3,9 @@
 namespace App\Http\Requests\Project;
 
 use App\Rules\InOrganization;
+use App\Services\HourlyRates;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UpdateProjectRequest extends FormRequest
 {
@@ -20,6 +22,7 @@ class UpdateProjectRequest extends FormRequest
             'color' => ['sometimes', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'budget_hours' => ['nullable', 'numeric', 'min:0'],
             'hourly_rate' => ['nullable', 'numeric', 'min:0'],
+            'rate_mode' => ['sometimes', Rule::in(HourlyRates::MODES)],
             'is_billable' => ['sometimes', 'boolean'],
             'is_active' => ['sometimes', 'boolean'],
         ];

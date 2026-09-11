@@ -20,6 +20,8 @@ class ReportService
 {
     public const SCOPES = ['organization', 'client', 'project', 'user'];
 
+    public function __construct(private readonly HourlyRates $rates) {}
+
     public function build(
         string $scope,
         ?Model $subject,
@@ -91,7 +93,7 @@ class ReportService
         $started = $entry->started_at->copy()->setTimezone($tz);
         $stopped = $entry->stopped_at?->copy()->setTimezone($tz);
         $rounded = self::roundSeconds($entry->duration_seconds, $rounding);
-        $rate = $entry->project?->hourly_rate;
+        $rate = $entry->project ? $this->rates->forProject($entry->project, $entry->user_id) : null;
         $amount = ($entry->is_billable && $rate) ? round($rounded / 3600 * (float) $rate, 2) : 0.0;
 
         return [
@@ -142,7 +144,7 @@ class ReportService
 
         $label = $isFullMonth
             ? $from->locale($locale)->isoFormat('MMMM YYYY')
-            : $from->locale($locale)->isoFormat('L') . ' - ' . $to->locale($locale)->isoFormat('L');
+            : $from->locale($locale)->isoFormat('L').' - '.$to->locale($locale)->isoFormat('L');
 
         return [
             'from' => $from->toDateString(),

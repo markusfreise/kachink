@@ -47,6 +47,7 @@ class OrganizationController extends Controller
 
         $validated = $request->validate([
             'name' => 'sometimes|required|string|max:255',
+            'hourly_rate' => 'sometimes|nullable|numeric|min:0',
         ]);
 
         $organization->update($validated);
@@ -75,7 +76,7 @@ class OrganizationController extends Controller
 
         $validated = $request->validate([
             'user_id' => 'required|uuid|exists:users,id',
-            'role'    => 'sometimes|in:admin,member',
+            'role' => 'sometimes|in:admin,member',
         ]);
 
         $organization->users()->syncWithoutDetaching([
@@ -97,7 +98,7 @@ class OrganizationController extends Controller
     {
         $pivot = $org->users()->where('users.id', $user->id)->first()?->pivot;
 
-        abort_if(!$pivot, 403, 'Not a member of this organization.');
-        abort_if(!empty($roles) && !in_array($pivot->role, $roles), 403, 'Insufficient permissions.');
+        abort_if(! $pivot, 403, 'Not a member of this organization.');
+        abort_if(! empty($roles) && ! in_array($pivot->role, $roles), 403, 'Insufficient permissions.');
     }
 }

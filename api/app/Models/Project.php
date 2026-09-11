@@ -24,6 +24,7 @@ class Project extends Model
         'harvest_id',
         'budget_hours',
         'hourly_rate',
+        'rate_mode',
         'is_billable',
         'is_active',
         'archived_at',
@@ -46,6 +47,10 @@ class Project extends Model
             if (empty($project->slug)) {
                 $project->slug = Str::slug($project->name);
             }
+            // A project created with its own rate uses it; otherwise the organization default.
+            if (empty($project->rate_mode)) {
+                $project->rate_mode = $project->hourly_rate !== null ? 'project' : 'standard';
+            }
         });
     }
 
@@ -66,7 +71,7 @@ class Project extends Model
 
     public function budgetUsedPercentage(): ?float
     {
-        if (!$this->budget_hours) {
+        if (! $this->budget_hours) {
             return null;
         }
 

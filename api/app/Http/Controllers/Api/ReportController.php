@@ -7,6 +7,7 @@ use App\Models\Client;
 use App\Models\Project;
 use App\Models\TimeEntry;
 use App\Models\User;
+use App\Services\HourlyRates;
 use App\Services\ReportService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\CarbonImmutable;
@@ -20,9 +21,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ReportController extends Controller
 {
-    public function __construct(private readonly ReportService $reports)
-    {
-    }
+    public function __construct(private readonly ReportService $reports, private readonly HourlyRates $rates) {}
 
     // ------------------------------------------------------------------
     // Scoped reports (organization / client / project / team member)
@@ -64,7 +63,7 @@ class ReportController extends Controller
         $validated = $request->validate([
             'date_from' => ['required', 'date'],
             'date_to' => ['required', 'date', 'after_or_equal:date_from'],
-            'rounding' => ['sometimes', 'integer', 'in:' . implode(',', config('reports.rounding_intervals'))],
+            'rounding' => ['sometimes', 'integer', 'in:'.implode(',', config('reports.rounding_intervals'))],
             'format' => ['sometimes', 'in:json,pdf,csv'],
             'locale' => ['sometimes', 'in:de,en'],
         ]);
@@ -137,7 +136,7 @@ class ReportController extends Controller
     {
         $period = $report['period']['is_full_month']
             ? substr($report['period']['from'], 0, 7)
-            : $report['period']['from'] . '_' . $report['period']['to'];
+            : $report['period']['from'].'_'.$report['period']['to'];
 
         $parts = array_filter([
             Str::slug($report['scope']['organization_name'] ?: 'report'),
@@ -145,7 +144,7 @@ class ReportController extends Controller
             $period,
         ]);
 
-        return implode('-', $parts) . '.' . $ext;
+        return implode('-', $parts).'.'.$ext;
     }
 
     // ------------------------------------------------------------------
@@ -237,8 +236,9 @@ class ReportController extends Controller
                 'billable_hours' => $billableHours,
                 'remaining_hours' => round($budgetHours - $totalHours, 2),
                 'budget_used_percentage' => $percentage,
-                'hourly_rate' => $project->hourly_rate,
-                'revenue' => $project->hourly_rate ? round($billableHours * (float) $project->hourly_rate, 2) : null,
+                'hourly_rate' => $this->rates->displayRate($project),
+                'rate_source' => $this->rates->source($project),
+                'revenue' => $this->rates->billableAmount($project),
                 'status' => $percentage >= 100 ? 'over_budget' : ($percentage >= 80 ? 'at_risk' : 'on_track'),
             ];
         });
@@ -340,7 +340,7 @@ class ReportController extends Controller
             }
 
             fclose($handle);
-        }, 'timetracker-export-' . date('Y-m-d') . '.csv', [
+        }, 'timetracker-export-'.date('Y-m-d').'.csv', [
             'Content-Type' => 'text/csv',
         ]);
     }
@@ -393,6 +393,8 @@ class ReportController extends Controller
 
     private function groupByProject($query): array
     {
+        $amounts = $this->amountsByProject(clone $query);
+
         return $query->select(
             'project_id',
             DB::raw('SUM(duration_seconds) as total_seconds'),
@@ -410,6 +412,8 @@ class ReportController extends Controller
                 'total_hours' => round($row->total_seconds / 3600, 2),
                 'billable_hours' => round($row->billable_seconds / 3600, 2),
                 'entry_count' => (int) $row->entry_count,
+                'hourly_rate' => $row->project ? $this->rates->displayRate($row->project) : null,
+                'amount' => $amounts[$row->project_id] ?? 0.0,
             ])
             ->sortByDesc('total_hours')
             ->values()
@@ -494,6 +498,32 @@ class ReportController extends Controller
             ->toArray();
     }
 
+    /**
+     * Billable amount per project for the filtered entries, summed per member so
+     * projects billing by member rate are exact.
+     *
+     * @return array<string, float>
+     */
+    private function amountsByProject($query): array
+    {
+        $rows = $query->where('is_billable', true)
+            ->select('project_id', 'user_id', DB::raw('SUM(duration_seconds) as seconds'))
+            ->groupBy('project_id', 'user_id')
+            ->with('project.client')
+            ->get();
+
+        $amounts = [];
+        foreach ($rows as $row) {
+            if (! $row->project) {
+                continue;
+            }
+            $rate = $this->rates->forProject($row->project, $row->user_id);
+            $amounts[$row->project_id] = round(($amounts[$row->project_id] ?? 0.0) + ((int) $row->seconds) / 3600 * ($rate ?? 0.0), 2);
+        }
+
+        return $amounts;
+    }
+
     private function calculateTotals(Request $request): array
     {
         $result = $this->buildReportQuery($request)->select(
@@ -507,6 +537,7 @@ class ReportController extends Controller
             'billable_hours' => round($result->billable_seconds / 3600, 2),
             'non_billable_hours' => round(($result->total_seconds - $result->billable_seconds) / 3600, 2),
             'entry_count' => (int) $result->entry_count,
+            'amount' => round(array_sum($this->amountsByProject($this->buildReportQuery($request))), 2),
         ];
     }
 }

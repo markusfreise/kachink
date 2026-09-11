@@ -16,6 +16,7 @@ class UserResource extends JsonResource
             'role' => $this->role,
             'avatar_url' => $this->avatar_url,
             'is_active' => $this->is_active,
+            'hourly_rate' => $this->whenPivotLoaded('organization_user', fn () => $this->pivot->hourly_rate !== null ? (float) $this->pivot->hourly_rate : null),
             'created_at' => $this->created_at,
         ];
     }

@@ -7,6 +7,7 @@ use App\Http\Requests\Project\StoreProjectRequest;
 use App\Http\Requests\Project\UpdateProjectRequest;
 use App\Http\Resources\ProjectResource;
 use App\Models\Project;
+use App\Services\HourlyRates;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -32,7 +33,7 @@ class ProjectController extends Controller
         }
 
         if ($request->filled('filter.name')) {
-            $query->where('name', 'like', '%' . $request->input('filter.name') . '%');
+            $query->where('name', 'like', '%'.$request->input('filter.name').'%');
         }
 
         if ($request->boolean('include_time_summary')) {
@@ -62,6 +63,7 @@ class ProjectController extends Controller
         $project->load('client');
         $project->loadSum(['timeEntries as tracked_seconds' => fn ($q) => $q->where('is_running', false)], 'duration_seconds');
         $project->loadSum(['timeEntries as billable_seconds' => fn ($q) => $q->where('is_running', false)->where('is_billable', true)], 'duration_seconds');
+        $project->billable_amount = app(HourlyRates::class)->billableAmount($project);
 
         return response()->json([
             'data' => new ProjectResource($project),

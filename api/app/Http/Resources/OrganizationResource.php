@@ -10,12 +10,13 @@ class OrganizationResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            'id'         => $this->id,
-            'name'       => $this->name,
-            'slug'       => $this->slug,
-            'is_active'  => $this->is_active,
-            'role'       => $this->whenPivotLoaded('organization_user', fn () => $this->pivot->role),
-            'members'    => UserResource::collection($this->whenLoaded('users')),
+            'id' => $this->id,
+            'name' => $this->name,
+            'slug' => $this->slug,
+            'hourly_rate' => $this->hourly_rate,
+            'is_active' => $this->is_active,
+            'role' => $this->whenPivotLoaded('organization_user', fn () => $this->pivot->role),
+            'members' => UserResource::collection($this->whenLoaded('users')),
             'created_at' => $this->created_at,
         ];
     }
