@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { RouterLink } from 'vue-router'
 import { ref, computed, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -9,7 +10,7 @@ import { useToastStore, errorMessage } from '@/stores/toast'
 import BaseModal from '@/components/BaseModal.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import AppPagination from '@/components/AppPagination.vue'
-import { PlusIcon, DocumentTextIcon, UsersIcon } from '@heroicons/vue/24/outline'
+import { ArchiveBoxIcon, ArrowUturnLeftIcon, ChartBarIcon, DocumentTextIcon, PencilSquareIcon, PlusIcon, UsersIcon } from '@heroicons/vue/24/outline'
 
 type StatusFilter = 'active' | 'archived' | 'all'
 
@@ -241,14 +242,15 @@ onMounted(fetchClients)
       </div>
 
       <div v-else class="table-wrap">
-        <table class="table">
+        <table class="table clients__table">
           <thead>
             <tr>
-              <th>{{ $t('clients.client') }}</th>
+              <th class="clients__color-head"><span class="sr-only">{{ $t('common.color') }}</span></th>
+              <th>{{ $t('common.name') }}</th>
               <th class="table__num">{{ $t('clients.projects') }}</th>
-              <th>{{ $t('clients.status') }}</th>
-              <th>{{ $t('common.notes') }}</th>
-              <th class="clients__actions-head">{{ $t('common.actions') }}</th>
+              <th>{{ $t('reportDetail.report') }}</th>
+              <th>{{ $t('clients.billing') }}</th>
+              <th class="clients__actions-head"><span class="sr-only">{{ $t('common.actions') }}</span></th>
             </tr>
           </thead>
           <tbody>
@@ -258,43 +260,52 @@ onMounted(fetchClients)
               class="table__row"
               :class="{ 'clients__row--archived': !client.is_active }"
             >
+              <td class="clients__color-cell">
+                <span class="color-dot color-dot--lg" :style="{ backgroundColor: client.color }" aria-hidden="true"></span>
+              </td>
               <td>
-                <div class="cell">
-                  <span class="color-dot" :style="{ backgroundColor: client.color }" aria-hidden="true"></span>
-                  <span class="cell__title">{{ client.name }}</span>
+                <div class="cell__stack">
+                  <span class="cell__title" :title="client.notes || undefined">{{ client.name }}</span>
+                  <span v-if="!client.is_active" class="badge badge--neutral clients__archived">{{ $t('common.archived') }}</span>
                 </div>
               </td>
               <td class="table__num">{{ client.projects_count ?? 0 }}</td>
               <td>
-                <span class="badge" :class="client.is_active ? 'badge--success' : 'badge--neutral'">
-                  {{ client.is_active ? $t('common.active') : $t('common.archived') }}
-                </span>
+                <RouterLink class="btn btn--ghost btn--sm" :to="{ name: 'report-detail', params: { scope: 'clients', id: client.id } }">
+                  <ChartBarIcon class="btn__icon" aria-hidden="true" />
+                  {{ $t('reportDetail.report') }}
+                </RouterLink>
               </td>
               <td>
-                <div class="clients__notes" :title="client.notes || undefined">{{ client.notes || '–' }}</div>
+                <button type="button" class="btn btn--secondary btn--sm" @click="openMonthlyReport(client)">
+                  <DocumentTextIcon class="btn__icon" aria-hidden="true" />
+                  {{ $t('reportDetail.monthlyReport') }}
+                </button>
               </td>
               <td>
                 <div class="table__actions">
-                  <button type="button" class="btn btn--secondary btn--sm" @click="openMonthlyReport(client)">
-                    <DocumentTextIcon class="btn__icon" aria-hidden="true" />
-                    {{ $t('reportDetail.monthlyReport') }}
+                  <button type="button" class="btn btn--ghost btn--icon btn--sm" :aria-label="$t('common.edit')" :title="$t('common.edit')" @click="openEdit(client)">
+                    <PencilSquareIcon class="btn__icon" aria-hidden="true" />
                   </button>
-                  <button type="button" class="btn btn--ghost btn--sm" @click="openEdit(client)">{{ $t('common.edit') }}</button>
                   <button
                     v-if="client.is_active"
                     type="button"
-                    class="btn btn--ghost btn--sm"
+                    class="btn btn--ghost btn--icon btn--sm"
+                    :aria-label="$t('common.archive')"
+                    :title="$t('common.archive')"
                     @click="archiveTarget = client"
                   >
-                    {{ $t('common.archive') }}
+                    <ArchiveBoxIcon class="btn__icon" aria-hidden="true" />
                   </button>
                   <button
                     v-else
                     type="button"
-                    class="btn btn--ghost btn--sm"
+                    class="btn btn--ghost btn--icon btn--sm"
+                    :aria-label="$t('clients.unarchive')"
+                    :title="$t('clients.unarchive')"
                     @click="unarchiveClient(client)"
                   >
-                    {{ $t('clients.unarchive') }}
+                    <ArrowUturnLeftIcon class="btn__icon" aria-hidden="true" />
                   </button>
                 </div>
               </td>

@@ -28,3 +28,24 @@
     width: pxtorem(84);
   }
 }
+
+.clients {
+  &__color-head,
+  &__color-cell {
+    width: pxtorem(32);
+    padding-right: 0;
+  }
+
+  &__color-cell .color-dot {
+    display: block;
+  }
+
+  &__archived {
+    align-self: flex-start;
+    margin-top: pxtorem(2);
+  }
+
+  &__table .table__actions {
+    justify-content: flex-end;
+  }
+}
