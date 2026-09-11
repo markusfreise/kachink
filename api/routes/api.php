@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\AsanaImportController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ClientController;
 use App\Http\Controllers\Api\DeviceAuthController;
@@ -60,6 +61,17 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Tasks
         Route::apiResource('tasks', TaskController::class)->only(['index', 'store', 'update', 'destroy']);
+
+        // Asana import assistant (admins)
+        Route::prefix('asana')->group(function () {
+            Route::get('/settings', [AsanaImportController::class, 'settings']);
+            Route::put('/settings', [AsanaImportController::class, 'saveSettings']);
+            Route::delete('/settings', [AsanaImportController::class, 'deleteSettings']);
+            Route::get('/projects', [AsanaImportController::class, 'projects']);
+            Route::put('/projects/{gid}/client', [AsanaImportController::class, 'mapClient']);
+            Route::get('/projects/{gid}/tasks', [AsanaImportController::class, 'tasks']);
+            Route::post('/projects/{gid}/import', [AsanaImportController::class, 'import']);
+        });
 
         // Task statuses (free-form per organization, "Heute" is fixed)
         Route::post('/task-statuses/reorder', [TaskStatusController::class, 'reorder']);

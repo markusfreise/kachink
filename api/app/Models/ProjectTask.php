@@ -47,6 +47,7 @@ class ProjectTask extends Model
         'reminder_sent_at',
         'completed_at',
         'position',
+        'asana_task_gid',
     ];
 
     protected function casts(): array

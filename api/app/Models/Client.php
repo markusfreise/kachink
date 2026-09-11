@@ -23,6 +23,7 @@ class Client extends Model
         'is_active',
         'notes',
         'harvest_id',
+        'asana_project_gid',
     ];
 
     protected function casts(): array

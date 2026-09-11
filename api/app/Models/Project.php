@@ -21,6 +21,7 @@ class Project extends Model
         'slug',
         'color',
         'asana_project_gid',
+        'asana_task_gid',
         'harvest_id',
         'budget_hours',
         'hourly_rate',

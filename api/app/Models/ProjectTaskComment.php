@@ -11,7 +11,7 @@ class ProjectTaskComment extends Model
 {
     use BelongsToOrganization, HasUuids;
 
-    protected $fillable = ['organization_id', 'project_task_id', 'user_id', 'body'];
+    protected $fillable = ['organization_id', 'project_task_id', 'user_id', 'body', 'asana_story_gid'];
 
     public function task(): BelongsTo
     {

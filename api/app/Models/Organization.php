@@ -19,11 +19,14 @@ class Organization extends Model
         'is_active',
     ];
 
+    protected $hidden = ['asana_token'];
+
     protected function casts(): array
     {
         return [
             'is_active' => 'boolean',
             'hourly_rate' => 'float',
+            'asana_token' => 'encrypted',
         ];
     }
 

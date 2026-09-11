@@ -36,6 +36,7 @@ class ProjectTaskResource extends JsonResource
             'is_due_today_alert' => $this->resource->isDueTodayAlert(),
             'is_overdue' => $this->completed_at === null && $this->deadline !== null && $this->deadline->isPast() && ! $this->deadline->isToday(),
             'position' => $this->position,
+            'asana_task_gid' => $this->asana_task_gid,
             'assignee' => new UserResource($this->whenLoaded('assignee')),
             'creator' => new UserResource($this->whenLoaded('creator')),
             'project' => new ProjectResource($this->whenLoaded('project')),
