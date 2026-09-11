@@ -149,4 +149,34 @@ class HourlyRateTest extends TestCase
             ->assertJsonPath('data.effective_hourly_rate', 90)
             ->assertJsonPath('data.rate_source', 'standard');
     }
+
+    public function test_billing_mode_replaces_billable_flag_and_filters(): void
+    {
+        $org = $this->createOrganization();
+        $this->bindOrg($org);
+        $admin = $this->adminOf($org);
+        $client = Client::factory()->create();
+
+        $fixed = $this->actingInOrg($admin, $org)
+            ->postJson('/api/projects', ['client_id' => $client->id, 'name' => 'Relaunch', 'billing_mode' => 'fixed', 'budget_amount' => 5000, 'billed_amount' => 2000])
+            ->assertCreated()
+            ->assertJsonPath('data.billing_mode', 'fixed')
+            ->assertJsonPath('data.is_billable', true)
+            ->assertJsonPath('data.fixed_remaining', 3000)
+            ->json('data.id');
+        $none = $this->actingInOrg($admin, $org)
+            ->postJson('/api/projects', ['client_id' => $client->id, 'name' => 'Intern', 'billing_mode' => 'none'])
+            ->assertCreated()->assertJsonPath('data.is_billable', false)->json('data.id');
+        $this->actingInOrg($admin, $org)
+            ->postJson('/api/projects', ['client_id' => $client->id, 'name' => 'Support', 'billing_mode' => 'hourly', 'budget_hours' => 20])
+            ->assertCreated()->assertJsonPath('data.is_billable', true);
+
+        $this->actingInOrg($admin, $org)->getJson('/api/projects?filter[billing]=fixed_open')->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $fixed);
+        $this->actingInOrg($admin, $org)->getJson('/api/projects?filter[billing]=fixed_billed')->assertOk()->assertJsonCount(0, 'data');
+        $this->actingInOrg($admin, $org)->getJson('/api/projects?filter[billing]=none')->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $none);
+
+        $this->actingInOrg($admin, $org)->putJson("/api/projects/{$fixed}", ['billed_amount' => 5000])->assertOk()->assertJsonPath('data.fixed_remaining', 0);
+        $this->actingInOrg($admin, $org)->getJson('/api/projects?filter[billing]=fixed_billed')->assertOk()->assertJsonCount(1, 'data');
+        $this->actingInOrg($admin, $org)->putJson("/api/projects/{$fixed}", ['billing_mode' => 'bogus'])->assertUnprocessable();
+    }
 }

@@ -396,8 +396,8 @@ watch(projectId, load)
             <h1 class="heading-1 project-detail__name">{{ project.name }}</h1>
             <div class="project-detail__meta">
               <span class="project-detail__client">{{ project.client?.name }}</span>
-              <span class="badge" :class="project.is_billable ? 'badge--success' : 'badge--neutral'">
-                {{ project.is_billable ? $t('common.billable') : $t('common.nonBillable') }}
+              <span class="badge" :class="project.billing_mode === 'none' ? 'badge--neutral' : project.billing_mode === 'fixed' ? 'badge--brand' : 'badge--success'">
+                {{ $t(`billing.modes.${project.billing_mode ?? (project.is_billable ? 'hourly' : 'none')}`) }}
               </span>
               <span v-if="!project.is_active" class="badge badge--neutral">{{ $t('common.archived') }}</span>
             </div>
@@ -446,8 +446,15 @@ watch(projectId, load)
           <span class="stat__sub">{{ $t('projectDetail.billableShare', { percent: billableShare }) }}</span>
         </div>
         <div class="stat">
-          <span class="stat__label">{{ $t('projectDetail.budgetUsage') }}</span>
-          <template v-if="project.budget_hours">
+          <span class="stat__label">{{ project.billing_mode === 'fixed' ? $t('billing.fixedPrice') : $t('projectDetail.budgetUsage') }}</span>
+          <template v-if="project.billing_mode === 'fixed' && project.budget_amount != null">
+            <span class="stat__value">{{ formatCurrency(Number(project.budget_amount)) }}</span>
+            <span class="stat__sub">{{ $t('billing.billedRemaining', { billed: formatCurrency(Number(project.billed_amount ?? 0)), remaining: formatCurrency(Number(project.fixed_remaining ?? 0)) }) }}</span>
+            <div class="bar bar--block project-detail__budget-bar" role="progressbar" :aria-valuenow="Math.round((Number(project.billed_amount ?? 0) / Number(project.budget_amount)) * 100)" aria-valuemin="0" aria-valuemax="100">
+              <span class="bar__fill bar__fill--success" :style="{ width: `${Math.min(100, (Number(project.billed_amount ?? 0) / Number(project.budget_amount)) * 100)}%` }"></span>
+            </div>
+          </template>
+          <template v-else-if="project.billing_mode === 'hourly' && project.budget_hours">
             <span class="stat__value" :class="{ 'project-detail__stat-value--over': (budgetPercent ?? 0) >= 100 }">{{ Math.round(budgetPercent ?? 0) }}%</span>
             <span class="stat__sub">
               {{ $t('projects.budgetUsage', { used: formatHoursDecimal(trackedSeconds), total: formatHoursDecimal(project.budget_hours * 3600) }) }}

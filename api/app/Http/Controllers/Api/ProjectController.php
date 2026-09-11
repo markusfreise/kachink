@@ -28,6 +28,15 @@ class ProjectController extends Controller
             $query->where('is_active', $request->boolean('filter.is_active'));
         }
 
+        // billing: none | fixed | fixed_open | fixed_billed | hourly
+        if ($request->filled('filter.billing')) {
+            match ($request->input('filter.billing')) {
+                'fixed_open' => $query->where('billing_mode', 'fixed')->whereRaw('COALESCE(billed_amount, 0) < COALESCE(budget_amount, 0)'),
+                'fixed_billed' => $query->where('billing_mode', 'fixed')->whereRaw('COALESCE(billed_amount, 0) >= COALESCE(budget_amount, 0)'),
+                default => $query->where('billing_mode', $request->input('filter.billing')),
+            };
+        }
+
         if ($request->has('filter.is_billable')) {
             $query->where('is_billable', $request->boolean('filter.is_billable'));
         }

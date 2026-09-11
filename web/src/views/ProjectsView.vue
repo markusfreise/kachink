@@ -39,6 +39,7 @@ const meta = ref<PaginationMeta | null>(null)
 const search = ref('')
 const sort = ref('name')
 const clientFilter = ref('')
+const billingFilter = ref('')
 const status = ref<StatusFilter>('active')
 
 const perPageOptions = [10, 25, 50, 100]
@@ -55,7 +56,14 @@ const statusOptions = computed<{ value: StatusFilter; label: string }[]>(() => [
 ])
 
 const clientOptions = computed(() => clients.value.map((c) => ({ id: c.id, label: c.name, color: c.color })))
-const hasFilters = computed(() => search.value !== '' || clientFilter.value !== '' || status.value !== 'active')
+const hasFilters = computed(() => search.value !== '' || clientFilter.value !== '' || status.value !== 'active' || billingFilter.value !== '')
+const billingOptions = computed(() => [
+  { value: '', label: t('billing.all') },
+  { value: 'none', label: t('billing.modes.none') },
+  { value: 'fixed_open', label: t('billing.fixedOpen') },
+  { value: 'fixed_billed', label: t('billing.fixedBilled') },
+  { value: 'hourly', label: t('billing.modes.hourly') },
+])
 
 let searchTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -71,6 +79,7 @@ async function fetchProjects() {
     if (status.value !== 'all') params['filter[is_active]'] = status.value === 'active' ? 1 : 0
     if (search.value) params['filter[name]'] = search.value
     if (clientFilter.value) params['filter[client_id]'] = clientFilter.value
+    if (billingFilter.value) params['filter[billing]'] = billingFilter.value
     const { data } = await api.get('/projects', { params })
     projects.value = data.data
     meta.value = data.meta ?? null
@@ -99,6 +108,7 @@ watch(perPage, resetAndFetch)
 watch(page, fetchProjects)
 watch(sort, resetAndFetch)
 watch(clientFilter, resetAndFetch)
+watch(billingFilter, resetAndFetch)
 watch(status, resetAndFetch)
 watch(search, () => {
   if (searchTimer) clearTimeout(searchTimer)
@@ -108,6 +118,7 @@ watch(search, () => {
 function resetFilters() {
   search.value = ''
   clientFilter.value = ''
+  billingFilter.value = ''
   status.value = 'active'
 }
 
@@ -206,6 +217,9 @@ onMounted(() => {
             size="sm"
           />
         </div>
+        <select id="projects-billing" v-model="billingFilter" class="form__select form__select--sm form__select--inline" :aria-label="$t('billing.mode')">
+          <option v-for="o in billingOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
+        </select>
         <div class="segmented" role="group" :aria-label="$t('projects.status')">
           <button
             v-for="o in statusOptions"
@@ -274,14 +288,26 @@ onMounted(() => {
           </div>
           <div class="project-card__badges">
             <span v-if="!project.is_active" class="badge badge--neutral">{{ $t('common.archived') }}</span>
-            <span class="badge" :class="project.is_billable ? 'badge--success' : 'badge--neutral'">
-              {{ project.is_billable ? $t('common.billable') : $t('common.nonBillable') }}
+            <span class="badge" :class="project.billing_mode === 'none' ? 'badge--neutral' : project.billing_mode === 'fixed' ? 'badge--brand' : 'badge--success'">
+              {{ $t(`billing.modes.${project.billing_mode ?? (project.is_billable ? 'hourly' : 'none')}`) }}
             </span>
           </div>
         </div>
 
         <div class="project-card__budget">
-          <template v-if="project.budget_hours">
+          <template v-if="project.billing_mode === 'fixed' && project.budget_amount != null">
+            <div class="project-card__budget-row">
+              <span class="project-card__budget-label">{{ $t('billing.fixedPrice') }}</span>
+              <span class="project-card__budget-value">
+                {{ $t('billing.billedOf', { billed: formatCurrency(Number(project.billed_amount ?? 0)), total: formatCurrency(Number(project.budget_amount)) }) }}
+                <span class="project-card__budget-percent">{{ formatPercent(project.budget_amount ? (Number(project.billed_amount ?? 0) / Number(project.budget_amount)) * 100 : 0) }}</span>
+              </span>
+            </div>
+            <div class="bar bar--block" role="progressbar" :aria-valuenow="Math.round(project.budget_amount ? (Number(project.billed_amount ?? 0) / Number(project.budget_amount)) * 100 : 0)" aria-valuemin="0" aria-valuemax="100">
+              <span class="bar__fill bar__fill--success" :style="{ width: budgetWidth(project.budget_amount ? (Number(project.billed_amount ?? 0) / Number(project.budget_amount)) * 100 : 0) }"></span>
+            </div>
+          </template>
+          <template v-else-if="project.billing_mode === 'hourly' && project.budget_hours">
             <div class="project-card__budget-row">
               <span class="project-card__budget-label">{{ $t('projects.budget') }}</span>
               <span class="project-card__budget-value">

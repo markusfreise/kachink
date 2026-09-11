@@ -2,7 +2,7 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import api from '@/api/client'
-import type { Project, Client, RateMode } from '@/types'
+import type { Project, Client, RateMode, BillingMode } from '@/types'
 import BaseModal from '@/components/BaseModal.vue'
 import ComboBox from '@/components/ComboBox.vue'
 import { useToastStore, errorMessage } from '@/stores/toast'
@@ -34,7 +34,10 @@ const budgetHours = ref<number | null>(null)
 const hourlyRate = ref<number | null>(null)
 const rateMode = ref<RateMode>('standard')
 const RATE_MODES: RateMode[] = ['standard', 'user', 'client', 'project']
-const isBillable = ref(true)
+const billingMode = ref<BillingMode>('hourly')
+const budgetAmount = ref<number | null>(null)
+const billedAmount = ref<number | null>(null)
+const BILLING_MODES: BillingMode[] = ['none', 'fixed', 'hourly']
 const saving = ref(false)
 const creatingClient = ref(false)
 const error = ref('')
@@ -48,7 +51,9 @@ onMounted(() => {
     color.value = props.project.color
     budgetHours.value = props.project.budget_hours != null ? Number(props.project.budget_hours) : null
     hourlyRate.value = props.project.hourly_rate != null ? Number(props.project.hourly_rate) : null
-    isBillable.value = props.project.is_billable
+    billingMode.value = props.project.billing_mode ?? (props.project.is_billable ? 'hourly' : 'none')
+    budgetAmount.value = props.project.budget_amount != null ? Number(props.project.budget_amount) : null
+    billedAmount.value = props.project.billed_amount != null ? Number(props.project.billed_amount) : null
     rateMode.value = props.project.rate_mode ?? (props.project.hourly_rate != null ? 'project' : 'standard')
   }
 })
@@ -85,7 +90,9 @@ async function handleSave() {
       color: color.value,
       budget_hours: budgetHours.value === null || Number.isNaN(budgetHours.value) ? null : budgetHours.value,
       hourly_rate: hourlyRate.value === null || Number.isNaN(hourlyRate.value) ? null : hourlyRate.value,
-      is_billable: isBillable.value,
+      billing_mode: billingMode.value,
+      budget_amount: budgetAmount.value === null || Number.isNaN(budgetAmount.value) ? null : budgetAmount.value,
+      billed_amount: billedAmount.value === null || Number.isNaN(billedAmount.value) ? 0 : billedAmount.value,
       rate_mode: rateMode.value,
     }
     const { data } = props.project
@@ -131,8 +138,27 @@ async function handleSave() {
         />
       </div>
 
-      <div class="form__row">
+      <div class="form__group">
+        <label class="form__label" for="project-form-billing">{{ $t('billing.mode') }}</label>
+        <select id="project-form-billing" v-model="billingMode" class="form__select">
+          <option v-for="m in BILLING_MODES" :key="m" :value="m">{{ $t(`billing.modes.${m}`) }}</option>
+        </select>
+        <span class="form__hint">{{ $t(`billing.hints.${billingMode}`) }}</span>
+      </div>
+
+      <div v-if="billingMode === 'fixed'" class="form__row">
         <div class="form__group">
+          <label class="form__label" for="project-form-budget-amount">{{ $t('billing.budgetAmount') }} (EUR)</label>
+          <input id="project-form-budget-amount" v-model.number="budgetAmount" type="number" step="0.01" min="0" inputmode="decimal" class="form__input" :placeholder="$t('common.optional')" />
+        </div>
+        <div class="form__group">
+          <label class="form__label" for="project-form-billed">{{ $t('billing.billedAmount') }} (EUR)</label>
+          <input id="project-form-billed" v-model.number="billedAmount" type="number" step="0.01" min="0" inputmode="decimal" class="form__input" placeholder="0" />
+        </div>
+      </div>
+
+      <div v-if="billingMode !== 'none'" class="form__row">
+        <div v-if="billingMode === 'hourly'" class="form__group">
           <label class="form__label" for="project-form-budget">{{ $t('projectForm.budgetHours') }}</label>
           <input
             id="project-form-budget"
@@ -154,7 +180,7 @@ async function handleSave() {
         </div>
       </div>
 
-      <div v-if="rateMode === 'project'" class="form__group">
+      <div v-if="billingMode !== 'none' && rateMode === 'project'" class="form__group">
         <label class="form__label" for="project-form-rate">{{ $t('rates.projectRate') }} (EUR/h)</label>
         <input
           id="project-form-rate"
@@ -168,18 +194,9 @@ async function handleSave() {
         />
       </div>
 
-      <div class="form__row project-form__meta">
-        <div class="form__group">
-          <label class="form__label" for="project-form-color">{{ $t('common.color') }}</label>
-          <input id="project-form-color" v-model="color" type="color" class="form__input form__color" />
-        </div>
-        <div class="form__group">
-          <span class="form__label">{{ $t('projectForm.billable') }}</span>
-          <label class="form__check project-form__check">
-            <input v-model="isBillable" type="checkbox" />
-            <span>{{ $t('projectForm.billableLabel') }}</span>
-          </label>
-        </div>
+      <div class="form__group">
+        <label class="form__label" for="project-form-color">{{ $t('common.color') }}</label>
+        <input id="project-form-color" v-model="color" type="color" class="form__input form__color" />
       </div>
     </form>
 

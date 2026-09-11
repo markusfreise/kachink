@@ -1,4 +1,5 @@
 export type RateMode = 'standard' | 'user' | 'client' | 'project'
+export type BillingMode = 'none' | 'fixed' | 'hourly'
 export type RateSource = RateMode | 'none'
 
 export interface Organization {
@@ -45,6 +46,10 @@ export interface Project {
   color: string
   asana_project_gid: string | null
   budget_hours: number | null
+  billing_mode: BillingMode
+  budget_amount: number | null
+  billed_amount: number
+  fixed_remaining?: number
   hourly_rate: number | null
   rate_mode: RateMode
   /** Resolved rate (null when it depends on the member). */

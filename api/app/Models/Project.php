@@ -25,6 +25,9 @@ class Project extends Model
         'asana_task_gid',
         'harvest_id',
         'budget_hours',
+        'budget_amount',
+        'billed_amount',
+        'billing_mode',
         'hourly_rate',
         'rate_mode',
         'is_billable',
@@ -36,6 +39,8 @@ class Project extends Model
     {
         return [
             'budget_hours' => 'float',
+            'budget_amount' => 'float',
+            'billed_amount' => 'float',
             'hourly_rate' => 'float',
             'is_billable' => 'boolean',
             'is_active' => 'boolean',
@@ -49,12 +54,24 @@ class Project extends Model
             if (empty($project->slug)) {
                 $project->slug = Str::slug($project->name);
             }
+            if (empty($project->billing_mode)) {
+                $project->billing_mode = $project->is_billable === false ? 'none' : 'hourly';
+            }
             // A project created with its own rate uses it; otherwise the organization default.
             if (empty($project->rate_mode)) {
                 $project->rate_mode = $project->hourly_rate !== null ? 'project' : 'standard';
             }
         });
+
+        // The billable flag follows the billing mode.
+        static::saving(function (Project $project) {
+            if ($project->billing_mode) {
+                $project->is_billable = $project->billing_mode !== 'none';
+            }
+        });
     }
+
+    public const BILLING_MODES = ['none', 'fixed', 'hourly'];
 
     public function client(): BelongsTo
     {
