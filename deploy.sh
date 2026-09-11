@@ -13,11 +13,13 @@
 #   ./deploy.sh                 # normaler Deploy von origin/main
 #   ./deploy.sh --no-pull       # aktuellen Checkout deployen (Rollback)
 #
-# Umgebung: KACHINK_FPM (Vorgabe php8.3-fpm), HEALTH_URL (Vorgabe APP_URL/api/health).
+# Umgebung: KACHINK_FPM (Vorgabe php8.3-fpm), HEALTH_URL (Vorgabe APP_URL/api/health),
+# DEPLOY_BRANCH (Vorgabe main; die Stage hamlet.croeso.de deployt den Branch hamlet).
 set -euo pipefail
 cd "$(dirname "$0")"
 
 FPM="${KACHINK_FPM:-php8.3-fpm}"
+BRANCH="${DEPLOY_BRANCH:-main}"
 API_DIR="api"
 APP_URL="$(grep -E '^APP_URL=' "${API_DIR}/.env" 2>/dev/null | cut -d= -f2- | tr -d '"' || true)"
 HEALTH_URL="${HEALTH_URL:-${APP_URL:-http://127.0.0.1}/api/health}"
@@ -46,9 +48,9 @@ log "Stand vor dem Deploy: ${VORHER} (Tag ${TAG})"
 
 # ─── 2. Code holen ────────────────────────────────────────────────────
 if [ "$PULL" = 1 ]; then
-  [ "$(git rev-parse --abbrev-ref HEAD)" = "main" ] || die "Deploy nur von main (aktuell: $(git rev-parse --abbrev-ref HEAD))"
-  git pull --ff-only origin main
-  log "main ist auf $(git rev-parse --short HEAD)"
+  [ "$(git rev-parse --abbrev-ref HEAD)" = "$BRANCH" ] || die "Deploy nur von ${BRANCH} (aktuell: $(git rev-parse --abbrev-ref HEAD))"
+  git pull --ff-only origin "$BRANCH"
+  log "${BRANCH} ist auf $(git rev-parse --short HEAD)"
 else
   log "Kein Pull: deploye $(git rev-parse --short HEAD) ($(git describe --tags --always))"
 fi
