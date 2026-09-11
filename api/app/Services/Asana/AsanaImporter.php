@@ -5,6 +5,7 @@ namespace App\Services\Asana;
 use App\Models\Client;
 use App\Models\Organization;
 use App\Models\Project;
+use App\Models\ProjectStatus;
 use App\Models\ProjectTask;
 use App\Models\ProjectTaskComment;
 use App\Models\Tag;
@@ -38,6 +39,9 @@ class AsanaImporter
     /** Asana project whose sections become statuses; null keeps statuses untouched. */
     public ?string $sectionProjectGid = null;
 
+    /** 'status' (Arbeitsstatus) or 'project_status' (Projektstatus). */
+    public string $sectionTarget = 'status';
+
     public function __construct(
         private readonly AsanaClient $asana,
         private readonly Organization $organization,
@@ -67,7 +71,11 @@ class AsanaImporter
             $attributes['budget'] = $amount;
         }
         if ($this->sectionProjectGid && ($section = self::section($t, $this->sectionProjectGid)) !== null) {
-            $attributes['status_id'] = $this->statusFor($section)?->id;
+            if ($this->sectionTarget === 'project_status') {
+                $attributes['project_status_id'] = ProjectStatus::forProject($project, $section)->id;
+            } else {
+                $attributes['status_id'] = $this->statusFor($section)?->id;
+            }
         }
 
         if ($existing) {

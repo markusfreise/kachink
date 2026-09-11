@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\ProjectTask\StoreProjectTaskRequest;
 use App\Http\Requests\ProjectTask\UpdateProjectTaskRequest;
 use App\Http\Resources\ProjectTaskResource;
+use App\Models\ProjectStatus;
 use App\Models\ProjectTask;
 use App\Models\ProjectTaskAttachment;
 use App\Rules\InOrganization;
@@ -16,6 +17,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class ProjectTaskController extends Controller
@@ -31,7 +33,7 @@ class ProjectTaskController extends Controller
         ProjectTask::moveDueTodayIntoHeute(app('current_organization'));
 
         $query = ProjectTask::query()
-            ->with(['assignee', 'tags', 'status', 'project.client'])
+            ->with(['assignee', 'tags', 'status', 'projectStatus', 'project.client'])
             ->withCount([
                 'children',
                 'children as open_children_count' => fn ($q) => $q->whereNull('completed_at'),
@@ -67,6 +69,11 @@ class ProjectTaskController extends Controller
         // Every task whose deadline is on or before the given day.
         if ($request->filled('filter.deadline_until')) {
             $query->whereNotNull('deadline')->whereDate('deadline', '<=', $request->input('filter.deadline_until'));
+        }
+
+        if ($request->filled('filter.project_status_id')) {
+            $ps = $request->input('filter.project_status_id');
+            $ps === 'none' ? $query->whereNull('project_status_id') : $query->where('project_status_id', $ps);
         }
 
         if ($request->filled('filter.priority')) {
@@ -111,6 +118,7 @@ class ProjectTaskController extends Controller
 
         $data['priority'] = $data['priority'] ?? 'soon';
         $data['created_by'] = $request->user()->id;
+        $this->assertProjectStatus($data['project_status_id'] ?? null, $data['project_id']);
 
         $task = DB::transaction(function () use ($data, $tagIds) {
             $task = ProjectTask::create($data);
@@ -147,6 +155,10 @@ class ProjectTaskController extends Controller
             if ($project_task->isSelfOrDescendant($parent->id)) {
                 throw ValidationException::withMessages(['parent_id' => 'A task cannot be moved below itself.']);
             }
+        }
+
+        if (! empty($data['project_status_id'])) {
+            $this->assertProjectStatus($data['project_status_id'], $project_task->project_id);
         }
 
         if (array_key_exists('completed', $data)) {
@@ -211,19 +223,27 @@ class ProjectTaskController extends Controller
     public function reorder(Request $request): JsonResponse
     {
         $data = $request->validate([
+            // Which column the tasks were dropped in: work status (default), project status or assignee.
+            'field' => ['sometimes', Rule::in(['status_id', 'project_status_id', 'assignee_id'])],
             'status_id' => ['nullable', 'uuid', InOrganization::exists('task_statuses')],
+            'project_status_id' => ['nullable', 'uuid', InOrganization::exists('project_statuses')],
+            'assignee_id' => ['nullable', 'uuid', StoreProjectTaskRequest::orgMember()],
             'ordered_ids' => ['required', 'array', 'max:500'],
             'ordered_ids.*' => ['uuid'],
         ]);
+        $field = $data['field'] ?? 'status_id';
 
         $tasks = ProjectTask::whereIn('id', $data['ordered_ids'])->get()->keyBy('id');
-        DB::transaction(function () use ($data, $tasks) {
+        DB::transaction(function () use ($data, $tasks, $field) {
             foreach (array_values($data['ordered_ids']) as $position => $id) {
                 $task = $tasks->get($id);
                 if (! $task) {
                     continue;
                 }
-                $task->fill(['status_id' => $data['status_id'] ?? null, 'position' => $position]);
+                if ($field === 'project_status_id' && ! empty($data[$field]) && ProjectStatus::whereKey($data[$field])->value('project_id') !== $task->project_id) {
+                    continue; // a status of another project cannot be dropped on this task
+                }
+                $task->fill([$field => $data[$field] ?? null, 'position' => $position]);
                 if ($task->isDirty()) {
                     $task->save();
                 }
@@ -254,6 +274,13 @@ class ProjectTaskController extends Controller
         return response()->json(null, 204);
     }
 
+    private function assertProjectStatus(?string $statusId, string $projectId): void
+    {
+        if ($statusId && ProjectStatus::whereKey($statusId)->value('project_id') !== $projectId) {
+            throw ValidationException::withMessages(['project_status_id' => 'The project status belongs to a different project.']);
+        }
+    }
+
     private function applySort(Builder $query, string $sort): void
     {
         $direction = str_starts_with($sort, '-') ? 'desc' : 'asc';
@@ -277,8 +304,8 @@ class ProjectTaskController extends Controller
     private function loadDetail(ProjectTask $task): ProjectTask
     {
         $task->load([
-            'assignee', 'creator', 'tags', 'status', 'project.client', 'parent',
-            'children' => fn ($q) => $q->with(['assignee', 'tags', 'status', 'project'])->withCount([
+            'assignee', 'creator', 'tags', 'status', 'projectStatus', 'project.client', 'parent',
+            'children' => fn ($q) => $q->with(['assignee', 'tags', 'status', 'projectStatus', 'project'])->withCount([
                 'children',
                 'children as open_children_count' => fn ($c) => $c->whereNull('completed_at'),
                 'comments',

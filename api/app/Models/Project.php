@@ -61,6 +61,11 @@ class Project extends Model
         return $this->belongsTo(Client::class);
     }
 
+    public function statuses(): HasMany
+    {
+        return $this->hasMany(ProjectStatus::class)->orderBy('position');
+    }
+
     public function watchers(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'project_watchers')->withPivot('created_at');

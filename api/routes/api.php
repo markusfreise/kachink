@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\DeviceAuthController;
 use App\Http\Controllers\Api\OrganizationController;
 use App\Http\Controllers\Api\PasswordResetController;
 use App\Http\Controllers\Api\ProjectController;
+use App\Http\Controllers\Api\ProjectStatusController;
 use App\Http\Controllers\Api\ProjectTaskAttachmentController;
 use App\Http\Controllers\Api\ProjectTaskCommentController;
 use App\Http\Controllers\Api\ProjectTaskController;
@@ -79,6 +80,15 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/projects/{gid}/tasks', [AsanaImportController::class, 'tasks']);
             Route::post('/projects/{gid}/import', [AsanaImportController::class, 'import']);
         });
+
+        // Project statuses (second pipeline for the tasks of one project)
+        Route::get('/projects/{project}/statuses', [ProjectStatusController::class, 'index']);
+        Route::get('/projects/{project}/statuses/sources', [ProjectStatusController::class, 'sources']);
+        Route::post('/projects/{project}/statuses', [ProjectStatusController::class, 'store']);
+        Route::post('/projects/{project}/statuses/reorder', [ProjectStatusController::class, 'reorder']);
+        Route::post('/projects/{project}/statuses/clone', [ProjectStatusController::class, 'clone']);
+        Route::put('/projects/{project}/statuses/{status}', [ProjectStatusController::class, 'update']);
+        Route::delete('/projects/{project}/statuses/{status}', [ProjectStatusController::class, 'destroy']);
 
         // Task statuses (free-form per organization, "Heute" is fixed)
         Route::post('/task-statuses/reorder', [TaskStatusController::class, 'reorder']);

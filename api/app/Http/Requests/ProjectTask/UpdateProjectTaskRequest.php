@@ -23,6 +23,7 @@ class UpdateProjectTaskRequest extends FormRequest
             'assignee_id' => ['sometimes', 'nullable', 'uuid', StoreProjectTaskRequest::orgMember()],
             'priority' => ['sometimes', Rule::in(ProjectTask::PRIORITIES)],
             'status_id' => ['sometimes', 'nullable', 'uuid', InOrganization::exists('task_statuses')],
+            'project_status_id' => ['sometimes', 'nullable', 'uuid', InOrganization::exists('project_statuses')],
             'estimate_minutes' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:5256000'],
             'budget' => ['sometimes', 'nullable', 'numeric', 'min:0'],
             'deadline' => ['sometimes', 'nullable', 'date_format:Y-m-d'],

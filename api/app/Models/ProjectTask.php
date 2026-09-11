@@ -24,7 +24,7 @@ class ProjectTask extends Model
 
     /** Attributes whose changes are written to the history. */
     public const TRACKED = [
-        'title', 'description', 'assignee_id', 'priority', 'status_id', 'estimate_minutes',
+        'title', 'description', 'assignee_id', 'priority', 'status_id', 'project_status_id', 'estimate_minutes',
         'budget', 'deadline', 'reminder_at', 'parent_id', 'completed_at',
     ];
 
@@ -38,6 +38,7 @@ class ProjectTask extends Model
         'created_by',
         'priority',
         'status_id',
+        'project_status_id',
         'today_moved_on',
         'today_acknowledged_on',
         'estimate_minutes',
@@ -140,6 +141,11 @@ class ProjectTask extends Model
     public function status(): BelongsTo
     {
         return $this->belongsTo(TaskStatus::class, 'status_id');
+    }
+
+    public function projectStatus(): BelongsTo
+    {
+        return $this->belongsTo(ProjectStatus::class, 'project_status_id');
     }
 
     public function assignee(): BelongsTo

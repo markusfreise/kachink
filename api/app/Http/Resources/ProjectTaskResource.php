@@ -24,6 +24,8 @@ class ProjectTaskResource extends JsonResource
             'priority' => $this->priority,
             'status_id' => $this->status_id,
             'status' => new TaskStatusResource($this->whenLoaded('status')),
+            'project_status_id' => $this->project_status_id,
+            'project_status' => new TaskStatusResource($this->whenLoaded('projectStatus')),
             'estimate_minutes' => $this->estimate_minutes,
             'budget' => $this->budget !== null ? (float) $this->budget : null,
             'calculated_budget' => $calculated['amount'],

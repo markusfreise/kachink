@@ -533,6 +533,50 @@ class ProjectTaskTest extends TestCase
         $this->actingInOrg($actor, $org)->putJson("/api/projects/{$project->id}/watchers", ['user_ids' => [$bystander->id, $watcher->id]])->assertOk()->assertJsonCount(2, 'data');
     }
 
+    public function test_project_statuses_per_project_with_clone_and_assignee_board(): void
+    {
+        $org = $this->createOrganization();
+        $project = $this->projectIn($org);
+        $other = Project::factory()->create(['client_id' => $project->client_id]);
+        $user = $this->memberOf($org);
+        $colleague = $this->memberOf($org);
+
+        $leads = $this->actingInOrg($user, $org)->postJson("/api/projects/{$project->id}/statuses", ['name' => 'Leads', 'color' => '#2563EB'])->assertCreated()->json('data');
+        $this->actingInOrg($user, $org)->postJson("/api/projects/{$project->id}/statuses", ['name' => 'Beauftragt'])->assertCreated();
+        $this->actingInOrg($user, $org)->postJson("/api/projects/{$project->id}/statuses", ['name' => 'leads'])->assertUnprocessable();
+
+        $a = ProjectTask::factory()->create(['project_id' => $project->id]);
+        $b = ProjectTask::factory()->create(['project_id' => $project->id]);
+        $foreign = ProjectTask::factory()->create(['project_id' => $other->id]);
+
+        $this->actingInOrg($user, $org)
+            ->postJson('/api/project-tasks/reorder', ['field' => 'project_status_id', 'project_status_id' => $leads['id'], 'ordered_ids' => [$b->id, $a->id, $foreign->id]])
+            ->assertOk();
+        $this->assertSame($leads['id'], $a->fresh()->project_status_id);
+        $this->assertNull($a->fresh()->status_id, 'work status stays untouched');
+        $this->assertNull($foreign->fresh()->project_status_id, 'status of another project is not applied');
+
+        $this->actingInOrg($user, $org)
+            ->putJson("/api/project-tasks/{$foreign->id}", ['project_status_id' => $leads['id']])
+            ->assertUnprocessable();
+
+        $this->actingInOrg($user, $org)
+            ->postJson('/api/project-tasks/reorder', ['field' => 'assignee_id', 'assignee_id' => $colleague->id, 'ordered_ids' => [$a->id]])
+            ->assertOk();
+        $this->assertSame($colleague->id, $a->fresh()->assignee_id);
+
+        // Clone the columns (not the tasks) into the other project
+        $this->actingInOrg($user, $org)->getJson("/api/projects/{$other->id}/statuses/sources")->assertOk()->assertJsonPath('data.0.id', $project->id);
+        $cloned = $this->actingInOrg($user, $org)
+            ->postJson("/api/projects/{$other->id}/statuses/clone", ['from_project_id' => $project->id])
+            ->assertOk()->json('data');
+        $this->assertSame(['Leads', 'Beauftragt'], array_column($cloned, 'name'));
+        $this->assertSame(0, array_sum(array_column($cloned, 'tasks_count')));
+
+        $this->actingInOrg($user, $org)->deleteJson("/api/projects/{$project->id}/statuses/{$leads['id']}")->assertNoContent();
+        $this->assertNull($a->fresh()->project_status_id);
+    }
+
     public function test_reminder_command_notifies_assignee_once(): void
     {
         Notification::fake();

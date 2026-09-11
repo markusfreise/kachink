@@ -178,6 +178,7 @@ class AsanaImportController extends Controller
             'with_comments' => ['sometimes', 'boolean'],
             'completed_with_comments' => ['sometimes', 'boolean'],
             'sections_as_status' => ['sometimes', 'boolean'],
+            'sections_target' => ['sometimes', Rule::in(['none', 'status', 'project_status'])],
         ]);
 
         $client = Client::where('asana_project_gid', $gid)->first();
@@ -187,8 +188,10 @@ class AsanaImportController extends Controller
         set_time_limit(0);
         $asana = $this->asana();
         $importer = new AsanaImporter($asana, $this->org(), $request->user(), (bool) ($data['with_comments'] ?? true));
-        $sectionsAsStatus = (bool) ($data['sections_as_status'] ?? true);
+        $target = $data['sections_target'] ?? (($data['sections_as_status'] ?? true) ? 'status' : 'none');
+        $sectionsAsStatus = $target !== 'none';
         $importer->sectionProjectGid = $sectionsAsStatus ? $gid : null;
+        $importer->sectionTarget = $target === 'project_status' ? 'project_status' : 'status';
 
         $decisions = collect($data['decisions'] ?? [])->where('mode', '!=', 'skip')->keyBy('gid');
         if ($decisions->isNotEmpty()) {
@@ -218,6 +221,7 @@ class AsanaImportController extends Controller
             $withComments = (bool) ($data['completed_with_comments'] ?? false);
             $done = new AsanaImporter($asana, $this->org(), $request->user(), $withComments);
             $done->sectionProjectGid = $sectionsAsStatus ? $gid : null;
+            $done->sectionTarget = $importer->sectionTarget;
             $project = $done->doneProjectFor($client);
             $completed = array_values(array_filter($asana->tasks($gid, true), fn ($t) => empty($t['parent'])));
             $known = ProjectTask::whereIn('asana_task_gid', array_column($completed, 'gid'))->pluck('asana_task_gid')->flip();

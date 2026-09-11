@@ -100,6 +100,7 @@ class AsanaImportTest extends TestCase
             ],
             'import_completed' => true,
             'with_comments' => true,
+            'sections_target' => 'project_status',
         ])->assertOk()->json('data');
 
         $this->assertSame(2, $summary['projects_created']);
@@ -122,7 +123,8 @@ class AsanaImportTest extends TestCase
         $this->assertNull($sub->parent_id);
 
         $this->assertSame($existingProject->id, ProjectTask::where('asana_task_gid', 't2')->first()->project_id);
-        $this->assertSame('Leads', ProjectTask::where('asana_task_gid', 't2')->first()->status->name, 'section becomes a status');
+        $this->assertSame('Leads', ProjectTask::where('asana_task_gid', 't2')->first()->projectStatus->name, 'section becomes a project status');
+        $this->assertNull(ProjectTask::where('asana_task_gid', 't2')->first()->status_id);
         $this->assertSame('Leads', collect($rows)->firstWhere('gid', 't2')['section']);
         $this->assertSame('Milkids', ProjectTask::where('asana_task_gid', 't3')->first()->project->name);
 

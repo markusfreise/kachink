@@ -14,7 +14,7 @@ class TaskStatusResource extends JsonResource
             'name' => $this->name,
             'color' => $this->color,
             'position' => $this->position,
-            'is_locked' => $this->is_locked,
+            'is_locked' => (bool) ($this->is_locked ?? false),
             'tasks_count' => $this->whenCounted('tasks'),
         ];
     }
