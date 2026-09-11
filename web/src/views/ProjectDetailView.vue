@@ -3,7 +3,10 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter, RouterLink } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import api from '@/api/client'
-import type { Project, Client, TimeEntry, PaginationMeta, ProjectTask } from '@/types'
+import type { Project, Client, TimeEntry, PaginationMeta, ProjectTask, User } from '@/types'
+import BaseModal from '@/components/BaseModal.vue'
+import { useAuthStore } from '@/stores/auth'
+import { EyeIcon, EyeSlashIcon } from '@heroicons/vue/24/outline'
 import { ArrowLeftIcon, DocumentTextIcon, PencilSquareIcon, ClockIcon, PlusIcon, ClipboardDocumentListIcon } from '@heroicons/vue/24/outline'
 import TaskTree from '@/components/TaskTree.vue'
 import UserAvatar from '@/components/UserAvatar.vue'
@@ -25,6 +28,7 @@ const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const toast = useToastStore()
+const auth = useAuthStore()
 
 const project = ref<ProjectWithSummary | null>(null)
 const loading = ref(true)
@@ -43,6 +47,63 @@ const tasksMeta = ref<PaginationMeta | null>(null)
 const tasksLoading = ref(true)
 const showTaskForm = ref(false)
 const busyTaskId = ref<string | null>(null)
+
+// Watchers
+const watchers = ref<User[]>([])
+const watchBusy = ref(false)
+const showWatchers = ref(false)
+const members = ref<User[]>([])
+const watcherDraft = ref<string[]>([])
+const isWatching = computed(() => watchers.value.some((w) => w.id === auth.user?.id))
+
+async function toggleWatch() {
+  if (!project.value) return
+  watchBusy.value = true
+  try {
+    const { data } = isWatching.value
+      ? await api.delete(`/projects/${project.value.id}/watch`)
+      : await api.post(`/projects/${project.value.id}/watch`)
+    watchers.value = data.data
+    toast.success(isWatching.value ? t('watchers.nowWatching') : t('watchers.stopped'))
+  } catch (e) {
+    toast.error(errorMessage(e, t('common.failedToSave')))
+  } finally {
+    watchBusy.value = false
+  }
+}
+
+async function openWatchers() {
+  if (members.value.length === 0) {
+    try {
+      const { data } = await api.get('/users', { params: { 'filter[is_active]': 1 } })
+      members.value = data.data
+    } catch (e) {
+      toast.error(errorMessage(e, t('common.loadFailed')))
+      return
+    }
+  }
+  watcherDraft.value = watchers.value.map((w) => w.id)
+  showWatchers.value = true
+}
+
+function toggleWatcher(id: string) {
+  watcherDraft.value = watcherDraft.value.includes(id) ? watcherDraft.value.filter((x) => x !== id) : [...watcherDraft.value, id]
+}
+
+async function saveWatchers() {
+  if (!project.value) return
+  watchBusy.value = true
+  try {
+    const { data } = await api.put(`/projects/${project.value.id}/watchers`, { user_ids: watcherDraft.value })
+    watchers.value = data.data
+    showWatchers.value = false
+    toast.success(t('watchers.saved'))
+  } catch (e) {
+    toast.error(errorMessage(e, t('common.failedToSave')))
+  } finally {
+    watchBusy.value = false
+  }
+}
 const showForm = ref(false)
 const showArchive = ref(false)
 const archiveBusy = ref(false)
@@ -75,6 +136,7 @@ async function fetchProject() {
   try {
     const { data } = await api.get(`/projects/${projectId.value}`)
     project.value = data.data
+    watchers.value = data.data.watchers ?? []
   } catch (e) {
     project.value = null
     notFound.value = true
@@ -249,6 +311,19 @@ watch(projectId, load)
               </span>
               <span v-if="!project.is_active" class="badge badge--neutral">{{ $t('common.archived') }}</span>
             </div>
+            <div class="project-detail__watchers">
+              <button type="button" class="btn btn--ghost btn--sm" :disabled="watchBusy" :aria-pressed="isWatching" @click="toggleWatch">
+                <component :is="isWatching ? EyeSlashIcon : EyeIcon" class="btn__icon" aria-hidden="true" />
+                {{ isWatching ? $t('watchers.unwatch') : $t('watchers.watch') }}
+              </button>
+              <button type="button" class="project-detail__watcher-list" :title="$t('watchers.manage')" @click="openWatchers">
+                <span v-if="watchers.length === 0" class="small muted">{{ $t('watchers.none') }}</span>
+                <template v-else>
+                  <UserAvatar v-for="w in watchers.slice(0, 6)" :key="w.id" :name="w.name" :avatar-url="w.avatar_url" size="sm" />
+                  <span class="small muted">{{ $t('watchers.count', { count: watchers.length }) }}</span>
+                </template>
+              </button>
+            </div>
           </div>
         </div>
         <div class="page__actions">
@@ -406,6 +481,23 @@ watch(projectId, load)
     />
 
     <TaskFormModal v-if="showTaskForm && project" :task="null" :project-id="project.id" @close="showTaskForm = false" @saved="onTaskSaved" />
+
+    <BaseModal v-if="showWatchers" :title="$t('watchers.manage')" size="narrow" @close="showWatchers = false">
+      <p class="small muted">{{ $t('watchers.manageIntro') }}</p>
+      <ul class="watcher-picker">
+        <li v-for="m in members" :key="m.id">
+          <label class="form__check watcher-picker__row">
+            <input type="checkbox" :checked="watcherDraft.includes(m.id)" @change="toggleWatcher(m.id)" />
+            <UserAvatar :name="m.name" :avatar-url="m.avatar_url" size="sm" />
+            <span>{{ m.name }}</span>
+          </label>
+        </li>
+      </ul>
+      <template #footer>
+        <button type="button" class="btn btn--secondary" @click="showWatchers = false">{{ $t('common.cancel') }}</button>
+        <button type="button" class="btn btn--primary" :disabled="watchBusy" @click="saveWatchers">{{ $t('common.save') }}</button>
+      </template>
+    </BaseModal>
 
     <ConfirmDialog
       v-if="showArchive && project"

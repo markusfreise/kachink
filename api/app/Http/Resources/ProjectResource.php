@@ -33,6 +33,8 @@ class ProjectResource extends JsonResource
             'is_active' => $this->is_active,
             'archived_at' => $this->archived_at,
             'client' => new ClientResource($this->whenLoaded('client')),
+            'watchers' => UserResource::collection($this->whenLoaded('watchers')),
+            'is_watching' => $this->when($this->relationLoaded('watchers'), fn () => $this->watchers->contains('id', $request->user()?->id)),
             'tracked_seconds' => $this->when($hasSummary, $trackedSeconds),
             'billable_seconds' => $this->when($hasSummary, $billableSeconds),
             'total_tracked_hours' => $this->when($hasSummary, fn () => round($trackedSeconds / 3600, 2)),

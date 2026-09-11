@@ -7,11 +7,14 @@ use App\Http\Requests\ProjectTask\StoreProjectTaskCommentRequest;
 use App\Http\Resources\ProjectTaskCommentResource;
 use App\Models\ProjectTask;
 use App\Models\ProjectTaskComment;
+use App\Services\TaskNotifier;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class ProjectTaskCommentController extends Controller
 {
+    public function __construct(private readonly TaskNotifier $notifier) {}
+
     public function store(StoreProjectTaskCommentRequest $request, ProjectTask $project_task): JsonResponse
     {
         $comment = $project_task->comments()->create([
@@ -21,6 +24,7 @@ class ProjectTaskCommentController extends Controller
         ]);
         $project_task->recordHistory('comment_added', ['comment_id' => $comment->id]);
         $project_task->touch();
+        $this->notifier->notify($project_task, 'commented', $request->user(), $comment->body);
 
         return response()->json(['data' => new ProjectTaskCommentResource($comment->load('user'))], 201);
     }

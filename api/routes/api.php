@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\ProjectController;
 use App\Http\Controllers\Api\ProjectTaskAttachmentController;
 use App\Http\Controllers\Api\ProjectTaskCommentController;
 use App\Http\Controllers\Api\ProjectTaskController;
+use App\Http\Controllers\Api\ProjectWatcherController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\TagController;
 use App\Http\Controllers\Api\TaskController;
@@ -58,6 +59,12 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Projects
         Route::apiResource('projects', ProjectController::class);
+
+        // Project watchers
+        Route::get('/projects/{project}/watchers', [ProjectWatcherController::class, 'index']);
+        Route::put('/projects/{project}/watchers', [ProjectWatcherController::class, 'sync']);
+        Route::post('/projects/{project}/watch', [ProjectWatcherController::class, 'watch']);
+        Route::delete('/projects/{project}/watch', [ProjectWatcherController::class, 'unwatch']);
 
         // Tasks
         Route::apiResource('tasks', TaskController::class)->only(['index', 'store', 'update', 'destroy']);

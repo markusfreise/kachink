@@ -103,3 +103,31 @@
   text-align: center;
   border-top: 1px solid var(--c-border);
 }
+
+.project-detail__watchers {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gap-05x);
+  margin-top: var(--gap-05x);
+}
+
+.project-detail__watcher-list {
+  display: inline-flex;
+  align-items: center;
+  gap: pxtorem(4);
+  padding: pxtorem(2) pxtorem(6);
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--c-surface-3);
+  }
+
+  .avatar + .avatar {
+    margin-left: pxtorem(-8);
+  }
+}

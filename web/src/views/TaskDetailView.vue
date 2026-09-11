@@ -14,6 +14,8 @@ import TimeEntryModal from '@/components/TimeEntryModal.vue'
 import { useTimerStore } from '@/stores/timer'
 import ComboBox from '@/components/ComboBox.vue'
 import UserAvatar from '@/components/UserAvatar.vue'
+import MentionTextarea from '@/components/MentionTextarea.vue'
+import { mentionHtml } from '@/utils/mentions'
 import {
   ArrowLeftIcon,
   CheckIcon,
@@ -90,6 +92,7 @@ const parentForSubtask = computed(() =>
 const userOptions = computed(() => users.value.map((u) => ({ id: u.id, label: u.name, avatar: true, avatarUrl: u.avatar_url })))
 const statusOptions = computed(() => statuses.value.map((s) => ({ id: s.id, label: s.name, color: s.color })))
 const dayChips = [1, 3, 7, 14]
+const memberNames = computed(() => users.value.map((u) => u.name))
 const timerOnThisTask = computed(() => !!task.value && timer.runningEntry?.project_task_id === task.value.id)
 const timeModalTask = computed(() => (task.value ? { id: task.value.id, title: task.value.title, project_id: task.value.project_id } : null))
 
@@ -645,13 +648,13 @@ watch(taskId, fetchTask)
             </div>
             <div class="card__body">
               <form v-if="editingDescription" class="form" @submit.prevent="saveDescription">
-                <textarea v-model="descriptionDraft" class="form__textarea" rows="6" autofocus :aria-label="$t('tasks.description')" @keydown.esc.prevent="editingDescription = false"></textarea>
+                <MentionTextarea v-model="descriptionDraft" :users="users" :rows="6" autofocus :aria-label="$t('tasks.description')" @escape="editingDescription = false" @submit="saveDescription" />
                 <div class="form__actions">
                   <button type="button" class="btn btn--secondary btn--sm" @click="editingDescription = false">{{ $t('common.cancel') }}</button>
                   <button type="submit" class="btn btn--primary btn--sm" :disabled="saving">{{ $t('common.save') }}</button>
                 </div>
               </form>
-              <p v-else-if="task.description" class="task-detail__description task-detail__editable" :title="$t('tasks.clickToEdit')" @click="startEditDescription">{{ task.description }}</p>
+              <p v-else-if="task.description" class="task-detail__description task-detail__editable" :title="$t('tasks.clickToEdit')" @click="startEditDescription" v-html="mentionHtml(task.description, memberNames)"></p>
               <p v-else class="muted task-detail__editable" :title="$t('tasks.clickToEdit')" @click="startEditDescription">{{ $t('tasks.noDescription') }}</p>
             </div>
           </section>
@@ -701,20 +704,20 @@ watch(taskId, fetchTask)
                       </div>
                     </div>
                     <form v-if="editingComment?.id === c.id" class="form comment__edit" @submit.prevent="saveComment">
-                      <textarea v-model="editingBody" class="form__textarea" rows="3" :aria-label="$t('tasks.editComment')"></textarea>
+                      <MentionTextarea v-model="editingBody" :users="users" :rows="3" :aria-label="$t('tasks.editComment')" @escape="editingComment = null" @submit="saveComment" />
                       <div class="form__actions">
                         <button type="button" class="btn btn--secondary btn--sm" @click="editingComment = null">{{ $t('common.cancel') }}</button>
                         <button type="submit" class="btn btn--primary btn--sm" :disabled="commentSaving || !editingBody.trim()">{{ $t('common.save') }}</button>
                       </div>
                     </form>
-                    <p v-else class="comment__body">{{ c.body }}</p>
+                    <p v-else class="comment__body" v-html="mentionHtml(c.body, memberNames)"></p>
                   </div>
                 </li>
               </ul>
 
               <form class="form comment-form" @submit.prevent="addComment">
                 <label class="sr-only" for="task-comment">{{ $t('tasks.addComment') }}</label>
-                <textarea id="task-comment" v-model="commentBody" class="form__textarea" rows="3" :placeholder="$t('tasks.commentPlaceholder')"></textarea>
+                <MentionTextarea id="task-comment" v-model="commentBody" :users="users" :rows="3" :placeholder="$t('tasks.commentPlaceholder')" @submit="addComment" />
                 <div class="form__actions">
                   <button type="submit" class="btn btn--primary btn--sm" :disabled="commentSaving || !commentBody.trim()">
                     <ChatBubbleLeftIcon class="btn__icon" aria-hidden="true" />

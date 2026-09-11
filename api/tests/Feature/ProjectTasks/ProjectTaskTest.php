@@ -497,6 +497,42 @@ class ProjectTaskTest extends TestCase
             ->assertJsonPath('data.tracked_seconds', 1800);
     }
 
+    public function test_watchers_assignee_and_mentions_are_notified(): void
+    {
+        Notification::fake();
+        $org = $this->createOrganization();
+        $project = $this->projectIn($org);
+        $actor = $this->memberOf($org, ['name' => 'Markus Freise']);
+        $watcher = $this->memberOf($org, ['name' => 'Anna Berg']);
+        $assignee = $this->memberOf($org, ['name' => 'Tom Lee']);
+        $mentioned = $this->memberOf($org, ['name' => 'Eva Maria Klein']);
+        $bystander = $this->memberOf($org, ['name' => 'Ben Ott']);
+
+        $this->actingInOrg($watcher, $org)->postJson("/api/projects/{$project->id}/watch")->assertOk();
+        $this->actingInOrg($actor, $org)->getJson("/api/projects/{$project->id}")->assertOk()->assertJsonPath('data.is_watching', false)->assertJsonCount(1, 'data.watchers');
+
+        $taskId = $this->actingInOrg($actor, $org)
+            ->postJson('/api/project-tasks', ['project_id' => $project->id, 'title' => 'Launch', 'assignee_id' => $assignee->id, 'description' => 'Bitte @Eva Maria Klein pruefen'])
+            ->assertCreated()->json('data.id');
+
+        Notification::assertSentTo($watcher, \App\Notifications\ProjectTaskActivity::class, fn ($n) => $n->event === 'created');
+        Notification::assertSentTo($assignee, \App\Notifications\ProjectTaskActivity::class, fn ($n) => $n->event === 'created');
+        Notification::assertSentTo($mentioned, \App\Notifications\ProjectTaskActivity::class, fn ($n) => $n->event === 'mentioned');
+        Notification::assertNotSentTo($actor, \App\Notifications\ProjectTaskActivity::class);
+        Notification::assertNotSentTo($bystander, \App\Notifications\ProjectTaskActivity::class);
+
+        $this->actingInOrg($actor, $org)->postJson("/api/project-tasks/{$taskId}/comments", ['body' => 'Fertig, @Ben Ott uebernimmt'])->assertCreated();
+        Notification::assertSentTo($bystander, \App\Notifications\ProjectTaskActivity::class, fn ($n) => $n->event === 'mentioned');
+        Notification::assertSentTo($watcher, \App\Notifications\ProjectTaskActivity::class, fn ($n) => $n->event === 'commented');
+
+        $this->actingInOrg($assignee, $org)->putJson("/api/project-tasks/{$taskId}", ['completed' => true])->assertOk();
+        Notification::assertSentTo($watcher, \App\Notifications\ProjectTaskActivity::class, fn ($n) => $n->event === 'completed');
+        Notification::assertNotSentTo($assignee, \App\Notifications\ProjectTaskActivity::class, fn ($n) => $n->event === 'completed');
+
+        $this->actingInOrg($watcher, $org)->deleteJson("/api/projects/{$project->id}/watch")->assertOk()->assertJsonCount(0, 'data');
+        $this->actingInOrg($actor, $org)->putJson("/api/projects/{$project->id}/watchers", ['user_ids' => [$bystander->id, $watcher->id]])->assertOk()->assertJsonCount(2, 'data');
+    }
+
     public function test_reminder_command_notifies_assignee_once(): void
     {
         Notification::fake();

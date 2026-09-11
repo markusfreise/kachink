@@ -55,6 +55,8 @@ export interface Project {
   is_active: boolean
   archived_at: string | null
   client?: Client
+  watchers?: User[]
+  is_watching?: boolean
   tasks?: Task[]
   tasks_count?: number
   total_tracked_hours?: number

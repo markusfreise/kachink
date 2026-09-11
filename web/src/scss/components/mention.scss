@@ -1,0 +1,63 @@
+@use "../functions" as *;
+@use "../mixins" as *;
+
+// mention: textarea with @-mentions and rendered mention tags
+
+.mention {
+  position: relative;
+
+  &__list {
+    position: absolute;
+    left: 0;
+    right: 0;
+    z-index: 20;
+    max-height: pxtorem(240);
+    margin: pxtorem(4) 0 0;
+    padding: pxtorem(4);
+    list-style: none;
+    overflow-y: auto;
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-medium);
+    background: var(--c-surface);
+    box-shadow: var(--shadow);
+  }
+
+  &__item {
+    display: flex;
+    align-items: center;
+    gap: var(--gap-05x);
+    padding: pxtorem(6) pxtorem(10);
+    border-radius: var(--radius-small);
+    cursor: pointer;
+
+    &--active {
+      background: var(--c-corporate-soft);
+      color: var(--c-corporate);
+    }
+  }
+
+  &__hint {
+    margin: pxtorem(4) 0 0;
+    font-size: var(--fs-mini);
+    color: var(--c-copy-lighter);
+  }
+
+  &__tag {
+    padding: 0 pxtorem(4);
+    border-radius: var(--radius-small);
+    background: var(--c-corporate-soft);
+    color: var(--c-corporate);
+    font-weight: 600;
+  }
+}
+
+.watcher-picker {
+  list-style: none;
+  margin: var(--gap-075x) 0 0;
+  padding: 0;
+
+  &__row {
+    width: 100%;
+    padding: pxtorem(4) 0;
+  }
+}

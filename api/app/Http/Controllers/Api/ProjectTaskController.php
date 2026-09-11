@@ -9,6 +9,7 @@ use App\Http\Resources\ProjectTaskResource;
 use App\Models\ProjectTask;
 use App\Models\ProjectTaskAttachment;
 use App\Rules\InOrganization;
+use App\Services\TaskNotifier;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -19,6 +20,8 @@ use Illuminate\Validation\ValidationException;
 
 class ProjectTaskController extends Controller
 {
+    public function __construct(private readonly TaskNotifier $notifier) {}
+
     private const PRIORITY_ORDER = "CASE priority WHEN 'immediate' THEN 0 WHEN 'urgent' THEN 1 WHEN 'soon' THEN 2 ELSE 3 END";
 
     private const SORTABLE = ['priority', 'deadline', 'created_at', 'updated_at', 'title', 'position'];
@@ -117,6 +120,7 @@ class ProjectTaskController extends Controller
 
             return $task;
         });
+        $this->notifier->notify($task, 'created', $request->user(), $task->description);
 
         return response()->json(['data' => new ProjectTaskResource($this->loadDetail($task))], 201);
     }
@@ -170,6 +174,7 @@ class ProjectTaskController extends Controller
             $data['reminder_sent_at'] = null;
         }
 
+        $before = ['completed' => $project_task->completed_at !== null, 'assignee_id' => $project_task->assignee_id, 'description' => $project_task->description];
         DB::transaction(function () use ($project_task, $data, $tagIds) {
             $project_task->update($data);
 
@@ -184,7 +189,19 @@ class ProjectTaskController extends Controller
             }
         });
 
-        return response()->json(['data' => new ProjectTaskResource($this->loadDetail($project_task->fresh()))]);
+        $fresh = $project_task->fresh();
+        $nowCompleted = $fresh->completed_at !== null;
+        if ($nowCompleted !== $before['completed']) {
+            $this->notifier->notify($fresh, $nowCompleted ? 'completed' : 'reopened', $request->user());
+        }
+        if ($fresh->assignee_id && $fresh->assignee_id !== $before['assignee_id'] && $fresh->assignee_id !== $request->user()->id) {
+            $this->notifier->notify($fresh, 'assigned', $request->user());
+        }
+        if (($fresh->description ?? '') !== ($before['description'] ?? '') && $fresh->description) {
+            $this->notifier->notify($fresh, 'updated', $request->user(), $fresh->description);
+        }
+
+        return response()->json(['data' => new ProjectTaskResource($this->loadDetail($fresh))]);
     }
 
     /**

@@ -60,7 +60,7 @@ class ProjectController extends Controller
 
     public function show(Project $project): JsonResponse
     {
-        $project->load('client');
+        $project->load(['client', 'watchers']);
         $project->loadSum(['timeEntries as tracked_seconds' => fn ($q) => $q->where('is_running', false)], 'duration_seconds');
         $project->loadSum(['timeEntries as billable_seconds' => fn ($q) => $q->where('is_running', false)->where('is_billable', true)], 'duration_seconds');
         $project->billable_amount = app(HourlyRates::class)->billableAmount($project);

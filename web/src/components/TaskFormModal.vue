@@ -5,6 +5,7 @@ import api from '@/api/client'
 import type { ProjectTask, Project, User, Tag, TaskPriority, TaskStatus } from '@/types'
 import BaseModal from '@/components/BaseModal.vue'
 import ComboBox from '@/components/ComboBox.vue'
+import MentionTextarea from '@/components/MentionTextarea.vue'
 import { useToastStore, errorMessage } from '@/stores/toast'
 import { TASK_PRIORITIES, splitEstimate, joinEstimate } from '@/utils/tasks'
 
@@ -170,7 +171,7 @@ async function handleSave() {
 
       <div class="form__group">
         <label class="form__label" for="task-form-description">{{ $t('tasks.description') }}</label>
-        <textarea id="task-form-description" v-model="description" class="form__textarea" rows="4"></textarea>
+        <MentionTextarea id="task-form-description" v-model="description" :users="users" :rows="4" />
       </div>
 
       <div class="form__row">
