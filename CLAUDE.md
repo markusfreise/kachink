@@ -73,6 +73,8 @@ ssh batcave 'pct exec 114 -- tail -f /var/log/kachink-deploy.log'
 
 Rollback: `git checkout deploy-<tag> && ./deploy.sh --no-pull` auf dem Server. Migrationen sind nur vorwaerts.
 
+Stage: Push auf `hamlet` deployt https://hamlet.croeso.de (Checkout `/var/www/hamlet` auf LXC 114, Log `/var/log/hamlet-deploy.log`). Die Stage nutzt dieselbe Datenbank wie prod, ihre Migrationen laufen also gegen Prod-Daten. Lokal mit Prod-Daten testen: `_bootstrap/db-spiegeln.sh`.
+
 Commit-Konvention: `typ(scope): beschreibung` mit `feat|fix|chore|refactor|test|docs` und Scope `api|web|menubar|docs`. Branch `legacy` und Tag `legacy-snapshot-2026-09-09` halten den Stand vor v2.
 
 ## Architektur

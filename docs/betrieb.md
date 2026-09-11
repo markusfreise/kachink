@@ -9,9 +9,38 @@ Stand 2026-09-09. Keine Secrets in dieser Datei: Hosts, IPs, Passwoerter stehen 
 |---|---|---|---|
 | lokal | `main` | `~/Sites/kachink`, Docker Compose (Postgres/Redis) + `php artisan serve` + Vite | Compose-Postgres `timetracker` |
 | prod | `main` | Batcave LXC 114 (`web`), `/var/www/kachink`, nginx + php-fpm 8.3, davor Caddy im Edge-Container (`*.croeso.de`) und Cloudflare | zentrale Postgres 16 im Datencontainer (LXC 110), DB `kachink`, Rolle `kachink_rw` |
+| stage | `hamlet` | Batcave LXC 114, `/var/www/hamlet`, nginx-Site `hamlet`, https://hamlet.croeso.de | **dieselbe** Postgres-DB `kachink` wie prod |
 
 Blueprint ist Lucius (`~/Sites/lucius-app/docs/betrieb.md`): gleicher Container, gleicher
 Webhook-Daemon, gleiche Ablaeufe.
+
+## Stage hamlet (seit 2026-09-11)
+
+Eigener Checkout des Branches `hamlet` neben prod, eigene `api/.env` (APP_URL, FRONTEND_URL,
+SESSION_DOMAIN, SANCTUM_STATEFUL_DOMAINS auf hamlet.croeso.de), aber dieselbe Datenbank wie
+prod. Folgen: Migrationen der Stage laufen gegen die Prod-DB (bisher nur additive Tabellen
+fuer das Task-Management), und Daten, die auf der Stage angelegt werden, sind sofort in prod
+sichtbar, sobald der Code dort ist. Datei-Anhaenge liegen im jeweiligen Checkout unter
+`api/storage/app/private` und werden nicht geteilt.
+
+```bash
+git push origin hamlet                                              # Auto-Deploy der Stage
+ssh batcave 'pct exec 114 -- tail -f /var/log/hamlet-deploy.log'
+ssh batcave 'pct exec 114 -- /usr/local/bin/hamlet-deploy'          # von Hand
+```
+
+`/usr/local/bin/hamlet-deploy` setzt `KACHINK_DIR`, Log, Lock und `DEPLOY_BRANCH=hamlet`
+und ruft `kachink-deploy`, das `deploy.sh` im Stage-Checkout ausfuehrt. Der Hook
+`hamlet-deploy` in `/etc/webhook/hooks.json` reagiert auf `refs/heads/hamlet`, der
+GitHub-Webhook zeigt auf `https://hamlet.croeso.de/__deploy/hamlet-deploy` (eigenes Secret,
+steht in `CLAUDE.local.md`). Die Stage entfaellt, sobald `hamlet` in `main` gemergt ist:
+nginx-Site, Checkout, Hook und GitHub-Webhook entfernen.
+
+## Lokal mit Prod-Daten testen
+
+`_bootstrap/db-spiegeln.sh` zieht per SSH einen Dump aus LXC 110, ersetzt die lokale
+Docker-Datenbank `timetracker` damit und zieht die Migrationen des Checkouts nach. Danach
+gilt lokal der Prod-Login. Prod wird nur gelesen.
 
 ## Deploy
 
