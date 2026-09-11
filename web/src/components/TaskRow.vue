@@ -58,6 +58,7 @@ const indent = computed(() => ({ paddingLeft: `calc(var(--gap) + ${props.depth} 
 
     <div class="task-row__main">
       <div class="task-row__head">
+        <span v-if="task.is_due_today_alert" class="due-dot" :title="$t('tasks.dueTodayAlert')" role="img" :aria-label="$t('tasks.dueTodayAlert')"></span>
         <RouterLink class="task-row__title" :to="{ name: 'task-detail', params: { id: task.id } }" :aria-label="$t('tasks.openTask', { title: task.title })">
           {{ task.title }}
         </RouterLink>

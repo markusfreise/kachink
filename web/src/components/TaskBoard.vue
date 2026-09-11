@@ -153,7 +153,10 @@ function moveColumn(column: Column, direction: -1 | 1) {
             @dragstart="onDragStart($event, task)"
             @dragend="onDragEnd"
           >
-            <RouterLink class="board__card-title" :to="{ name: 'task-detail', params: { id: task.id } }">{{ task.title }}</RouterLink>
+            <div class="board__card-head">
+              <span v-if="task.is_due_today_alert" class="due-dot" :title="$t('tasks.dueTodayAlert')" role="img" :aria-label="$t('tasks.dueTodayAlert')"></span>
+              <RouterLink class="board__card-title" :to="{ name: 'task-detail', params: { id: task.id } }">{{ task.title }}</RouterLink>
+            </div>
             <div class="board__card-meta">
               <RouterLink v-if="task.project" class="board__card-project" :to="{ name: 'project-detail', params: { id: task.project.id } }">
                 <span class="color-dot" :style="{ backgroundColor: task.project.color }" aria-hidden="true"></span>

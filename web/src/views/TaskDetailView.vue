@@ -550,6 +550,17 @@ watch(taskId, fetchTask)
         </div>
       </div>
 
+      <div v-if="task.is_due_today_alert" class="alert alert--danger task-detail__due-alert" role="status">
+        <span class="due-dot" aria-hidden="true"></span>
+        <span class="task-detail__due-text">{{ $t('tasks.dueTodayText') }}</span>
+        <button type="button" class="btn btn--danger btn--sm" :disabled="saving" @click="patch({ acknowledge_today: true }, $t('tasks.keptInToday'))">
+          {{ $t('tasks.keepInToday') }}
+        </button>
+        <div class="task-meta__chips">
+          <button v-for="n in dayChips" :key="n" type="button" class="task-meta__chip" @click="inDays('deadline', n)">{{ $t('tasks.inDays', n) }}</button>
+        </div>
+      </div>
+
       <div class="task-detail__layout">
         <div class="task-detail__main">
           <section class="card page__section">

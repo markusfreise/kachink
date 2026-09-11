@@ -500,3 +500,16 @@
     color: var(--c-copy-lighter);
   }
 }
+
+.task-detail__due-alert {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gap-05x) var(--gap-075x);
+  margin-bottom: var(--gap);
+}
+
+.task-detail__due-text {
+  flex: 1;
+  min-width: pxtorem(200);
+}

@@ -5,7 +5,9 @@ import api from '@/api/client'
 import { useTimerStore } from '@/stores/timer'
 import { useAuthStore } from '@/stores/auth'
 import { useToastStore, errorMessage } from '@/stores/toast'
-import type { TimeEntry, Project, Task } from '@/types'
+import type { TimeEntry, Project, Task, ProjectTask, TaskStatus } from '@/types'
+import { RouterLink } from 'vue-router'
+import UserAvatar from '@/components/UserAvatar.vue'
 import TimerWidget from '@/components/TimerWidget.vue'
 import {
   toDateString,
@@ -47,6 +49,37 @@ interface WeekDay {
 }
 
 const RECENT_LIMIT = 10
+const TASK_LIMIT = 6
+
+// Task cards: new (no status), Heute, next deadlines
+const newTasks = ref<ProjectTask[]>([])
+const todayTasks = ref<ProjectTask[]>([])
+const dueTasks = ref<ProjectTask[]>([])
+const todayStatus = ref<TaskStatus | null>(null)
+const tasksLoading = ref(true)
+
+async function fetchTaskCards() {
+  tasksLoading.value = true
+  try {
+    const { data: statusData } = await api.get('/task-statuses')
+    todayStatus.value = (statusData.data as TaskStatus[]).find((s) => s.is_locked) ?? null
+    const base = { 'filter[status]': 'open', per_page: TASK_LIMIT }
+    const [n, d, h] = await Promise.all([
+      api.get('/project-tasks', { params: { ...base, 'filter[status_id]': 'none', sort: '-created_at' } }),
+      api.get('/project-tasks', { params: { ...base, sort: 'deadline', 'filter[deadline_until]': '2999-12-31' } }),
+      todayStatus.value
+        ? api.get('/project-tasks', { params: { ...base, 'filter[status_id]': todayStatus.value.id, sort: 'priority' } })
+        : Promise.resolve({ data: { data: [] } }),
+    ])
+    newTasks.value = n.data.data
+    dueTasks.value = d.data.data
+    todayTasks.value = h.data.data
+  } catch {
+    // The cards stay empty; the rest of the dashboard is unaffected.
+  } finally {
+    tasksLoading.value = false
+  }
+}
 
 const greeting = computed(() => {
   const hour = new Date().getHours()
@@ -198,7 +231,10 @@ async function restart(entry: TimeEntry) {
   }
 }
 
-onMounted(load)
+onMounted(() => {
+  fetchTaskCards()
+  load()
+})
 </script>
 
 <template>
@@ -243,6 +279,41 @@ onMounted(load)
           <span class="stat__value">{{ todayEntries.length }}</span>
           <span class="stat__sub">{{ $t('dashboard.projectsToday', { count: projectsTodayCount }, projectsTodayCount) }}</span>
         </div>
+      </div>
+
+      <div class="grid grid--3 dashboard__tasks">
+        <section
+          v-for="card in [
+            { key: 'new', title: $t('tasks.dashboardNew'), items: newTasks, query: { status: 'none' } },
+            { key: 'today', title: $t('tasks.dashboardToday'), items: todayTasks, query: todayStatus ? { status: todayStatus.id } : {} },
+            { key: 'due', title: $t('tasks.dashboardDue'), items: dueTasks, query: { deadline: 'month' } },
+          ]"
+          :key="card.key"
+          class="card dashboard__task-card"
+          :aria-label="card.title"
+        >
+          <div class="card__header">
+            <h2 class="card__title">{{ card.title }}</h2>
+            <RouterLink class="btn btn--ghost btn--sm" :to="{ name: 'tasks', query: card.query }">{{ $t('tasks.allTasks') }}</RouterLink>
+          </div>
+          <div v-if="tasksLoading" class="loading"><span class="spinner" role="status"></span></div>
+          <p v-else-if="card.items.length === 0" class="dashboard__task-empty muted">{{ $t('tasks.dashboardEmpty') }}</p>
+          <ul v-else class="dashboard__task-list">
+            <li v-for="task in card.items" :key="task.id" class="dashboard__task">
+              <span v-if="task.is_due_today_alert" class="due-dot" :title="$t('tasks.dueTodayAlert')" role="img" :aria-label="$t('tasks.dueTodayAlert')"></span>
+              <div class="dashboard__task-main">
+                <RouterLink class="dashboard__task-title" :to="{ name: 'task-detail', params: { id: task.id } }">{{ task.title }}</RouterLink>
+                <span class="dashboard__task-meta">
+                  <span v-if="task.project" class="dashboard__task-project">
+                    <span class="color-dot" :style="{ backgroundColor: task.project.color }" aria-hidden="true"></span>{{ task.project.name }}
+                  </span>
+                  <span v-if="task.deadline" :class="{ 'dashboard__task-overdue': task.is_overdue }">{{ formatDate(task.deadline) }}</span>
+                </span>
+              </div>
+              <UserAvatar v-if="task.assignee" :name="task.assignee.name" :avatar-url="task.assignee.avatar_url" size="sm" />
+            </li>
+          </ul>
+        </section>
       </div>
 
       <div class="dashboard__columns">

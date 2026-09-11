@@ -423,6 +423,31 @@ class ProjectTaskTest extends TestCase
         $this->assertNull($due->fresh()->today_acknowledged_on);
     }
 
+    public function test_admin_changes_email_and_password_of_members(): void
+    {
+        $org = $this->createOrganization();
+        $this->bindOrg($org);
+        $admin = $this->adminOf($org);
+        $member = $this->memberOf($org, ['email' => 'old@example.com']);
+        $member->createToken('menubar');
+
+        $this->actingInOrg($member, $org)
+            ->putJson("/api/users/{$member->id}", ['email' => 'hack@example.com'])
+            ->assertForbidden();
+
+        $this->actingInOrg($admin, $org)
+            ->putJson("/api/users/{$member->id}", ['email' => 'new@example.com', 'password' => 'correct horse'])
+            ->assertOk()
+            ->assertJsonPath('data.email', 'new@example.com');
+
+        $this->assertTrue(\Illuminate\Support\Facades\Hash::check('correct horse', $member->fresh()->password));
+        $this->assertSame(0, $member->tokens()->count());
+
+        $this->actingInOrg($admin, $org)
+            ->putJson("/api/users/{$member->id}", ['email' => $admin->email])
+            ->assertUnprocessable();
+    }
+
     public function test_reminder_command_notifies_assignee_once(): void
     {
         Notification::fake();

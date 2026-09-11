@@ -174,3 +174,80 @@
     color: var(--c-accent);
   }
 }
+
+// ---------------------------------------------------------------- task cards
+
+.dashboard {
+  &__tasks {
+    margin-bottom: var(--gap);
+  }
+
+  &__task-card {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  &__task-list {
+    list-style: none;
+    margin: 0;
+    padding: 0 var(--gap-075x);
+  }
+
+  &__task {
+    display: flex;
+    align-items: center;
+    gap: var(--gap-05x);
+    padding: var(--gap-05x) 0;
+    border-bottom: 1px solid var(--c-border);
+
+    &:last-child {
+      border-bottom: 0;
+    }
+  }
+
+  &__task-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  &__task-title {
+    font-weight: 500;
+    color: var(--c-head);
+    text-decoration: none;
+    @include truncate;
+
+    &:hover {
+      color: var(--c-corporate);
+    }
+  }
+
+  &__task-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: pxtorem(2) var(--gap-05x);
+    font-size: var(--fs-mini);
+    color: var(--c-copy-light);
+  }
+
+  &__task-project {
+    display: inline-flex;
+    align-items: center;
+    gap: pxtorem(4);
+    min-width: 0;
+    @include truncate;
+  }
+
+  &__task-overdue {
+    color: var(--c-danger);
+    font-weight: 600;
+  }
+
+  &__task-empty {
+    margin: 0;
+    padding: var(--gap) var(--gap-075x);
+  }
+}

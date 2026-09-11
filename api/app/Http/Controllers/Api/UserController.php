@@ -11,6 +11,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class UserController extends Controller
 {
@@ -71,10 +72,18 @@ class UserController extends Controller
 
         $validated = $request->validate([
             'name' => ['sometimes', 'string', 'max:255'],
+            'email' => ['sometimes', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
+            'password' => ['sometimes', 'string', 'min:8', 'max:200'],
             'role' => ['sometimes', 'in:admin,member'],
             'is_active' => ['sometimes', 'boolean'],
             'hourly_rate' => ['sometimes', 'nullable', 'numeric', 'min:0'],
         ]);
+
+        // A new password logs every device of that member out.
+        if (array_key_exists('password', $validated)) {
+            $validated['password'] = Hash::make($validated['password']);
+            $user->tokens()->delete();
+        }
 
         // The rate belongs to the membership, not the user account.
         if (array_key_exists('hourly_rate', $validated)) {

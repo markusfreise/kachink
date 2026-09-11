@@ -310,3 +310,26 @@
   gap: var(--gap-05x);
   margin-bottom: var(--gap);
 }
+
+// ---------------------------------------------------------------- due today marker
+
+.due-dot {
+  display: inline-block;
+  flex-shrink: 0;
+  width: pxtorem(10);
+  height: pxtorem(10);
+  border-radius: 50%;
+  background: var(--c-danger);
+  box-shadow: 0 0 0 0 rgba(210, 63, 63, 0.6);
+  animation: due-pulse 1.4s ease-out infinite;
+}
+
+@keyframes due-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(210, 63, 63, 0.6); }
+  70% { box-shadow: 0 0 0 pxtorem(7) rgba(210, 63, 63, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(210, 63, 63, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .due-dot { animation: none; }
+}

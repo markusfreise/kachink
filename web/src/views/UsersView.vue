@@ -25,6 +25,7 @@ const formName = ref('')
 const formEmail = ref('')
 const formRole = ref<'admin' | 'member'>('member')
 const formRate = ref<number | null>(null)
+const formPassword = ref('')
 const saving = ref(false)
 const formError = ref('')
 
@@ -100,6 +101,7 @@ function openEdit(user: User) {
   formEmail.value = user.email
   formRole.value = user.role
   formRate.value = user.hourly_rate != null ? Number(user.hourly_rate) : null
+  formPassword.value = ''
   formError.value = ''
   showForm.value = true
 }
@@ -111,8 +113,10 @@ async function handleSave() {
     if (editingUser.value) {
       await api.put(`/users/${editingUser.value.id}`, {
         name: formName.value,
+        email: formEmail.value,
         role: formRole.value,
         hourly_rate: formRate.value === null || Number.isNaN(formRate.value) ? null : formRate.value,
+        ...(formPassword.value ? { password: formPassword.value } : {}),
       })
       toast.success(t('users.saved'))
     } else {
@@ -258,10 +262,15 @@ onMounted(fetchUsers)
           <label for="user-name" class="form__label">{{ $t('users.nameRequired') }}</label>
           <input id="user-name" v-model="formName" type="text" class="form__input" required autofocus />
         </div>
-        <div v-if="!editingUser" class="form__group">
+        <div class="form__group">
           <label for="user-email" class="form__label">{{ $t('users.emailRequired') }}</label>
-          <input id="user-email" v-model="formEmail" type="email" class="form__input" required />
-          <span class="form__hint">{{ $t('users.emailHint') }}</span>
+          <input id="user-email" v-model="formEmail" type="email" class="form__input" required autocomplete="off" />
+          <span v-if="!editingUser" class="form__hint">{{ $t('users.emailHint') }}</span>
+        </div>
+        <div v-if="editingUser" class="form__group">
+          <label for="user-password" class="form__label">{{ $t('users.newPassword') }}</label>
+          <input id="user-password" v-model="formPassword" type="password" class="form__input" minlength="8" autocomplete="new-password" :placeholder="$t('users.passwordUnchanged')" />
+          <span class="form__hint">{{ $t('users.passwordHint') }}</span>
         </div>
         <div class="form__group">
           <label for="user-role" class="form__label">{{ $t('users.role') }}</label>

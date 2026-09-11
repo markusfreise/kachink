@@ -324,6 +324,8 @@ export interface ProjectTask {
   reminder_sent_at: string | null
   completed_at: string | null
   is_completed: boolean
+  /** Due today and neither confirmed for today nor rescheduled: shows the blinking marker. */
+  is_due_today_alert: boolean
   is_overdue: boolean
   position: number
   assignee?: User | null
