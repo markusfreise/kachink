@@ -5,11 +5,12 @@ export function mentionHtml(text: string | null | undefined, names: string[]): s
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
-  const sorted = [...names].filter(Boolean).sort((a, b) => b.length - a.length)
-  let html = escaped
-  for (const name of sorted) {
-    const safe = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    html = html.replace(new RegExp(`(^|[^\\p{L}\\p{N}])@${safe}(?![\\p{L}\\p{N}])`, 'giu'), (m, pre: string) => `${pre}<span class="mention__tag">@${name}</span>`)
-  }
-  return html
+  const sorted = [...new Set(names)].filter(Boolean).sort((a, b) => b.length - a.length)
+  if (sorted.length === 0) return escaped
+  // One pass with the longest names first, so "Eva Maria Klein" wins over "Eva" and nothing is wrapped twice.
+  const pattern = sorted.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')
+  return escaped.replace(
+    new RegExp(`(^|[^\\p{L}\\p{N}])@(${pattern})(?![\\p{L}\\p{N}])`, 'giu'),
+    (_m, pre: string, name: string) => `${pre}<span class="mention__tag">@${name}</span>`,
+  )
 }
