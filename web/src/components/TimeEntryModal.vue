@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import api from '@/api/client'
-import type { Project, Task, TimeEntry } from '@/types'
+import type { Project, Task, TimeEntry, ProjectTaskRef } from '@/types'
 import BaseModal from '@/components/BaseModal.vue'
 import ComboBox from '@/components/ComboBox.vue'
 import { errorMessage } from '@/stores/toast'
@@ -14,6 +14,8 @@ const props = defineProps<{
   projects: Project[]
   tasks: Task[]
   entry?: TimeEntry | null
+  /** Book the new entry on this project task (preselects its project). */
+  projectTask?: (ProjectTaskRef & { project_id: string }) | null
 }>()
 
 const emit = defineEmits<{
@@ -33,6 +35,8 @@ const startTime = ref('')
 const endTime = ref('')
 const durationInput = ref('')
 const isBillable = ref(true)
+const createTask = ref(false)
+const completeTask = ref(false)
 const mode = ref<Mode>('duration')
 const saving = ref(false)
 const error = ref('')
@@ -97,6 +101,12 @@ const preview = computed(() => {
 
 onMounted(() => {
   const entry = props.entry
+  if (!entry && props.projectTask) {
+    projectId.value = props.projectTask.project_id
+    description.value = props.projectTask.title
+    const project = props.projects.find((p) => p.id === props.projectTask?.project_id)
+    if (project) isBillable.value = project.is_billable
+  }
   if (!entry) return
   projectId.value = entry.project_id
   taskId.value = entry.task_id ?? ''
@@ -131,6 +141,15 @@ async function handleSave() {
     task_id: taskId.value || null,
     description: description.value.trim() || null,
     is_billable: isBillable.value,
+  }
+  if (!isEdit.value) {
+    if (props.projectTask) base.project_task_id = props.projectTask.id
+    else if (createTask.value) {
+      base.create_task = true
+      base.complete_task = completeTask.value
+    }
+  } else if (props.entry?.project_task_id) {
+    base.project_task_id = props.entry.project_task_id
   }
 
   let payload: Record<string, unknown>
@@ -273,6 +292,17 @@ async function handleSave() {
         <input id="te-billable" v-model="isBillable" type="checkbox" />
         <span>{{ $t('manualEntry.billable') }}</span>
       </label>
+      <p v-if="projectTask" class="form__hint time-entry-modal__task">{{ $t('timer.bookedOnTask', { title: projectTask.title }) }}</p>
+      <template v-else-if="!isEdit">
+        <label class="form__check" for="te-create-task" :title="$t('timer.createTaskHint')">
+          <input id="te-create-task" v-model="createTask" type="checkbox" :disabled="!description.trim()" />
+          <span>{{ $t('timer.createTask') }}</span>
+        </label>
+        <label v-if="createTask" class="form__check" for="te-complete-task">
+          <input id="te-complete-task" v-model="completeTask" type="checkbox" />
+          <span>{{ $t('timer.completeTask') }}</span>
+        </label>
+      </template>
     </form>
 
     <template #footer>

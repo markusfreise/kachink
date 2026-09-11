@@ -86,6 +86,8 @@ export interface TimeEntry {
   user_id: string
   project_id: string
   task_id: string | null
+  project_task_id?: string | null
+  project_task?: ProjectTaskRef | null
   description: string | null
   started_at: string
   stopped_at: string | null
@@ -343,6 +345,8 @@ export interface ProjectTask {
   comments_count?: number
   attachments_count?: number
   earliest_child_deadline?: string | null
+  /** Sum of finished time entries booked on this task (detail only). */
+  tracked_seconds?: number
   created_at: string
   updated_at: string
 }

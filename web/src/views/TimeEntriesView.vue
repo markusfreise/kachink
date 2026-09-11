@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { RouterLink } from 'vue-router'
 import UserAvatar from '@/components/UserAvatar.vue'
 import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -355,6 +356,7 @@ onMounted(() => {
               </td>
               <td :class="{ table__muted: !entry.task }">{{ entry.task?.name ?? $t('timeEntries.noTask') }}</td>
               <td class="time-entries__desc" :class="{ table__muted: !entry.description }" :title="entry.description ?? undefined">
+                <RouterLink v-if="entry.project_task" class="badge badge--brand time-entries__ptask" :to="{ name: 'task-detail', params: { id: entry.project_task.id } }">{{ entry.project_task.title }}</RouterLink>
                 {{ entry.description || $t('timeEntries.noDescription') }}
               </td>
               <td v-if="showUserColumn">

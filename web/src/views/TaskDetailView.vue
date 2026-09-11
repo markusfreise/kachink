@@ -4,12 +4,14 @@ import { useRoute, useRouter, RouterLink } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import api from '@/api/client'
 import { downloadFile } from '@/api/download'
-import type { ProjectTask, ProjectTaskComment, ProjectTaskAttachment, ProjectTaskHistory, User, Tag, TaskStatus, TaskPriority } from '@/types'
+import type { ProjectTask, ProjectTaskComment, ProjectTaskAttachment, ProjectTaskHistory, User, Tag, TaskStatus, TaskPriority, Project, Task } from '@/types'
 import { useAuthStore } from '@/stores/auth'
 import { useToastStore, errorMessage } from '@/stores/toast'
 import TaskTree from '@/components/TaskTree.vue'
 import TaskFormModal from '@/components/TaskFormModal.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import TimeEntryModal from '@/components/TimeEntryModal.vue'
+import { useTimerStore } from '@/stores/timer'
 import ComboBox from '@/components/ComboBox.vue'
 import UserAvatar from '@/components/UserAvatar.vue'
 import {
@@ -22,15 +24,18 @@ import {
   PaperClipIcon,
   ChatBubbleLeftIcon,
   ClockIcon,
+  PlayIcon,
+  StopIcon,
 } from '@heroicons/vue/24/outline'
 import { TASK_PRIORITIES, priorityBadgeClass, formatEstimate, formatFileSize, splitEstimate, joinEstimate } from '@/utils/tasks'
-import { formatDate, formatCurrency, formatTime, toDateString } from '@/utils/format'
+import { formatDate, formatCurrency, formatTime, toDateString, formatDuration } from '@/utils/format'
 
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const toast = useToastStore()
+const timer = useTimerStore()
 
 const task = ref<ProjectTask | null>(null)
 const loading = ref(true)
@@ -40,6 +45,10 @@ const tags = ref<Tag[]>([])
 const statuses = ref<TaskStatus[]>([])
 
 const showSubtaskForm = ref(false)
+const showTimeModal = ref(false)
+const timeProjects = ref<Project[]>([])
+const timeTasks = ref<Task[]>([])
+const timerBusy = ref(false)
 const showDelete = ref(false)
 const deleting = ref(false)
 const toggling = ref(false)
@@ -81,6 +90,57 @@ const parentForSubtask = computed(() =>
 const userOptions = computed(() => users.value.map((u) => ({ id: u.id, label: u.name, avatar: true, avatarUrl: u.avatar_url })))
 const statusOptions = computed(() => statuses.value.map((s) => ({ id: s.id, label: s.name, color: s.color })))
 const dayChips = [1, 3, 7, 14]
+const timerOnThisTask = computed(() => !!task.value && timer.runningEntry?.project_task_id === task.value.id)
+const timeModalTask = computed(() => (task.value ? { id: task.value.id, title: task.value.title, project_id: task.value.project_id } : null))
+
+async function startTimer() {
+  if (!task.value || timerBusy.value) return
+  timerBusy.value = true
+  try {
+    await timer.start(task.value.project_id, undefined, task.value.title, task.value.project?.is_billable ?? true, { projectTaskId: task.value.id })
+    toast.success(t('timer.startedOnTask'))
+  } catch (e) {
+    toast.error(errorMessage(e, t('timer.startFailed')))
+  } finally {
+    timerBusy.value = false
+  }
+}
+
+async function stopTimer() {
+  if (timerBusy.value) return
+  timerBusy.value = true
+  try {
+    await timer.stop()
+    await fetchTask()
+  } catch (e) {
+    toast.error(errorMessage(e, t('timer.stopFailed')))
+  } finally {
+    timerBusy.value = false
+  }
+}
+
+async function openTimeModal() {
+  if (timeProjects.value.length === 0) {
+    try {
+      const [p, wt] = await Promise.all([
+        api.get('/projects', { params: { 'filter[is_active]': 1, per_page: 500, sort: 'name' } }),
+        api.get('/tasks', { params: { 'filter[is_active]': 1 } }),
+      ])
+      timeProjects.value = p.data.data
+      timeTasks.value = wt.data.data
+    } catch (e) {
+      toast.error(errorMessage(e, t('common.loadFailed')))
+      return
+    }
+  }
+  showTimeModal.value = true
+}
+
+function onTimeSaved() {
+  showTimeModal.value = false
+  toast.success(t('timer.bookedOnTaskDone'))
+  fetchTask()
+}
 
 function syncDrafts() {
   if (!task.value) return
@@ -539,6 +599,18 @@ watch(taskId, fetchTask)
           </div>
         </div>
         <div class="page__actions">
+          <button v-if="timerOnThisTask" type="button" class="btn btn--danger" :disabled="timerBusy" @click="stopTimer">
+            <StopIcon class="btn__icon" aria-hidden="true" />
+            {{ $t('timer.stop') }} {{ timer.elapsedFormatted }}
+          </button>
+          <button v-else type="button" class="btn btn--success" :disabled="timerBusy || task.is_completed" @click="startTimer">
+            <PlayIcon class="btn__icon" aria-hidden="true" />
+            {{ $t('timer.startOnTask') }}
+          </button>
+          <button type="button" class="btn btn--secondary" @click="openTimeModal">
+            <ClockIcon class="btn__icon" aria-hidden="true" />
+            {{ $t('timer.bookTime') }}
+          </button>
           <button type="button" class="btn btn--primary" @click="showSubtaskForm = true">
             <PlusIcon class="btn__icon" aria-hidden="true" />
             {{ $t('tasks.newSubtask') }}
@@ -723,6 +795,13 @@ watch(taskId, fetchTask)
                   </div>
                 </div>
                 <div class="task-meta__item">
+                  <span class="task-meta__label">{{ $t('timer.trackedOnTask') }}</span>
+                  <span class="task-meta__value" :class="{ 'task-meta__value--muted': !task.tracked_seconds }">
+                    {{ task.tracked_seconds ? formatDuration(task.tracked_seconds) + ' h' : $t('timer.nothingTracked') }}
+                    <span v-if="estimate && task.tracked_seconds" class="task-meta__hint">/ {{ estimate }}</span>
+                  </span>
+                </div>
+                <div class="task-meta__item">
                   <label class="task-meta__label" for="task-budget">{{ $t('tasks.budget') }}</label>
                   <input id="task-budget" v-model.number="budgetDraft" type="number" min="0" step="0.01" inputmode="decimal" class="form__input form__input--sm" :placeholder="task.calculated_budget != null ? formatCurrency(task.calculated_budget) : $t('tasks.noBudget')" @change="saveBudget" />
                   <p v-if="task.budget == null && task.calculated_budget != null" class="task-meta__hint">
@@ -818,6 +897,7 @@ watch(taskId, fetchTask)
     </template>
 
     <TaskFormModal v-if="showSubtaskForm && task" :task="null" :parent="parentForSubtask" @close="showSubtaskForm = false" @saved="onSubtaskSaved" />
+    <TimeEntryModal v-if="showTimeModal && task" :projects="timeProjects" :tasks="timeTasks" :project-task="timeModalTask" @close="showTimeModal = false" @saved="onTimeSaved" />
 
     <ConfirmDialog
       v-if="showDelete && task"

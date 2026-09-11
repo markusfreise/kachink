@@ -78,12 +78,24 @@ export const useTimerStore = defineStore('timer', () => {
     }
   }
 
-  async function start(projectId: string, taskId?: string, description?: string, isBillable?: boolean) {
+  interface StartOptions {
+    /** Book the entry on this project task. */
+    projectTaskId?: string | null
+    /** Create a task from the description, assigned to the user. */
+    createTask?: boolean
+    /** Mark that new task as done right away. */
+    completeTask?: boolean
+  }
+
+  async function start(projectId: string, taskId?: string, description?: string, isBillable?: boolean, options: StartOptions = {}) {
     const { data } = await api.post('/time-entries/start', {
       project_id: projectId,
       task_id: taskId || null,
       description: description || null,
       is_billable: isBillable,
+      project_task_id: options.projectTaskId ?? null,
+      create_task: options.createTask ?? false,
+      complete_task: options.completeTask ?? false,
     })
     runningEntry.value = data.data
     startTicking()

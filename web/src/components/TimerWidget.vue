@@ -8,6 +8,7 @@ import type { Project, Task } from '@/types'
 import { PlayIcon, StopIcon } from '@heroicons/vue/24/solid'
 import { ArrowsRightLeftIcon } from '@heroicons/vue/24/outline'
 import ComboBox from '@/components/ComboBox.vue'
+import { RouterLink } from 'vue-router'
 
 const props = defineProps<{
   projects: Project[]
@@ -24,6 +25,8 @@ const selectedProjectId = ref('')
 const selectedTaskId = ref('')
 const description = ref('')
 const isBillable = ref(true)
+const createTask = ref(false)
+const completeTask = ref(false)
 const busy = ref(false)
 
 const projectOptions = computed(() =>
@@ -93,8 +96,11 @@ async function startFromForm() {
       selectedProjectId.value,
       selectedTaskId.value || undefined,
       description.value.trim() || undefined,
-      isBillable.value
+      isBillable.value,
+      running.value ? {} : { createTask: createTask.value, completeTask: createTask.value && completeTask.value },
     )
+    createTask.value = false
+    completeTask.value = false
     emit('changed')
   } catch (e) {
     toast.error(errorMessage(e, t('timer.startFailed')))
@@ -184,6 +190,9 @@ function onDescriptionEnter() {
             {{ running.project.client.name }}
           </span>
           <span v-if="running.task" class="timer-widget__running-task">{{ running.task.name }}</span>
+          <RouterLink v-if="running.project_task" class="badge badge--brand timer-widget__running-ptask" :to="{ name: 'task-detail', params: { id: running.project_task.id } }">
+            {{ running.project_task.title }}
+          </RouterLink>
           <span class="badge" :class="running.is_billable ? 'badge--success' : 'badge--neutral'">
             {{ running.is_billable ? $t('common.billable') : $t('common.nonBillable') }}
           </span>
@@ -241,6 +250,14 @@ function onDescriptionEnter() {
         <label class="form__check timer-widget__billable">
           <input v-model="isBillable" type="checkbox" :disabled="busy" />
           {{ $t('common.billable') }}
+        </label>
+        <label v-if="!running" class="form__check timer-widget__billable" :title="$t('timer.createTaskHint')">
+          <input v-model="createTask" type="checkbox" :disabled="busy || !description.trim()" />
+          {{ $t('timer.createTask') }}
+        </label>
+        <label v-if="!running && createTask" class="form__check timer-widget__billable">
+          <input v-model="completeTask" type="checkbox" :disabled="busy" />
+          {{ $t('timer.completeTask') }}
         </label>
 
         <button
