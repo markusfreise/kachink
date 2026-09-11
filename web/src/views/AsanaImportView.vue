@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink } from 'vue-router'
 import api from '@/api/client'
@@ -66,7 +66,8 @@ const tasksLoading = ref(false)
 const clientProjects = ref<{ id: string; name: string; color: string }[]>([])
 const completedImported = ref(0)
 const decisions = ref<Record<string, Decision>>({})
-const importCompleted = ref(false)
+const importCompleted = ref(true)
+const stepTwo = ref<HTMLElement | null>(null)
 const withComments = ref(true)
 const completedWithComments = ref(false)
 const importing = ref(false)
@@ -198,6 +199,8 @@ async function loadTasks(project: AsanaProject) {
   summary.value = null
   totals.value = null
   tasksLoading.value = true
+  await nextTick()
+  stepTwo.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   try {
     const { data } = await api.get(`/asana/projects/${project.gid}/tasks`)
     tasks.value = data.data
@@ -369,7 +372,7 @@ onMounted(loadSettings)
         </div>
       </section>
 
-      <section v-if="selected" class="card page__section">
+      <section v-if="selected" ref="stepTwo" class="card page__section asana__step2">
         <div class="card__header">
           <div>
             <h2 class="card__title">{{ $t('asana.step2', { name: selected.name }) }}</h2>

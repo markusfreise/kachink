@@ -4,6 +4,10 @@
 // asana-import view
 
 .asana {
+  &__step2 {
+    scroll-margin-top: var(--gap);
+  }
+
   &__back {
     display: inline-flex;
     align-items: center;
