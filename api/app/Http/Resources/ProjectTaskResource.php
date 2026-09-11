@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Services\HourlyRates;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -10,6 +11,7 @@ class ProjectTaskResource extends JsonResource
     public function toArray(Request $request): array
     {
         $attributes = $this->resource->getAttributes();
+        $calculated = $this->calculatedBudget();
 
         return [
             'id' => $this->id,
@@ -20,8 +22,12 @@ class ProjectTaskResource extends JsonResource
             'assignee_id' => $this->assignee_id,
             'created_by' => $this->created_by,
             'priority' => $this->priority,
+            'status_id' => $this->status_id,
+            'status' => new TaskStatusResource($this->whenLoaded('status')),
             'estimate_minutes' => $this->estimate_minutes,
             'budget' => $this->budget !== null ? (float) $this->budget : null,
+            'calculated_budget' => $calculated['amount'],
+            'calculated_rate' => $calculated['rate'],
             'deadline' => $this->deadline?->format('Y-m-d'),
             'reminder_at' => $this->reminder_at?->format('Y-m-d'),
             'reminder_sent_at' => $this->reminder_sent_at,
@@ -50,8 +56,32 @@ class ProjectTaskResource extends JsonResource
             'open_children_count' => $this->when(array_key_exists('open_children_count', $attributes), fn () => (int) $this->open_children_count),
             'comments_count' => $this->when(array_key_exists('comments_count', $attributes), fn () => (int) $this->comments_count),
             'attachments_count' => $this->when(array_key_exists('attachments_count', $attributes), fn () => (int) $this->attachments_count),
+            'earliest_child_deadline' => $this->when(array_key_exists('earliest_child_deadline', $attributes), fn () => $this->earliest_child_deadline ? substr((string) $this->earliest_child_deadline, 0, 10) : null),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];
+    }
+
+    /**
+     * Budget derived from the estimate and the hourly rate that applies to the
+     * assignee on this project, for tasks without a fixed budget.
+     *
+     * @return array{amount: float|null, rate: float|null}
+     */
+    private function calculatedBudget(): array
+    {
+        if ($this->budget !== null || ! $this->estimate_minutes) {
+            return ['amount' => null, 'rate' => null];
+        }
+        $project = $this->resource->relationLoaded('project') ? $this->project : $this->resource->project()->first();
+        if (! $project) {
+            return ['amount' => null, 'rate' => null];
+        }
+        $rate = app(HourlyRates::class)->forProject($project, $this->assignee_id);
+        if ($rate === null) {
+            return ['amount' => null, 'rate' => null];
+        }
+
+        return ['amount' => round($this->estimate_minutes / 60 * $rate, 2), 'rate' => $rate];
     }
 }

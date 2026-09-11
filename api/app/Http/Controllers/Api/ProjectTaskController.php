@@ -25,13 +25,14 @@ class ProjectTaskController extends Controller
     public function index(Request $request): AnonymousResourceCollection
     {
         $query = ProjectTask::query()
-            ->with(['assignee', 'tags', 'project.client'])
+            ->with(['assignee', 'tags', 'status', 'project.client'])
             ->withCount([
                 'children',
                 'children as open_children_count' => fn ($q) => $q->whereNull('completed_at'),
                 'comments',
                 'attachments',
-            ]);
+            ])
+            ->withMin(['children as earliest_child_deadline' => fn ($q) => $q->whereNull('completed_at')], 'deadline');
 
         if ($request->filled('filter.project_id')) {
             $query->where('project_id', $request->input('filter.project_id'));
@@ -50,6 +51,11 @@ class ProjectTaskController extends Controller
         if ($request->filled('filter.assignee_id')) {
             $assignee = $request->input('filter.assignee_id');
             $assignee === 'none' ? $query->whereNull('assignee_id') : $query->where('assignee_id', $assignee);
+        }
+
+        if ($request->filled('filter.status_id')) {
+            $statusId = $request->input('filter.status_id');
+            $statusId === 'none' ? $query->whereNull('status_id') : $query->where('status_id', $statusId);
         }
 
         if ($request->filled('filter.priority')) {
@@ -204,13 +210,13 @@ class ProjectTaskController extends Controller
     private function loadDetail(ProjectTask $task): ProjectTask
     {
         $task->load([
-            'assignee', 'creator', 'tags', 'project.client', 'parent',
-            'children' => fn ($q) => $q->with(['assignee', 'tags'])->withCount([
+            'assignee', 'creator', 'tags', 'status', 'project.client', 'parent',
+            'children' => fn ($q) => $q->with(['assignee', 'tags', 'status', 'project'])->withCount([
                 'children',
                 'children as open_children_count' => fn ($c) => $c->whereNull('completed_at'),
                 'comments',
                 'attachments',
-            ]),
+            ])->withMin(['children as earliest_child_deadline' => fn ($c) => $c->whereNull('completed_at')], 'deadline'),
             'comments.user', 'attachments.user', 'histories.user',
         ]);
         $task->loadCount([

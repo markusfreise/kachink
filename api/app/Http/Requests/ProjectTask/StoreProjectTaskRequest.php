@@ -23,6 +23,7 @@ class StoreProjectTaskRequest extends FormRequest
             'description' => ['nullable', 'string', 'max:20000'],
             'assignee_id' => ['nullable', 'uuid', self::orgMember()],
             'priority' => ['sometimes', Rule::in(ProjectTask::PRIORITIES)],
+            'status_id' => ['nullable', 'uuid', InOrganization::exists('task_statuses')],
             'estimate_minutes' => ['nullable', 'integer', 'min:0', 'max:5256000'],
             'budget' => ['nullable', 'numeric', 'min:0'],
             'deadline' => ['nullable', 'date_format:Y-m-d'],

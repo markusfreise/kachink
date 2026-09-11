@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\ProjectTaskController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\TagController;
 use App\Http\Controllers\Api\TaskController;
+use App\Http\Controllers\Api\TaskStatusController;
 use App\Http\Controllers\Api\TimeEntryController;
 use App\Http\Controllers\Api\UserController;
 use Illuminate\Support\Facades\Route;
@@ -59,6 +60,11 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Tasks
         Route::apiResource('tasks', TaskController::class)->only(['index', 'store', 'update', 'destroy']);
+
+        // Task statuses (free-form per organization, "Heute" is fixed)
+        Route::apiResource('task-statuses', TaskStatusController::class)->only(['index', 'store', 'update', 'destroy'])->parameters([
+            'task-statuses' => 'task_status',
+        ]);
 
         // Project tasks (task management with subtasks, comments, attachments, history)
         Route::apiResource('project-tasks', ProjectTaskController::class)->parameters([

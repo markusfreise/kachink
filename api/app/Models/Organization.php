@@ -34,6 +34,8 @@ class Organization extends Model
                 $org->slug = Str::slug($org->name);
             }
         });
+
+        static::created(fn (Organization $org) => TaskStatus::ensureDefaults($org));
     }
 
     public function users(): BelongsToMany

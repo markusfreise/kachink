@@ -277,6 +277,57 @@ class ProjectTaskTest extends TestCase
         Storage::disk('local')->assertMissing('attachments/x/child.txt');
     }
 
+    public function test_statuses_are_free_form_with_a_locked_default_and_filterable(): void
+    {
+        $org = $this->createOrganization();
+        $project = $this->projectIn($org);
+        $user = $this->memberOf($org);
+
+        $list = $this->actingInOrg($user, $org)->getJson('/api/task-statuses')->assertOk();
+        $heute = collect($list->json('data'))->firstWhere('name', 'Heute');
+        $this->assertTrue($heute['is_locked']);
+
+        $waiting = $this->actingInOrg($user, $org)
+            ->postJson('/api/task-statuses', ['name' => 'Warten auf Kunde', 'color' => '#2563EB'])
+            ->assertCreated()
+            ->json('data');
+
+        $this->actingInOrg($user, $org)
+            ->postJson('/api/task-statuses', ['name' => 'Heute'])
+            ->assertUnprocessable();
+
+        $this->actingInOrg($user, $org)
+            ->deleteJson("/api/task-statuses/{$heute['id']}")
+            ->assertStatus(422);
+
+        $task = ProjectTask::factory()->create(['project_id' => $project->id, 'status_id' => $heute['id']]);
+        ProjectTask::factory()->create(['project_id' => $project->id, 'status_id' => $waiting['id']]);
+        ProjectTask::factory()->create(['project_id' => $project->id]);
+
+        $this->actingInOrg($user, $org)
+            ->getJson('/api/project-tasks?filter[status_id]='.$heute['id'])
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.status.name', 'Heute');
+
+        $this->actingInOrg($user, $org)
+            ->getJson('/api/project-tasks?filter[status_id]=none')
+            ->assertOk()
+            ->assertJsonCount(1, 'data');
+
+        $this->actingInOrg($user, $org)
+            ->putJson("/api/project-tasks/{$task->id}", ['status_id' => $waiting['id']])
+            ->assertOk()
+            ->assertJsonPath('data.status.name', 'Warten auf Kunde');
+        $this->assertSame([$heute['id'], $waiting['id']], array_values($task->fresh()->histories()->where('action', 'updated')->first()->changes['status_id']));
+
+        // Deleting a status detaches it from tasks instead of deleting them.
+        $this->actingInOrg($user, $org)
+            ->deleteJson("/api/task-statuses/{$waiting['id']}")
+            ->assertNoContent();
+        $this->assertNull($task->fresh()->status_id);
+    }
+
     public function test_reminder_command_notifies_assignee_once(): void
     {
         Notification::fake();
