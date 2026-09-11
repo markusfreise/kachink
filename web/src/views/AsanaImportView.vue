@@ -70,7 +70,7 @@ const importCompleted = ref(true)
 const stepTwo = ref<HTMLElement | null>(null)
 const withComments = ref(true)
 const completedWithComments = ref(false)
-const sectionsAsStatus = ref(true)
+const sectionsTarget = ref<'none' | 'status' | 'project_status'>('status')
 const importing = ref(false)
 
 // Batch: tick tasks, then apply one decision to all of them
@@ -291,7 +291,7 @@ async function runImport() {
         import_completed: importCompleted.value,
         with_comments: withComments.value,
         completed_with_comments: completedWithComments.value,
-        sections_as_status: sectionsAsStatus.value,
+        sections_target: sectionsTarget.value,
       })
       const s: Summary = data.data
       acc.tasks_created += s.tasks_created
@@ -498,10 +498,15 @@ onMounted(loadSettings)
           </template>
 
           <div class="asana__options form">
-            <label class="form__check">
-              <input v-model="sectionsAsStatus" type="checkbox" />
-              <span>{{ $t('asana.sectionsAsStatus') }}</span>
-            </label>
+            <div class="asana__sections-target">
+              <label class="form__label" for="asana-sections-target">{{ $t('asana.sectionsTarget') }}</label>
+              <select id="asana-sections-target" v-model="sectionsTarget" class="form__select form__select--sm form__select--inline">
+                <option value="none">{{ $t('asana.sectionsNone') }}</option>
+                <option value="status">{{ $t('tasks.status') }}</option>
+                <option value="project_status">{{ $t('projectStatus.label') }}</option>
+              </select>
+              <span class="form__hint">{{ $t('asana.sectionsTargetHint') }}</span>
+            </div>
             <label class="form__check">
               <input v-model="withComments" type="checkbox" />
               <span>{{ $t('asana.withComments') }}</span>

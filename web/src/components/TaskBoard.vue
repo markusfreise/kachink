@@ -1,52 +1,52 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { RouterLink } from 'vue-router'
-import { useI18n } from 'vue-i18n'
 import { CalendarIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/vue/24/outline'
-import type { ProjectTask, TaskStatus } from '@/types'
+import type { ProjectTask, User } from '@/types'
 import { priorityBadgeClass, formatEstimate } from '@/utils/tasks'
 import { formatDate } from '@/utils/format'
 import UserAvatar from '@/components/UserAvatar.vue'
 
-/**
- * Kanban board: one column per status, "Neu" (no status) and "Heute" fixed in
- * front. Cards are dragged between and within columns; the other columns can
- * be moved with the arrow buttons.
- */
-const props = defineProps<{
-  tasks: ProjectTask[]
-  statuses: TaskStatus[]
-  busy?: boolean
-}>()
-
-const emit = defineEmits<{
-  (e: 'move', statusId: string | null, orderedIds: string[]): void
-  (e: 'reorder-statuses', orderedIds: string[]): void
-}>()
-
-const { t } = useI18n()
-
-interface Column {
+/** One kanban column; `id` is the value written into the task's `field` on drop (null = the "none" column). */
+export interface BoardColumn {
   key: string
-  statusId: string | null
+  id: string | null
   name: string
   color: string
-  fixed: boolean
-  tasks: ProjectTask[]
+  /** Fixed columns cannot be moved. */
+  fixed?: boolean
+  /** Shown instead of the color dot (assignee board). */
+  user?: User | null
 }
 
-const NEW_KEY = '__new'
+/**
+ * Generic kanban board: one column per value of `field` (work status, project
+ * status or assignee). Cards are dragged between and within columns; movable
+ * columns can be shifted with the arrow buttons.
+ */
+const props = withDefaults(defineProps<{
+  tasks: ProjectTask[]
+  columns: BoardColumn[]
+  field: 'status_id' | 'project_status_id' | 'assignee_id'
+  busy?: boolean
+  showProject?: boolean
+}>(), { busy: false, showProject: true })
 
-const columns = computed<Column[]>(() => {
-  const today = props.statuses.find((s) => s.is_locked)
-  const rest = props.statuses.filter((s) => !s.is_locked).sort((a, b) => a.position - b.position || a.name.localeCompare(b.name))
-  const byStatus = (id: string | null) =>
-    props.tasks.filter((x) => (x.status_id ?? null) === id).sort((a, b) => a.position - b.position)
-  const list: Column[] = [{ key: NEW_KEY, statusId: null, name: t('tasks.boardNew'), color: '#6B7280', fixed: true, tasks: byStatus(null) }]
-  if (today) list.push({ key: today.id, statusId: today.id, name: today.name, color: today.color, fixed: true, tasks: byStatus(today.id) })
-  for (const s of rest) list.push({ key: s.id, statusId: s.id, name: s.name, color: s.color, fixed: false, tasks: byStatus(s.id) })
-  return list
-})
+const emit = defineEmits<{
+  (e: 'move', columnId: string | null, orderedIds: string[]): void
+  (e: 'reorder-columns', orderedIds: string[]): void
+}>()
+
+const filled = computed(() =>
+  props.columns.map((column) => ({
+    ...column,
+    tasks: props.tasks
+      .filter((task) => ((task[props.field] as string | null | undefined) ?? null) === column.id)
+      .sort((a, b) => a.position - b.position),
+  })),
+)
+
+type Column = (typeof filled.value)[number]
 
 // ---------------------------------------------------------------- drag and drop
 
@@ -71,7 +71,6 @@ function onDragOverColumn(event: DragEvent, column: Column) {
   event.preventDefault()
   if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
   overColumn.value = column.key
-  // Insertion index from the pointer position relative to the cards.
   const list = (event.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('[data-card]')
   let index = list.length
   list.forEach((el, i) => {
@@ -95,7 +94,7 @@ function onDrop(event: DragEvent, column: Column) {
   const without = column.tasks.map((x) => x.id).filter((x) => x !== id)
   const index = Math.min(overIndex.value ?? without.length, without.length)
   without.splice(index, 0, id)
-  emit('move', column.statusId, without)
+  emit('move', column.id, without)
   onDragEnd()
 }
 
@@ -105,22 +104,22 @@ function placeholderAt(column: Column, index: number) {
 
 // ---------------------------------------------------------------- column order
 
-const movable = computed(() => columns.value.filter((c) => !c.fixed))
+const movable = computed(() => filled.value.filter((c) => !c.fixed && c.id))
 
 function moveColumn(column: Column, direction: -1 | 1) {
-  const ids = movable.value.map((c) => c.statusId!).filter(Boolean)
-  const i = ids.indexOf(column.statusId!)
+  const ids = movable.value.map((c) => c.id!)
+  const i = ids.indexOf(column.id!)
   const j = i + direction
   if (i < 0 || j < 0 || j >= ids.length) return
   ;[ids[i], ids[j]] = [ids[j]!, ids[i]!]
-  emit('reorder-statuses', ids)
+  emit('reorder-columns', ids)
 }
 </script>
 
 <template>
   <div class="board" :class="{ 'is-loading': busy }">
     <section
-      v-for="column in columns"
+      v-for="column in filled"
       :key="column.key"
       class="board__column"
       :class="{ 'board__column--over': overColumn === column.key }"
@@ -129,10 +128,11 @@ function moveColumn(column: Column, direction: -1 | 1) {
       @drop="onDrop($event, column)"
     >
       <header class="board__head">
-        <span class="color-dot" :style="{ backgroundColor: column.color }" aria-hidden="true"></span>
+        <UserAvatar v-if="column.user" :name="column.user.name" :avatar-url="column.user.avatar_url" size="sm" />
+        <span v-else class="color-dot" :style="{ backgroundColor: column.color }" aria-hidden="true"></span>
         <h2 class="board__title">{{ column.name }}</h2>
         <span class="board__count">{{ column.tasks.length }}</span>
-        <div v-if="!column.fixed" class="board__order">
+        <div v-if="!column.fixed && column.id" class="board__order">
           <button type="button" class="btn btn--ghost btn--icon btn--sm" :aria-label="$t('tasks.moveColumnLeft')" :disabled="movable[0]?.key === column.key" @click="moveColumn(column, -1)">
             <ChevronLeftIcon class="btn__icon" aria-hidden="true" />
           </button>
@@ -158,7 +158,7 @@ function moveColumn(column: Column, direction: -1 | 1) {
               <RouterLink class="board__card-title" :to="{ name: 'task-detail', params: { id: task.id } }">{{ task.title }}</RouterLink>
             </div>
             <div class="board__card-meta">
-              <RouterLink v-if="task.project" class="board__card-project" :to="{ name: 'project-detail', params: { id: task.project.id } }">
+              <RouterLink v-if="showProject && task.project" class="board__card-project" :to="{ name: 'project-detail', params: { id: task.project.id } }">
                 <span class="color-dot" :style="{ backgroundColor: task.project.color }" aria-hidden="true"></span>
                 {{ task.project.name }}
               </RouterLink>
@@ -166,10 +166,12 @@ function moveColumn(column: Column, direction: -1 | 1) {
                 <CalendarIcon class="board__card-icon" aria-hidden="true" />{{ formatDate(task.deadline) }}
               </span>
               <span v-if="formatEstimate(task.estimate_minutes)" class="board__card-estimate">{{ formatEstimate(task.estimate_minutes) }}</span>
+              <span v-if="field !== 'status_id' && task.status" class="badge" :style="{ backgroundColor: task.status.color + '22', color: task.status.color }">{{ task.status.name }}</span>
+              <span v-if="field !== 'project_status_id' && task.project_status" class="badge" :style="{ backgroundColor: task.project_status.color + '22', color: task.project_status.color }">{{ task.project_status.name }}</span>
             </div>
             <div class="board__card-foot">
               <span class="badge" :class="priorityBadgeClass(task.priority)">{{ $t(`tasks.priorities.${task.priority}`) }}</span>
-              <span v-if="task.assignee" class="board__card-assignee">
+              <span v-if="task.assignee && field !== 'assignee_id'" class="board__card-assignee">
                 <UserAvatar :name="task.assignee.name" :avatar-url="task.assignee.avatar_url" size="sm" />
                 <span class="board__card-assignee-name">{{ task.assignee.name }}</span>
               </span>

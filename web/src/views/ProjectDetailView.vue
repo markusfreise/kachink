@@ -6,9 +6,12 @@ import api from '@/api/client'
 import type { Project, Client, TimeEntry, PaginationMeta, ProjectTask, User } from '@/types'
 import BaseModal from '@/components/BaseModal.vue'
 import { useAuthStore } from '@/stores/auth'
-import { EyeIcon, EyeSlashIcon } from '@heroicons/vue/24/outline'
+import { EyeIcon, EyeSlashIcon, Cog6ToothIcon } from '@heroicons/vue/24/outline'
 import { ArrowLeftIcon, DocumentTextIcon, PencilSquareIcon, ClockIcon, PlusIcon, ClipboardDocumentListIcon } from '@heroicons/vue/24/outline'
 import TaskTree from '@/components/TaskTree.vue'
+import TaskBoard, { type BoardColumn } from '@/components/TaskBoard.vue'
+import ProjectStatusManager from '@/components/ProjectStatusManager.vue'
+import type { TaskStatus } from '@/types'
 import UserAvatar from '@/components/UserAvatar.vue'
 import TaskFormModal from '@/components/TaskFormModal.vue'
 import ProjectFormModal from '@/components/ProjectFormModal.vue'
@@ -47,6 +50,93 @@ const tasksMeta = ref<PaginationMeta | null>(null)
 const tasksLoading = ref(true)
 const showTaskForm = ref(false)
 const busyTaskId = ref<string | null>(null)
+
+// Task views inside the project: list, project-status board, assignee board
+type TaskView = 'list' | 'status' | 'assignee'
+const taskView = ref<TaskView>((localStorage.getItem('project:taskView') as TaskView) || 'list')
+const boardTasks = ref<ProjectTask[]>([])
+const boardBusy = ref(false)
+const projectStatuses = ref<TaskStatus[]>([])
+const showStatusManager = ref(false)
+
+const statusColumns = computed<BoardColumn[]>(() => [
+  { key: '__none', id: null, name: t('projectStatus.none'), color: '#6B7280', fixed: true },
+  ...projectStatuses.value.map((s) => ({ key: s.id, id: s.id, name: s.name, color: s.color })),
+])
+const assigneeColumns = computed<BoardColumn[]>(() => [
+  { key: '__none', id: null, name: t('tasks.unassigned'), color: '#6B7280', fixed: true },
+  ...members.value.map((m) => ({ key: m.id, id: m.id, name: m.name, color: '#6B7280', fixed: true, user: m })),
+])
+
+async function fetchBoard() {
+  boardBusy.value = true
+  try {
+    const { data } = await api.get('/project-tasks', {
+      params: { 'filter[project_id]': projectId.value, 'filter[status]': 'open', sort: 'position', per_page: 500 },
+    })
+    boardTasks.value = data.data
+  } catch (e) {
+    toast.error(errorMessage(e, t('common.loadFailed')))
+  } finally {
+    boardBusy.value = false
+  }
+}
+
+async function fetchProjectStatuses() {
+  try {
+    const { data } = await api.get(`/projects/${projectId.value}/statuses`)
+    projectStatuses.value = data.data
+  } catch {
+    projectStatuses.value = []
+  }
+}
+
+async function fetchMembers() {
+  if (members.value.length) return
+  try {
+    const { data } = await api.get('/users', { params: { 'filter[is_active]': 1 } })
+    members.value = data.data
+  } catch {
+    members.value = []
+  }
+}
+
+async function loadTaskView() {
+  if (taskView.value === 'list') return fetchTasks()
+  await Promise.all([fetchBoard(), taskView.value === 'status' ? fetchProjectStatuses() : fetchMembers()])
+}
+
+async function moveOnBoard(columnId: string | null, orderedIds: string[]) {
+  const field = taskView.value === 'status' ? 'project_status_id' : 'assignee_id'
+  boardBusy.value = true
+  try {
+    await api.post('/project-tasks/reorder', { field, [field]: columnId, ordered_ids: orderedIds })
+    await fetchBoard()
+  } catch (e) {
+    toast.error(errorMessage(e, t('common.failedToSave')))
+  } finally {
+    boardBusy.value = false
+  }
+}
+
+async function reorderStatusColumns(orderedIds: string[]) {
+  try {
+    const { data } = await api.post(`/projects/${projectId.value}/statuses/reorder`, { ordered_ids: orderedIds })
+    projectStatuses.value = data.data
+  } catch (e) {
+    toast.error(errorMessage(e, t('common.failedToSave')))
+  }
+}
+
+function onStatusesChanged(list: TaskStatus[]) {
+  projectStatuses.value = list
+  fetchBoard()
+}
+
+watch(taskView, (v) => {
+  localStorage.setItem('project:taskView', v)
+  loadTaskView()
+})
 
 // Watchers
 const watchers = ref<User[]>([])
@@ -267,7 +357,7 @@ async function load() {
   await fetchProject()
   if (project.value) {
     fetchEntries()
-    fetchTasks()
+    loadTaskView()
   } else {
     entriesLoading.value = false
     tasksLoading.value = false
@@ -384,10 +474,21 @@ watch(projectId, load)
         </div>
       </div>
 
-      <section class="card page__section">
+      <section class="card page__section" :class="{ 'project-detail__tasks--board': taskView !== 'list' }">
         <div class="card__header">
-          <h2 class="card__title">{{ $t('tasks.title') }}</h2>
+          <div class="project-detail__task-head">
+            <h2 class="card__title">{{ $t('tasks.title') }}</h2>
+            <div class="segmented" role="group" :aria-label="$t('tasks.view')">
+              <button type="button" class="segmented__item" :class="{ 'segmented__item--active': taskView === 'list' }" :aria-pressed="taskView === 'list'" @click="taskView = 'list'">{{ $t('tasks.viewList') }}</button>
+              <button type="button" class="segmented__item" :class="{ 'segmented__item--active': taskView === 'status' }" :aria-pressed="taskView === 'status'" @click="taskView = 'status'">{{ $t('projectStatus.label') }}</button>
+              <button type="button" class="segmented__item" :class="{ 'segmented__item--active': taskView === 'assignee' }" :aria-pressed="taskView === 'assignee'" @click="taskView = 'assignee'">{{ $t('projectStatus.byMember') }}</button>
+            </div>
+          </div>
           <div class="project-detail__task-actions">
+            <button v-if="taskView === 'status'" type="button" class="btn btn--ghost btn--sm" @click="showStatusManager = true">
+              <Cog6ToothIcon class="btn__icon" aria-hidden="true" />
+              {{ $t('projectStatus.manage') }}
+            </button>
             <span v-if="tasksMeta && tasks.length" class="toolbar__count">{{ $t('tasks.openCount', { count: tasksMeta.total }) }}</span>
             <RouterLink class="btn btn--ghost btn--sm" :to="{ name: 'tasks', query: { project: project.id } }">{{ $t('tasks.allTasksOfProject') }}</RouterLink>
             <button type="button" class="btn btn--secondary btn--sm" @click="showTaskForm = true">
@@ -396,7 +497,18 @@ watch(projectId, load)
             </button>
           </div>
         </div>
-        <div class="card__body card__body--flush">
+        <div v-if="taskView !== 'list'" class="card__body project-detail__board">
+          <TaskBoard
+            :tasks="boardTasks"
+            :columns="taskView === 'status' ? statusColumns : assigneeColumns"
+            :field="taskView === 'status' ? 'project_status_id' : 'assignee_id'"
+            :busy="boardBusy"
+            :show-project="false"
+            @move="moveOnBoard"
+            @reorder-columns="reorderStatusColumns"
+          />
+        </div>
+        <div v-else class="card__body card__body--flush">
           <div v-if="tasksLoading" class="loading">
             <span class="spinner" role="status"></span>
           </div>
@@ -481,6 +593,8 @@ watch(projectId, load)
     />
 
     <TaskFormModal v-if="showTaskForm && project" :task="null" :project-id="project.id" @close="showTaskForm = false" @saved="onTaskSaved" />
+
+    <ProjectStatusManager v-if="showStatusManager && project" :project-id="project.id" :statuses="projectStatuses" @close="showStatusManager = false" @changed="onStatusesChanged" />
 
     <BaseModal v-if="showWatchers" :title="$t('watchers.manage')" size="narrow" @close="showWatchers = false">
       <p class="small muted">{{ $t('watchers.manageIntro') }}</p>

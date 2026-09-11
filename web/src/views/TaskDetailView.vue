@@ -45,6 +45,7 @@ const notFound = ref(false)
 const users = ref<User[]>([])
 const tags = ref<Tag[]>([])
 const statuses = ref<TaskStatus[]>([])
+const projectStatuses = ref<TaskStatus[]>([])
 
 const showSubtaskForm = ref(false)
 const showTimeModal = ref(false)
@@ -91,6 +92,7 @@ const parentForSubtask = computed(() =>
 )
 const userOptions = computed(() => users.value.map((u) => ({ id: u.id, label: u.name, avatar: true, avatarUrl: u.avatar_url })))
 const statusOptions = computed(() => statuses.value.map((s) => ({ id: s.id, label: s.name, color: s.color })))
+const projectStatusOptions = computed(() => projectStatuses.value.map((s) => ({ id: s.id, label: s.name, color: s.color })))
 const dayChips = [1, 3, 7, 14]
 const memberNames = computed(() => users.value.map((u) => u.name))
 const timerOnThisTask = computed(() => !!task.value && timer.runningEntry?.project_task_id === task.value.id)
@@ -160,6 +162,7 @@ async function fetchTask() {
     const { data } = await api.get(`/project-tasks/${taskId.value}`)
     task.value = data.data
     syncDrafts()
+    loadProjectStatuses()
   } catch (e) {
     task.value = null
     notFound.value = true
@@ -257,6 +260,33 @@ async function toggleCompleted(target: ProjectTask, completed: boolean) {
 
 function setStatus(id: string) {
   patch({ status_id: id || null })
+}
+
+let loadedStatusesFor = ''
+async function loadProjectStatuses() {
+  if (!task.value || loadedStatusesFor === task.value.project_id) return
+  try {
+    const { data } = await api.get(`/projects/${task.value.project_id}/statuses`)
+    projectStatuses.value = data.data
+    loadedStatusesFor = task.value.project_id
+  } catch {
+    projectStatuses.value = []
+  }
+}
+
+function setProjectStatus(id: string) {
+  patch({ project_status_id: id || null })
+}
+
+async function createProjectStatus(name: string) {
+  if (!task.value) return
+  try {
+    const { data } = await api.post(`/projects/${task.value.project_id}/statuses`, { name: name.trim() })
+    projectStatuses.value.push(data.data)
+    await patch({ project_status_id: data.data.id })
+  } catch (e) {
+    toast.error(errorMessage(e, t('common.failedToSave')))
+  }
 }
 
 async function createStatus(name: string) {
@@ -470,6 +500,8 @@ function historyValue(field: string, value: unknown): string {
       return userName(value)
     case 'status_id':
       return statusName(value)
+    case 'project_status_id':
+      return typeof value === 'string' ? (projectStatuses.value.find((s) => s.id === value)?.name ?? value) : t('tasks.empty')
     case 'priority':
       return t(`tasks.priorities.${String(value)}`)
     case 'estimate_minutes':
@@ -590,7 +622,8 @@ watch(taskId, fetchTask)
             </h1>
             <div class="task-detail__badges">
               <span class="badge" :class="priorityBadgeClass(task.priority)">{{ $t(`tasks.priorities.${task.priority}`) }}</span>
-              <span v-if="task.status" class="badge" :style="{ backgroundColor: task.status.color + '22', color: task.status.color }">{{ task.status.name }}</span>
+              <span v-if="task.status" class="badge" :title="$t('tasks.status')" :style="{ backgroundColor: task.status.color + '22', color: task.status.color }">{{ task.status.name }}</span>
+              <span v-if="task.project_status" class="badge" :title="$t('projectStatus.label')" :style="{ backgroundColor: task.project_status.color + '22', color: task.project_status.color }">{{ task.project_status.name }}</span>
               <span v-if="task.is_completed && task.completed_at" class="badge badge--success">{{ $t('tasks.completedAt', { date: formatDate(task.completed_at) }) }}</span>
               <span v-else-if="task.is_overdue" class="badge badge--danger">{{ $t('tasks.overdue') }}</span>
               <span v-if="task.assignee" class="task-detail__assignee">
@@ -746,6 +779,21 @@ watch(taskId, fetchTask)
                     size="sm"
                     @update:model-value="setStatus"
                     @create="createStatus"
+                  />
+                </div>
+                <div class="task-meta__item">
+                  <label class="task-meta__label" for="task-project-status">{{ $t('projectStatus.label') }}</label>
+                  <ComboBox
+                    id="task-project-status"
+                    :model-value="task.project_status_id ?? ''"
+                    :options="projectStatusOptions"
+                    :placeholder="$t('projectStatus.none')"
+                    :clear-label="$t('projectStatus.none')"
+                    clearable
+                    allow-create
+                    size="sm"
+                    @update:model-value="setProjectStatus"
+                    @create="createProjectStatus"
                   />
                 </div>
                 <div class="task-meta__item">

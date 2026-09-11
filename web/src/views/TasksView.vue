@@ -7,7 +7,7 @@ import type { ProjectTask, Project, User, PaginationMeta, TaskPriority, TaskStat
 import { useAuthStore } from '@/stores/auth'
 import { useToastStore, errorMessage } from '@/stores/toast'
 import TaskTree from '@/components/TaskTree.vue'
-import TaskBoard from '@/components/TaskBoard.vue'
+import TaskBoard, { type BoardColumn } from '@/components/TaskBoard.vue'
 import TaskFormModal from '@/components/TaskFormModal.vue'
 import BaseModal from '@/components/BaseModal.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
@@ -52,6 +52,14 @@ const busyId = ref<string | null>(null)
 const boardBusy = ref(false)
 
 const todayStatus = computed(() => statuses.value.find((s) => s.is_locked) ?? null)
+const boardColumns = computed<BoardColumn[]>(() => {
+  const cols: BoardColumn[] = [{ key: '__new', id: null, name: t('tasks.boardNew'), color: '#6B7280', fixed: true }]
+  if (todayStatus.value) cols.push({ key: todayStatus.value.id, id: todayStatus.value.id, name: todayStatus.value.name, color: todayStatus.value.color, fixed: true })
+  for (const s of statuses.value.filter((x) => !x.is_locked).sort((a, b) => a.position - b.position || a.name.localeCompare(b.name))) {
+    cols.push({ key: s.id, id: s.id, name: s.name, color: s.color })
+  }
+  return cols
+})
 const isTodayActive = computed(() => !!todayStatus.value && statusId.value === todayStatus.value.id)
 
 const statusOptions = computed(() => [
@@ -189,7 +197,7 @@ async function toggle(task: ProjectTask, completed: boolean) {
 async function moveOnBoard(statusIdTarget: string | null, orderedIds: string[]) {
   boardBusy.value = true
   try {
-    await api.post('/project-tasks/reorder', { status_id: statusIdTarget, ordered_ids: orderedIds })
+    await api.post('/project-tasks/reorder', { field: 'status_id', status_id: statusIdTarget, ordered_ids: orderedIds })
     await fetchBoard()
   } catch (e) {
     toast.error(errorMessage(e, t('common.failedToSave')))
@@ -406,7 +414,7 @@ onMounted(() => {
     </div>
 
     <template v-else-if="view === 'board'">
-      <TaskBoard :tasks="boardTasks" :statuses="statuses" :busy="boardBusy || loading" @move="moveOnBoard" @reorder-statuses="reorderStatuses" />
+      <TaskBoard :tasks="boardTasks" :columns="boardColumns" field="status_id" :busy="boardBusy || loading" @move="moveOnBoard" @reorder-columns="reorderStatuses" />
     </template>
 
     <div v-else class="card">

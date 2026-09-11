@@ -65,6 +65,9 @@ const indent = computed(() => ({ paddingLeft: `calc(var(--gap) + ${props.depth} 
         <span v-if="task.status" class="badge task-row__status" :style="{ backgroundColor: task.status.color + '22', color: task.status.color }">
           {{ task.status.name }}
         </span>
+        <span v-if="task.project_status" class="badge task-row__status" :title="$t('projectStatus.label')" :style="{ backgroundColor: task.project_status.color + '22', color: task.project_status.color }">
+          {{ task.project_status.name }}
+        </span>
       </div>
       <div class="task-row__meta">
         <RouterLink

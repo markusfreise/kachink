@@ -262,3 +262,14 @@
 @keyframes asana-spin {
   to { transform: rotate(360deg); }
 }
+
+.asana__sections-target {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gap-05x);
+
+  .form__label {
+    margin: 0;
+  }
+}

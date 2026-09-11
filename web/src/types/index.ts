@@ -318,6 +318,8 @@ export interface ProjectTask {
   priority: TaskPriority
   status_id: string | null
   status?: TaskStatus | null
+  project_status_id: string | null
+  project_status?: TaskStatus | null
   estimate_minutes: number | null
   budget: number | null
   /** Budget derived from estimate and hourly rate when no fixed budget is set. */

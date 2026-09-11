@@ -131,3 +131,36 @@
     margin-left: pxtorem(-8);
   }
 }
+
+.project-detail__task-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gap-075x);
+}
+
+.project-detail__board {
+  overflow-x: auto;
+}
+
+.project-detail__tasks--board {
+  max-width: none;
+}
+
+.project-status__clone {
+  margin: 0 0 var(--gap);
+  padding: var(--gap-075x);
+  border-radius: var(--radius-medium);
+  background: var(--c-surface-2);
+}
+
+.project-status__clone-row {
+  display: flex;
+  gap: var(--gap-05x);
+  align-items: center;
+
+  .combobox {
+    flex: 1;
+    min-width: 0;
+  }
+}
