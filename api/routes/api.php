@@ -62,11 +62,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::apiResource('tasks', TaskController::class)->only(['index', 'store', 'update', 'destroy']);
 
         // Task statuses (free-form per organization, "Heute" is fixed)
+        Route::post('/task-statuses/reorder', [TaskStatusController::class, 'reorder']);
         Route::apiResource('task-statuses', TaskStatusController::class)->only(['index', 'store', 'update', 'destroy'])->parameters([
             'task-statuses' => 'task_status',
         ]);
 
         // Project tasks (task management with subtasks, comments, attachments, history)
+        Route::post('/project-tasks/reorder', [ProjectTaskController::class, 'reorder']);
         Route::apiResource('project-tasks', ProjectTaskController::class)->parameters([
             'project-tasks' => 'project_task',
         ]);
@@ -93,6 +95,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/users', [UserController::class, 'store']);
         Route::get('/users/{user}', [UserController::class, 'show']);
         Route::put('/users/{user}', [UserController::class, 'update']);
+        Route::post('/users/{user}/avatar', [UserController::class, 'uploadAvatar']);
+        Route::delete('/users/{user}/avatar', [UserController::class, 'deleteAvatar']);
 
         // Reports
         Route::prefix('reports')->group(function () {

@@ -56,6 +56,22 @@ class TaskStatusController extends Controller
         return response()->json(['data' => new TaskStatusResource($task_status->loadCount('tasks'))]);
     }
 
+    /** Column order on the board. Statuses not listed keep their position. */
+    public function reorder(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'ordered_ids' => ['required', 'array', 'max:200'],
+            'ordered_ids.*' => ['uuid'],
+        ]);
+
+        $statuses = TaskStatus::whereIn('id', $data['ordered_ids'])->get()->keyBy('id');
+        foreach (array_values($data['ordered_ids']) as $position => $id) {
+            $statuses->get($id)?->update(['position' => $position + 1]);
+        }
+
+        return response()->json(['data' => ['updated' => $statuses->count()]]);
+    }
+
     public function destroy(TaskStatus $task_status): JsonResponse
     {
         if ($task_status->is_locked) {

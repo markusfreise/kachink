@@ -94,6 +94,54 @@ class UserController extends Controller
         ]);
     }
 
+    /**
+     * Avatar image, stored in the public docroot so nginx serves it without
+     * a storage symlink. Members change their own picture, admins anyone's.
+     */
+    public function uploadAvatar(Request $request, User $user): JsonResponse
+    {
+        $this->assertOrgMember($user);
+        if (! $request->user()->isAdmin() && $request->user()->id !== $user->id) {
+            abort(403);
+        }
+
+        $request->validate([
+            'avatar' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+        ]);
+
+        $this->removeAvatarFile($user);
+
+        $file = $request->file('avatar');
+        $name = $user->id.'-'.Str::random(8).'.'.strtolower($file->getClientOriginalExtension());
+        $file->move(public_path('avatars'), $name);
+        $user->update(['avatar_url' => '/avatars/'.$name]);
+
+        return response()->json(['data' => new UserResource($user)]);
+    }
+
+    public function deleteAvatar(Request $request, User $user): JsonResponse
+    {
+        $this->assertOrgMember($user);
+        if (! $request->user()->isAdmin() && $request->user()->id !== $user->id) {
+            abort(403);
+        }
+
+        $this->removeAvatarFile($user);
+        $user->update(['avatar_url' => null]);
+
+        return response()->json(['data' => new UserResource($user)]);
+    }
+
+    private function removeAvatarFile(User $user): void
+    {
+        if ($user->avatar_url && str_starts_with($user->avatar_url, '/avatars/')) {
+            $path = public_path(ltrim($user->avatar_url, '/'));
+            if (is_file($path)) {
+                @unlink($path);
+            }
+        }
+    }
+
     private function assertOrgMember(User $user): void
     {
         $isMember = app('current_organization')->users()->where('users.id', $user->id)->exists();

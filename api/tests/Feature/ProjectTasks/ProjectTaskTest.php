@@ -328,6 +328,63 @@ class ProjectTaskTest extends TestCase
         $this->assertNull($task->fresh()->status_id);
     }
 
+    public function test_deadline_filter_and_board_reorder(): void
+    {
+        $org = $this->createOrganization();
+        $project = $this->projectIn($org);
+        $user = $this->memberOf($org);
+        $heute = collect($this->actingInOrg($user, $org)->getJson('/api/task-statuses')->json('data'))->firstWhere('name', 'Heute');
+
+        $soon = ProjectTask::factory()->create(['project_id' => $project->id, 'deadline' => now()->addDays(3)->toDateString()]);
+        $later = ProjectTask::factory()->create(['project_id' => $project->id, 'deadline' => now()->addDays(20)->toDateString()]);
+        $none = ProjectTask::factory()->create(['project_id' => $project->id, 'deadline' => null]);
+
+        $this->actingInOrg($user, $org)
+            ->getJson('/api/project-tasks?filter[deadline_until]='.now()->addDays(7)->toDateString())
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $soon->id);
+
+        $this->actingInOrg($user, $org)
+            ->postJson('/api/project-tasks/reorder', ['status_id' => $heute['id'], 'ordered_ids' => [$later->id, $soon->id]])
+            ->assertOk();
+        $this->assertSame($heute['id'], $soon->fresh()->status_id);
+        $this->assertSame(1, $soon->fresh()->position);
+        $this->assertSame(0, $later->fresh()->position);
+        $this->assertNull($none->fresh()->status_id);
+
+        $this->actingInOrg($user, $org)
+            ->postJson('/api/project-tasks/reorder', ['status_id' => null, 'ordered_ids' => [$soon->id]])
+            ->assertOk();
+        $this->assertNull($soon->fresh()->status_id);
+    }
+
+    public function test_avatar_upload_for_self_and_admin_only(): void
+    {
+        $org = $this->createOrganization();
+        $this->bindOrg($org);
+        $member = $this->memberOf($org);
+        $other = $this->memberOf($org);
+        $dir = public_path('avatars');
+
+        $response = $this->actingInOrg($member, $org)
+            ->post("/api/users/{$member->id}/avatar", ['avatar' => \Illuminate\Http\UploadedFile::fake()->image('me.png', 64, 64)], ['Accept' => 'application/json'])
+            ->assertOk();
+        $url = $response->json('data.avatar_url');
+        $this->assertStringStartsWith('/avatars/', $url);
+        $this->assertFileExists($dir.'/'.basename($url));
+
+        $this->actingInOrg($other, $org)
+            ->post("/api/users/{$member->id}/avatar", ['avatar' => \Illuminate\Http\UploadedFile::fake()->image('x.png')], ['Accept' => 'application/json'])
+            ->assertForbidden();
+
+        $this->actingInOrg($member, $org)
+            ->deleteJson("/api/users/{$member->id}/avatar")
+            ->assertOk()
+            ->assertJsonPath('data.avatar_url', null);
+        $this->assertFileDoesNotExist($dir.'/'.basename($url));
+    }
+
     public function test_reminder_command_notifies_assignee_once(): void
     {
         Notification::fake();

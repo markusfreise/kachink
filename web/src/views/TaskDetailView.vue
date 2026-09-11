@@ -1,15 +1,16 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter, RouterLink } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import api from '@/api/client'
 import { downloadFile } from '@/api/download'
-import type { ProjectTask, ProjectTaskComment, ProjectTaskAttachment, ProjectTaskHistory, User } from '@/types'
+import type { ProjectTask, ProjectTaskComment, ProjectTaskAttachment, ProjectTaskHistory, User, Tag, TaskStatus, TaskPriority } from '@/types'
 import { useAuthStore } from '@/stores/auth'
 import { useToastStore, errorMessage } from '@/stores/toast'
-import TaskRow from '@/components/TaskRow.vue'
+import TaskTree from '@/components/TaskTree.vue'
 import TaskFormModal from '@/components/TaskFormModal.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import ComboBox from '@/components/ComboBox.vue'
 import {
   ArrowLeftIcon,
   CheckIcon,
@@ -21,8 +22,8 @@ import {
   ChatBubbleLeftIcon,
   ClockIcon,
 } from '@heroicons/vue/24/outline'
-import { priorityBadgeClass, formatEstimate, formatFileSize } from '@/utils/tasks'
-import { formatDate, formatCurrency, formatTime } from '@/utils/format'
+import { TASK_PRIORITIES, priorityBadgeClass, formatEstimate, formatFileSize, splitEstimate, joinEstimate } from '@/utils/tasks'
+import { formatDate, formatCurrency, formatTime, toDateString } from '@/utils/format'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -34,13 +35,25 @@ const task = ref<ProjectTask | null>(null)
 const loading = ref(true)
 const notFound = ref(false)
 const users = ref<User[]>([])
+const tags = ref<Tag[]>([])
+const statuses = ref<TaskStatus[]>([])
 
-const showEdit = ref(false)
 const showSubtaskForm = ref(false)
 const showDelete = ref(false)
 const deleting = ref(false)
 const toggling = ref(false)
 const busyChildId = ref<string | null>(null)
+const saving = ref(false)
+
+// Inline editing state
+const editingTitle = ref(false)
+const titleDraft = ref('')
+const titleInput = ref<HTMLInputElement | null>(null)
+const editingDescription = ref(false)
+const descriptionDraft = ref('')
+const estimateHours = ref<number | null>(null)
+const estimateMinutes = ref<number | null>(null)
+const budgetDraft = ref<number | null>(null)
 
 const commentBody = ref('')
 const commentSaving = ref(false)
@@ -51,6 +64,7 @@ const commentDeleting = ref(false)
 
 const fileInput = ref<HTMLInputElement | null>(null)
 const uploading = ref(false)
+const dragging = ref(false)
 const deleteAttachmentTarget = ref<ProjectTaskAttachment | null>(null)
 const attachmentDeleting = ref(false)
 
@@ -63,6 +77,17 @@ const childrenDone = computed(() => children.value.filter((c) => c.is_completed)
 const parentForSubtask = computed(() =>
   task.value ? { id: task.value.id, title: task.value.title, project_id: task.value.project_id } : null,
 )
+const userOptions = computed(() => users.value.map((u) => ({ id: u.id, label: u.name })))
+const statusOptions = computed(() => statuses.value.map((s) => ({ id: s.id, label: s.name, color: s.color })))
+const dayChips = [1, 3, 7, 14]
+
+function syncDrafts() {
+  if (!task.value) return
+  const est = splitEstimate(task.value.estimate_minutes)
+  estimateHours.value = est.hours
+  estimateMinutes.value = est.minutes
+  budgetDraft.value = task.value.budget != null ? Number(task.value.budget) : null
+}
 
 async function fetchTask() {
   loading.value = true
@@ -70,6 +95,7 @@ async function fetchTask() {
   try {
     const { data } = await api.get(`/project-tasks/${taskId.value}`)
     task.value = data.data
+    syncDrafts()
   } catch (e) {
     task.value = null
     notFound.value = true
@@ -80,33 +106,144 @@ async function fetchTask() {
   }
 }
 
-async function fetchUsers() {
+async function fetchOptions() {
   try {
-    const { data } = await api.get('/users')
-    users.value = data.data
+    const [u, tg, st] = await Promise.all([api.get('/users'), api.get('/tags'), api.get('/task-statuses')])
+    users.value = u.data.data
+    tags.value = tg.data.data
+    statuses.value = st.data.data
   } catch {
-    // Names in the history fall back to ids.
+    // Selects stay empty; the page still works.
   }
 }
 
+/** Saves a partial update and replaces the task with the server response. */
+async function patch(payload: Record<string, unknown>, successMessage?: string) {
+  if (!task.value) return false
+  saving.value = true
+  try {
+    const { data } = await api.put(`/project-tasks/${task.value.id}`, payload)
+    task.value = data.data
+    syncDrafts()
+    if (successMessage) toast.success(successMessage)
+    return true
+  } catch (e) {
+    toast.error(errorMessage(e, t('common.failedToSave')))
+    return false
+  } finally {
+    saving.value = false
+  }
+}
+
+// ---------------------------------------------------------------- title and description
+
+async function startEditTitle() {
+  if (!task.value) return
+  titleDraft.value = task.value.title
+  editingTitle.value = true
+  await nextTick()
+  titleInput.value?.focus()
+  titleInput.value?.select()
+}
+
+async function saveTitle() {
+  if (!editingTitle.value || !task.value) return
+  const title = titleDraft.value.trim()
+  editingTitle.value = false
+  if (!title || title === task.value.title) return
+  await patch({ title })
+}
+
+function startEditDescription() {
+  if (!task.value) return
+  descriptionDraft.value = task.value.description ?? ''
+  editingDescription.value = true
+}
+
+async function saveDescription() {
+  if (!task.value) return
+  const description = descriptionDraft.value.trim() || null
+  if (description === (task.value.description ?? null)) {
+    editingDescription.value = false
+    return
+  }
+  if (await patch({ description })) editingDescription.value = false
+}
+
+// ---------------------------------------------------------------- meta panel
+
 async function toggleCompleted(target: ProjectTask, completed: boolean) {
   const isSelf = target.id === task.value?.id
-  if (isSelf) toggling.value = true
-  else busyChildId.value = target.id
+  if (isSelf) {
+    toggling.value = true
+    await patch({ completed })
+    toggling.value = false
+    return
+  }
+  busyChildId.value = target.id
   try {
     await api.put(`/project-tasks/${target.id}`, { completed })
     await fetchTask()
   } catch (e) {
     toast.error(errorMessage(e, t('common.failedToSave')))
   } finally {
-    toggling.value = false
     busyChildId.value = null
   }
 }
 
-function onEdited() {
-  showEdit.value = false
-  fetchTask()
+function setStatus(id: string) {
+  patch({ status_id: id || null })
+}
+
+async function createStatus(name: string) {
+  try {
+    const { data } = await api.post('/task-statuses', { name: name.trim() })
+    statuses.value.push(data.data)
+    await patch({ status_id: data.data.id })
+  } catch (e) {
+    toast.error(errorMessage(e, t('common.failedToSave')))
+  }
+}
+
+function setPriority(event: Event) {
+  patch({ priority: (event.target as HTMLSelectElement).value as TaskPriority })
+}
+
+function setAssignee(id: string) {
+  patch({ assignee_id: id || null })
+}
+
+function setDate(field: 'deadline' | 'reminder_at', value: string) {
+  patch({ [field]: value || null })
+}
+
+function inDays(field: 'deadline' | 'reminder_at', days: number) {
+  const d = new Date()
+  d.setDate(d.getDate() + days)
+  setDate(field, toDateString(d))
+}
+
+function saveEstimate() {
+  const minutes = joinEstimate(estimateHours.value, estimateMinutes.value)
+  if (minutes === (task.value?.estimate_minutes ?? null)) return
+  patch({ estimate_minutes: minutes })
+}
+
+function saveBudget() {
+  const budget = budgetDraft.value === null || Number.isNaN(budgetDraft.value) ? null : budgetDraft.value
+  if (budget === (task.value?.budget ?? null)) return
+  patch({ budget })
+}
+
+function toggleTag(id: string) {
+  if (!task.value) return
+  const current = (task.value.tags ?? []).map((tag) => tag.id)
+  const next = current.includes(id) ? current.filter((x) => x !== id) : [...current, id]
+  patch({ tag_ids: next })
+}
+
+function hasTag(id: string) {
+  return (task.value?.tags ?? []).some((tag) => tag.id === id)
 }
 
 function onSubtaskSaved() {
@@ -187,23 +324,39 @@ async function deleteComment() {
 
 // ---------------------------------------------------------------- attachments
 
-async function onFileChosen(event: Event) {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file || !task.value) return
+async function uploadFiles(files: FileList | File[]) {
+  if (!task.value || files.length === 0) return
   uploading.value = true
+  let ok = 0
   try {
-    const form = new FormData()
-    form.append('file', file)
-    await api.post(`/project-tasks/${task.value.id}/attachments`, form, { headers: { 'Content-Type': 'multipart/form-data' } })
-    toast.success(t('tasks.attachmentAdded'))
-    await fetchTask()
-  } catch (e) {
-    toast.error(errorMessage(e, t('common.failedToSave')))
+    for (const file of Array.from(files)) {
+      const form = new FormData()
+      form.append('file', file)
+      try {
+        await api.post(`/project-tasks/${task.value.id}/attachments`, form, { headers: { 'Content-Type': 'multipart/form-data' } })
+        ok++
+      } catch (e) {
+        toast.error(`${file.name}: ${errorMessage(e, t('common.failedToSave'))}`)
+      }
+    }
+    if (ok > 0) {
+      toast.success(t('tasks.attachmentAdded'))
+      await fetchTask()
+    }
   } finally {
     uploading.value = false
-    input.value = ''
   }
+}
+
+function onFileChosen(event: Event) {
+  const input = event.target as HTMLInputElement
+  if (input.files) uploadFiles(input.files)
+  input.value = ''
+}
+
+function onDrop(event: DragEvent) {
+  dragging.value = false
+  if (event.dataTransfer?.files?.length) uploadFiles(event.dataTransfer.files)
 }
 
 async function download(a: ProjectTaskAttachment) {
@@ -241,11 +394,18 @@ function userName(id: unknown): string {
   return users.value.find((u) => u.id === id)?.name ?? id
 }
 
+function statusName(id: unknown): string {
+  if (typeof id !== 'string') return t('tasks.empty')
+  return statuses.value.find((s) => s.id === id)?.name ?? id
+}
+
 function historyValue(field: string, value: unknown): string {
   if (value === null || value === undefined || value === '') return t('tasks.empty')
   switch (field) {
     case 'assignee_id':
       return userName(value)
+    case 'status_id':
+      return statusName(value)
     case 'priority':
       return t(`tasks.priorities.${String(value)}`)
     case 'estimate_minutes':
@@ -259,8 +419,6 @@ function historyValue(field: string, value: unknown): string {
       return Array.isArray(value) && value.length ? value.join(', ') : t('tasks.empty')
     case 'description':
       return String(value).length > 80 ? `${String(value).slice(0, 80)}...` : String(value)
-    case 'parent_id':
-      return String(value)
     default:
       return String(value)
   }
@@ -277,12 +435,7 @@ function changeLines(h: ProjectTaskHistory): ChangeLine[] {
   if (h.action !== 'updated' || !h.changes) return []
   return Object.entries(h.changes).map(([field, diff]) => {
     const d = (diff ?? {}) as { from?: unknown; to?: unknown }
-    return {
-      field,
-      label: t(`tasks.fields.${field}`),
-      from: historyValue(field, d.from),
-      to: historyValue(field, d.to),
-    }
+    return { field, label: t(`tasks.fields.${field}`), from: historyValue(field, d.from), to: historyValue(field, d.to) }
   })
 }
 
@@ -301,7 +454,7 @@ function historyText(h: ProjectTaskHistory): string {
 
 onMounted(() => {
   fetchTask()
-  fetchUsers()
+  fetchOptions()
 })
 watch(taskId, fetchTask)
 </script>
@@ -349,9 +502,31 @@ watch(taskId, fetchTask)
             <CheckIcon class="task-row__check-icon" aria-hidden="true" />
           </button>
           <div class="task-detail__titles">
-            <h1 class="heading-1 task-detail__title" :class="{ 'task-detail__title--done': task.is_completed }">{{ task.title }}</h1>
+            <input
+              v-if="editingTitle"
+              ref="titleInput"
+              v-model="titleDraft"
+              type="text"
+              class="heading-1 task-detail__title-input"
+              :aria-label="$t('tasks.fields.title')"
+              @keydown.enter.prevent="saveTitle"
+              @keydown.esc.prevent="editingTitle = false"
+              @blur="saveTitle"
+            />
+            <h1
+              v-else
+              class="heading-1 task-detail__title task-detail__editable"
+              :class="{ 'task-detail__title--done': task.is_completed }"
+              :title="$t('tasks.clickToEdit')"
+              tabindex="0"
+              @click="startEditTitle"
+              @keydown.enter.prevent="startEditTitle"
+            >
+              {{ task.title }}
+            </h1>
             <div class="task-detail__badges">
               <span class="badge" :class="priorityBadgeClass(task.priority)">{{ $t(`tasks.priorities.${task.priority}`) }}</span>
+              <span v-if="task.status" class="badge" :style="{ backgroundColor: task.status.color + '22', color: task.status.color }">{{ task.status.name }}</span>
               <span v-if="task.is_completed && task.completed_at" class="badge badge--success">{{ $t('tasks.completedAt', { date: formatDate(task.completed_at) }) }}</span>
               <span v-else-if="task.is_overdue" class="badge badge--danger">{{ $t('tasks.overdue') }}</span>
               <span v-if="task.creator" class="task-detail__creator">{{ $t('tasks.createdBy', { name: task.creator.name }) }}</span>
@@ -362,10 +537,6 @@ watch(taskId, fetchTask)
           <button type="button" class="btn btn--primary" @click="showSubtaskForm = true">
             <PlusIcon class="btn__icon" aria-hidden="true" />
             {{ $t('tasks.newSubtask') }}
-          </button>
-          <button type="button" class="btn btn--secondary" @click="showEdit = true">
-            <PencilSquareIcon class="btn__icon" aria-hidden="true" />
-            {{ $t('common.edit') }}
           </button>
           <button v-if="canDeleteTask" type="button" class="btn btn--danger-ghost" @click="showDelete = true">
             <TrashIcon class="btn__icon" aria-hidden="true" />
@@ -379,28 +550,41 @@ watch(taskId, fetchTask)
           <section class="card page__section">
             <div class="card__header">
               <h2 class="card__title">{{ $t('tasks.description') }}</h2>
+              <button v-if="!editingDescription" type="button" class="btn btn--ghost btn--sm" @click="startEditDescription">
+                <PencilSquareIcon class="btn__icon" aria-hidden="true" />
+                {{ $t('common.edit') }}
+              </button>
             </div>
             <div class="card__body">
-              <p v-if="task.description" class="task-detail__description">{{ task.description }}</p>
-              <p v-else class="muted">{{ $t('tasks.noDescription') }}</p>
+              <form v-if="editingDescription" class="form" @submit.prevent="saveDescription">
+                <textarea v-model="descriptionDraft" class="form__textarea" rows="6" autofocus :aria-label="$t('tasks.description')" @keydown.esc.prevent="editingDescription = false"></textarea>
+                <div class="form__actions">
+                  <button type="button" class="btn btn--secondary btn--sm" @click="editingDescription = false">{{ $t('common.cancel') }}</button>
+                  <button type="submit" class="btn btn--primary btn--sm" :disabled="saving">{{ $t('common.save') }}</button>
+                </div>
+              </form>
+              <p v-else-if="task.description" class="task-detail__description task-detail__editable" :title="$t('tasks.clickToEdit')" @click="startEditDescription">{{ task.description }}</p>
+              <p v-else class="muted task-detail__editable" :title="$t('tasks.clickToEdit')" @click="startEditDescription">{{ $t('tasks.noDescription') }}</p>
             </div>
           </section>
 
           <section class="card page__section">
             <div class="card__header">
               <h2 class="card__title">{{ $t('tasks.subtasks') }}</h2>
-              <span v-if="children.length" class="toolbar__count">{{ $t('tasks.subtasksProgress', { done: childrenDone, total: children.length }) }}</span>
-            </div>
-            <div class="card__body card__body--flush">
-              <div v-if="children.length === 0" class="empty">
-                <p class="empty__text">{{ $t('tasks.noSubtasks') }}</p>
+              <div class="task-detail__subtask-actions">
+                <span v-if="children.length" class="toolbar__count">{{ $t('tasks.subtasksProgress', { done: childrenDone, total: children.length }) }}</span>
                 <button type="button" class="btn btn--secondary btn--sm" @click="showSubtaskForm = true">
                   <PlusIcon class="btn__icon" aria-hidden="true" />
                   {{ $t('tasks.newSubtask') }}
                 </button>
               </div>
+            </div>
+            <div class="card__body card__body--flush">
+              <div v-if="children.length === 0" class="empty">
+                <p class="empty__text">{{ $t('tasks.noSubtasks') }}</p>
+              </div>
               <ul v-else class="task-list">
-                <TaskRow v-for="child in children" :key="child.id" :task="child" :busy="busyChildId === child.id" @toggle="toggleCompleted" />
+                <TaskTree v-for="child in children" :key="child.id" :task="child" :busy-id="busyChildId" @toggle="toggleCompleted" />
               </ul>
             </div>
           </section>
@@ -457,47 +641,98 @@ watch(taskId, fetchTask)
         <aside class="task-detail__side">
           <section class="card page__section">
             <div class="card__body">
-              <dl class="task-meta">
+              <div class="task-meta form" :class="{ 'is-loading': saving }">
                 <div class="task-meta__item">
-                  <dt class="task-meta__label">{{ $t('tasks.assignee') }}</dt>
-                  <dd class="task-meta__value" :class="{ 'task-meta__value--muted': !task.assignee }">{{ task.assignee?.name ?? $t('tasks.noAssignee') }}</dd>
+                  <label class="task-meta__label" for="task-status">{{ $t('tasks.status') }}</label>
+                  <ComboBox
+                    id="task-status"
+                    :model-value="task.status_id ?? ''"
+                    :options="statusOptions"
+                    :placeholder="$t('tasks.noStatus')"
+                    :clear-label="$t('tasks.noStatus')"
+                    clearable
+                    allow-create
+                    size="sm"
+                    @update:model-value="setStatus"
+                    @create="createStatus"
+                  />
                 </div>
                 <div class="task-meta__item">
-                  <dt class="task-meta__label">{{ $t('tasks.deadline') }}</dt>
-                  <dd class="task-meta__value" :class="{ 'task-meta__value--muted': !task.deadline, 'task-meta__value--danger': task.is_overdue }">
-                    {{ task.deadline ? formatDate(task.deadline) : $t('tasks.noDeadline') }}
-                  </dd>
+                  <label class="task-meta__label" for="task-priority">{{ $t('tasks.priority') }}</label>
+                  <select id="task-priority" class="form__select form__select--sm" :value="task.priority" @change="setPriority">
+                    <option v-for="p in TASK_PRIORITIES" :key="p" :value="p">{{ $t(`tasks.priorities.${p}`) }}</option>
+                  </select>
                 </div>
                 <div class="task-meta__item">
-                  <dt class="task-meta__label">{{ $t('tasks.reminder') }}</dt>
-                  <dd class="task-meta__value" :class="{ 'task-meta__value--muted': !task.reminder_at }">
-                    <template v-if="task.reminder_at">
-                      {{ formatDate(task.reminder_at) }}
-                      <span class="task-meta__hint">({{ task.reminder_sent_at ? $t('tasks.reminderSent') : $t('tasks.reminderPending') }})</span>
-                    </template>
-                    <template v-else>{{ $t('tasks.noReminder') }}</template>
-                  </dd>
+                  <label class="task-meta__label" for="task-assignee">{{ $t('tasks.assignee') }}</label>
+                  <ComboBox
+                    id="task-assignee"
+                    :model-value="task.assignee_id ?? ''"
+                    :options="userOptions"
+                    :placeholder="$t('tasks.noAssignee')"
+                    :clear-label="$t('tasks.noAssignee')"
+                    clearable
+                    size="sm"
+                    @update:model-value="setAssignee"
+                  />
                 </div>
                 <div class="task-meta__item">
-                  <dt class="task-meta__label">{{ $t('tasks.estimate') }}</dt>
-                  <dd class="task-meta__value" :class="{ 'task-meta__value--muted': !estimate }">{{ estimate ?? $t('tasks.noEstimate') }}</dd>
+                  <label class="task-meta__label" for="task-deadline">{{ $t('tasks.deadline') }}</label>
+                  <input id="task-deadline" type="date" class="form__input form__input--sm" :class="{ 'task-meta__input--danger': task.is_overdue }" :value="task.deadline ?? ''" @change="setDate('deadline', ($event.target as HTMLInputElement).value)" />
+                  <div class="task-meta__chips">
+                    <button v-for="n in dayChips" :key="n" type="button" class="task-meta__chip" @click="inDays('deadline', n)">{{ $t('tasks.inDays', n) }}</button>
+                  </div>
                 </div>
                 <div class="task-meta__item">
-                  <dt class="task-meta__label">{{ $t('tasks.budget') }}</dt>
-                  <dd class="task-meta__value" :class="{ 'task-meta__value--muted': task.budget == null }">
-                    {{ task.budget != null ? formatCurrency(Number(task.budget)) : $t('tasks.noBudget') }}
-                  </dd>
+                  <label class="task-meta__label" for="task-reminder">
+                    {{ $t('tasks.reminder') }}
+                    <span v-if="task.reminder_at" class="task-meta__hint">({{ task.reminder_sent_at ? $t('tasks.reminderSent') : $t('tasks.reminderPending') }})</span>
+                  </label>
+                  <input id="task-reminder" type="date" class="form__input form__input--sm" :value="task.reminder_at ?? ''" @change="setDate('reminder_at', ($event.target as HTMLInputElement).value)" />
+                  <div class="task-meta__chips">
+                    <button v-for="n in dayChips" :key="n" type="button" class="task-meta__chip" @click="inDays('reminder_at', n)">{{ $t('tasks.inDays', n) }}</button>
+                  </div>
                 </div>
                 <div class="task-meta__item">
-                  <dt class="task-meta__label">{{ $t('tasks.tags') }}</dt>
-                  <dd class="task-meta__value">
-                    <span v-if="!task.tags?.length" class="task-meta__value--muted">{{ $t('tasks.noTags') }}</span>
-                    <span v-for="tag in task.tags" :key="tag.id" class="task-row__tag">
-                      <span class="color-dot" :style="{ backgroundColor: tag.color }" aria-hidden="true"></span>{{ tag.name }}
-                    </span>
-                  </dd>
+                  <span class="task-meta__label">{{ $t('tasks.estimate') }}</span>
+                  <div class="task-meta__estimate">
+                    <label class="task-meta__unit">
+                      <input v-model.number="estimateHours" type="number" min="0" step="1" inputmode="numeric" class="form__input form__input--sm" placeholder="0" :aria-label="$t('tasks.estimateHours')" @change="saveEstimate" />
+                      <span>h</span>
+                    </label>
+                    <label class="task-meta__unit">
+                      <input v-model.number="estimateMinutes" type="number" min="0" max="59" step="5" inputmode="numeric" class="form__input form__input--sm" placeholder="0" :aria-label="$t('tasks.estimateMinutes')" @change="saveEstimate" />
+                      <span>min</span>
+                    </label>
+                  </div>
                 </div>
-              </dl>
+                <div class="task-meta__item">
+                  <label class="task-meta__label" for="task-budget">{{ $t('tasks.budget') }}</label>
+                  <input id="task-budget" v-model.number="budgetDraft" type="number" min="0" step="0.01" inputmode="decimal" class="form__input form__input--sm" :placeholder="task.calculated_budget != null ? formatCurrency(task.calculated_budget) : $t('tasks.noBudget')" @change="saveBudget" />
+                  <p v-if="task.budget == null && task.calculated_budget != null" class="task-meta__hint">
+                    {{ $t('tasks.calculatedBudget', { amount: formatCurrency(task.calculated_budget), estimate: estimate ?? '', rate: formatCurrency(task.calculated_rate ?? 0) }) }}
+                  </p>
+                  <p v-else-if="task.budget == null" class="task-meta__hint">{{ $t('tasks.calculatedBudgetNone') }}</p>
+                </div>
+                <div class="task-meta__item">
+                  <span class="task-meta__label">{{ $t('tasks.tags') }}</span>
+                  <div v-if="tags.length" class="task-form__tags">
+                    <button
+                      v-for="tag in tags"
+                      :key="tag.id"
+                      type="button"
+                      class="task-form__tag"
+                      :class="{ 'task-form__tag--active': hasTag(tag.id) }"
+                      :aria-pressed="hasTag(tag.id)"
+                      @click="toggleTag(tag.id)"
+                    >
+                      <span class="color-dot" :style="{ backgroundColor: tag.color }" aria-hidden="true"></span>
+                      {{ tag.name }}
+                    </button>
+                  </div>
+                  <span v-else class="task-meta__value--muted">{{ $t('tasks.noTags') }}</span>
+                </div>
+              </div>
             </div>
           </section>
 
@@ -508,9 +743,16 @@ watch(taskId, fetchTask)
                 <PaperClipIcon class="btn__icon" aria-hidden="true" />
                 {{ uploading ? $t('tasks.uploading') : $t('tasks.upload') }}
               </button>
-              <input ref="fileInput" type="file" class="sr-only" :aria-label="$t('tasks.upload')" @change="onFileChosen" />
+              <input ref="fileInput" type="file" multiple class="sr-only" :aria-label="$t('tasks.upload')" @change="onFileChosen" />
             </div>
-            <div class="card__body">
+            <div
+              class="card__body dropzone"
+              :class="{ 'dropzone--active': dragging, 'dropzone--busy': uploading }"
+              @dragenter.prevent="dragging = true"
+              @dragover.prevent="dragging = true"
+              @dragleave.self="dragging = false"
+              @drop.prevent="onDrop"
+            >
               <p v-if="!task.attachments?.length" class="muted task-detail__none">{{ $t('tasks.noAttachments') }}</p>
               <ul v-else class="attachments">
                 <li v-for="a in task.attachments" :key="a.id" class="attachment">
@@ -524,7 +766,7 @@ watch(taskId, fetchTask)
                   </button>
                 </li>
               </ul>
-              <p class="form__hint">{{ $t('tasks.maxSize') }}</p>
+              <p class="dropzone__hint">{{ dragging ? $t('tasks.dropNow') : $t('tasks.dropHint') }}</p>
             </div>
           </section>
 
@@ -559,7 +801,6 @@ watch(taskId, fetchTask)
       </div>
     </template>
 
-    <TaskFormModal v-if="showEdit && task" :task="task" @close="showEdit = false" @saved="onEdited" />
     <TaskFormModal v-if="showSubtaskForm && task" :task="null" :parent="parentForSubtask" @close="showSubtaskForm = false" @saved="onSubtaskSaved" />
 
     <ConfirmDialog

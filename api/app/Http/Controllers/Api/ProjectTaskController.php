@@ -8,6 +8,7 @@ use App\Http\Requests\ProjectTask\UpdateProjectTaskRequest;
 use App\Http\Resources\ProjectTaskResource;
 use App\Models\ProjectTask;
 use App\Models\ProjectTaskAttachment;
+use App\Rules\InOrganization;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -56,6 +57,11 @@ class ProjectTaskController extends Controller
         if ($request->filled('filter.status_id')) {
             $statusId = $request->input('filter.status_id');
             $statusId === 'none' ? $query->whereNull('status_id') : $query->where('status_id', $statusId);
+        }
+
+        // Every task whose deadline is on or before the given day.
+        if ($request->filled('filter.deadline_until')) {
+            $query->whereNotNull('deadline')->whereDate('deadline', '<=', $request->input('filter.deadline_until'));
         }
 
         if ($request->filled('filter.priority')) {
@@ -164,6 +170,35 @@ class ProjectTaskController extends Controller
         });
 
         return response()->json(['data' => new ProjectTaskResource($this->loadDetail($project_task->fresh()))]);
+    }
+
+    /**
+     * Board drop: puts the listed tasks into a status column in the given order.
+     * Tasks not listed keep their status and position.
+     */
+    public function reorder(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'status_id' => ['nullable', 'uuid', InOrganization::exists('task_statuses')],
+            'ordered_ids' => ['required', 'array', 'max:500'],
+            'ordered_ids.*' => ['uuid'],
+        ]);
+
+        $tasks = ProjectTask::whereIn('id', $data['ordered_ids'])->get()->keyBy('id');
+        DB::transaction(function () use ($data, $tasks) {
+            foreach (array_values($data['ordered_ids']) as $position => $id) {
+                $task = $tasks->get($id);
+                if (! $task) {
+                    continue;
+                }
+                $task->fill(['status_id' => $data['status_id'] ?? null, 'position' => $position]);
+                if ($task->isDirty()) {
+                    $task->save();
+                }
+            }
+        });
+
+        return response()->json(['data' => ['updated' => $tasks->count()]]);
     }
 
     public function destroy(Request $request, ProjectTask $project_task): JsonResponse
