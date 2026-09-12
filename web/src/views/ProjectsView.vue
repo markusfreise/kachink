@@ -42,6 +42,7 @@ const search = ref('')
 const sort = ref('name')
 const clientFilter = ref('')
 const billingFilter = ref('')
+const mine = ref(false)
 const status = ref<StatusFilter>('active')
 
 const perPageOptions = [10, 25, 50, 100]
@@ -58,7 +59,7 @@ const statusOptions = computed<{ value: StatusFilter; label: string }[]>(() => [
 ])
 
 const clientOptions = computed(() => clients.value.map((c) => ({ id: c.id, label: c.name, color: c.color })))
-const hasFilters = computed(() => search.value !== '' || clientFilter.value !== '' || status.value !== 'active' || billingFilter.value !== '')
+const hasFilters = computed(() => search.value !== '' || clientFilter.value !== '' || status.value !== 'active' || billingFilter.value !== '' || mine.value)
 const billingOptions = computed(() => [
   { value: '', label: t('billing.all') },
   { value: 'none', label: t('billing.modes.none') },
@@ -82,6 +83,7 @@ async function fetchProjects() {
     if (search.value) params['filter[name]'] = search.value
     if (clientFilter.value) params['filter[client_id]'] = clientFilter.value
     if (billingFilter.value) params['filter[billing]'] = billingFilter.value
+    if (mine.value) params['filter[mine]'] = 1
     const { data } = await api.get('/projects', { params })
     projects.value = data.data
     meta.value = data.meta ?? null
@@ -111,6 +113,7 @@ watch(page, fetchProjects)
 watch(sort, resetAndFetch)
 watch(clientFilter, resetAndFetch)
 watch(billingFilter, resetAndFetch)
+watch(mine, resetAndFetch)
 watch(status, resetAndFetch)
 watch(search, () => {
   if (searchTimer) clearTimeout(searchTimer)
@@ -121,6 +124,7 @@ function resetFilters() {
   search.value = ''
   clientFilter.value = ''
   billingFilter.value = ''
+  mine.value = false
   status.value = 'active'
 }
 
@@ -181,9 +185,9 @@ onMounted(() => {
   mobileBar.register({
     section: 'projects',
     onNew: () => openCreate(),
-    onMine: () => { status.value = 'active' },
-    onAll: () => { status.value = 'all' },
-    isMine: () => status.value === 'active',
+    onMine: () => { mine.value = true },
+    onAll: () => { mine.value = false },
+    isMine: () => mine.value,
     onSearch: (q) => { search.value = q },
   })
   fetchProjects()
@@ -228,6 +232,7 @@ onUnmounted(() => mobileBar.unregister('projects'))
             size="sm"
           />
         </div>
+        <button type="button" class="btn btn--sm" :class="mine ? 'btn--primary' : 'btn--secondary'" :aria-pressed="mine" @click="mine = !mine">{{ $t('projects.mine') }}</button>
         <select id="projects-billing" v-model="billingFilter" class="form__select form__select--sm form__select--inline" :aria-label="$t('billing.mode')">
           <option v-for="o in billingOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
         </select>

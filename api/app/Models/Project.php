@@ -78,6 +78,11 @@ class Project extends Model
         return $this->belongsTo(Client::class);
     }
 
+    public function projectTasks(): HasMany
+    {
+        return $this->hasMany(ProjectTask::class);
+    }
+
     public function statuses(): HasMany
     {
         return $this->hasMany(ProjectStatus::class)->orderBy('position');

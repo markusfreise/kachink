@@ -28,6 +28,12 @@ class ProjectController extends Controller
             $query->where('is_active', $request->boolean('filter.is_active'));
         }
 
+        // Projects with open tasks assigned to me
+        if ($request->boolean('filter.mine')) {
+            $me = $request->user()->id;
+            $query->whereHas('projectTasks', fn ($q) => $q->where('assignee_id', $me)->whereNull('completed_at'));
+        }
+
         // billing: none | fixed | fixed_open | fixed_billed | hourly
         if ($request->filled('filter.billing')) {
             match ($request->input('filter.billing')) {

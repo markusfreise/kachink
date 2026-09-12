@@ -179,4 +179,22 @@ class HourlyRateTest extends TestCase
         $this->actingInOrg($admin, $org)->getJson('/api/projects?filter[billing]=fixed_billed')->assertOk()->assertJsonCount(1, 'data');
         $this->actingInOrg($admin, $org)->putJson("/api/projects/{$fixed}", ['billing_mode' => 'bogus'])->assertUnprocessable();
     }
+
+    public function test_mine_filter_lists_projects_with_my_open_tasks(): void
+    {
+        $org = $this->createOrganization();
+        $this->bindOrg($org);
+        $me = $this->memberOf($org);
+        $other = $this->memberOf($org);
+        $client = Client::factory()->create();
+        $mine = Project::factory()->create(['client_id' => $client->id]);
+        $done = Project::factory()->create(['client_id' => $client->id]);
+        $theirs = Project::factory()->create(['client_id' => $client->id]);
+        \App\Models\ProjectTask::factory()->create(['project_id' => $mine->id, 'assignee_id' => $me->id]);
+        \App\Models\ProjectTask::factory()->create(['project_id' => $done->id, 'assignee_id' => $me->id, 'completed_at' => now()]);
+        \App\Models\ProjectTask::factory()->create(['project_id' => $theirs->id, 'assignee_id' => $other->id]);
+
+        $this->actingInOrg($me, $org)->getJson('/api/projects?filter[mine]=1')
+            ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $mine->id);
+    }
 }

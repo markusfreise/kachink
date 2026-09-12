@@ -67,7 +67,7 @@ watch(() => bar.searchOpen, async (open) => {
         </button>
         <button type="button" class="mobilebar__item" :class="{ 'mobilebar__item--active': isMine }" :aria-pressed="isMine" @click="bar.actions.onMine()">
           <UserIcon class="mobilebar__icon" aria-hidden="true" />
-          <span class="mobilebar__label">{{ bar.actions.section === 'tasks' ? $t('mobilebar.mine') : $t('mobilebar.active') }}</span>
+          <span class="mobilebar__label">{{ bar.actions.section === 'clients' ? $t('mobilebar.active') : $t('mobilebar.mine') }}</span>
         </button>
         <button type="button" class="mobilebar__item" :class="{ 'mobilebar__item--active': !isMine }" :aria-pressed="!isMine" @click="bar.actions.onAll()">
           <RectangleStackIcon class="mobilebar__icon" aria-hidden="true" />
