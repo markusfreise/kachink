@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { RouterLink } from 'vue-router'
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import api from '@/api/client'
 import type { Client, PaginationMeta } from '@/types'
 import { monthlyReportRange } from '@/composables/useReportPeriod'
 import { useToastStore, errorMessage } from '@/stores/toast'
+import { useMobileBarStore } from '@/stores/mobilebar'
 import BaseModal from '@/components/BaseModal.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import AppPagination from '@/components/AppPagination.vue'
@@ -17,6 +18,7 @@ type StatusFilter = 'active' | 'archived' | 'all'
 const { t } = useI18n()
 const router = useRouter()
 const toast = useToastStore()
+const mobileBar = useMobileBarStore()
 
 function openMonthlyReport(client: Client) {
   const range = monthlyReportRange()
@@ -169,7 +171,18 @@ async function unarchiveClient(client: Client) {
   }
 }
 
-onMounted(fetchClients)
+onMounted(() => {
+  fetchClients()
+  mobileBar.register({
+    section: 'clients',
+    onNew: () => openCreate(),
+    onMine: () => { status.value = 'active' },
+    onAll: () => { status.value = 'all' },
+    isMine: () => status.value === 'active',
+    onSearch: (q) => { search.value = q },
+  })
+})
+onUnmounted(() => mobileBar.unregister('clients'))
 </script>
 
 <template>

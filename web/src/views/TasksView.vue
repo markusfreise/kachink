@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import api from '@/api/client'
 import type { ProjectTask, Project, User, PaginationMeta, TaskPriority, TaskStatus } from '@/types'
 import { useAuthStore } from '@/stores/auth'
 import { useToastStore, errorMessage } from '@/stores/toast'
+import { useMobileBarStore } from '@/stores/mobilebar'
 import TaskTree from '@/components/TaskTree.vue'
 import TaskBoard, { type BoardColumn } from '@/components/TaskBoard.vue'
 import TaskFormModal from '@/components/TaskFormModal.vue'
@@ -21,6 +22,7 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const toast = useToastStore()
+const mobileBar = useMobileBarStore()
 
 type ViewMode = 'list' | 'board'
 type DeadlineFilter = '' | 'today' | '7' | '14' | 'month' | 'custom'
@@ -313,7 +315,16 @@ onMounted(() => {
   refresh()
   fetchStatuses()
   fetchOptions()
+  mobileBar.register({
+    section: 'tasks',
+    onNew: () => { showForm.value = true },
+    onMine: () => { if (auth.user) assignee.value = auth.user.id },
+    onAll: () => { assignee.value = '' },
+    isMine: () => !!auth.user && assignee.value === auth.user.id,
+    onSearch: (q) => { search.value = q },
+  })
 })
+onUnmounted(() => mobileBar.unregister('tasks'))
 </script>
 
 <template>

@@ -1,0 +1,96 @@
+@use "../functions" as *;
+@use "../mixins" as *;
+
+// mobilebar: bottom tab bar on phones, hidden from tablet width up
+
+.mobilebar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  background: var(--c-surface);
+  border-top: 1px solid var(--c-border);
+  box-shadow: 0 -4px 16px rgba(17, 24, 39, 0.06);
+  padding-bottom: env(safe-area-inset-bottom);
+
+  @include tablet {
+    display: none;
+  }
+
+  &__search {
+    display: flex;
+    align-items: center;
+    gap: var(--gap-05x);
+    padding: var(--gap-05x) var(--gap);
+    border-bottom: 1px solid var(--c-border);
+    background: var(--c-surface-2);
+  }
+
+  &__search-icon {
+    width: pxtorem(18);
+    height: pxtorem(18);
+    color: var(--c-copy-light);
+    flex-shrink: 0;
+  }
+
+  &__search-input {
+    flex: 1;
+  }
+
+  &__nav {
+    display: flex;
+    justify-content: space-around;
+    align-items: stretch;
+  }
+
+  &__item {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: pxtorem(2);
+    min-height: pxtorem(56);
+    padding: pxtorem(6) pxtorem(4);
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: var(--fs-mini);
+    color: var(--c-copy-light);
+    text-decoration: none;
+    cursor: pointer;
+
+    &--active {
+      color: var(--c-corporate);
+    }
+
+    &--primary .mobilebar__icon {
+      padding: pxtorem(4);
+      border-radius: 50%;
+      background: var(--c-corporate);
+      color: var(--c-white);
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+      border-radius: var(--radius-small);
+    }
+  }
+
+  &__icon {
+    width: pxtorem(24);
+    height: pxtorem(24);
+  }
+
+  &__label {
+    line-height: 1;
+  }
+}
+
+// Room for the bar below the page content on phones.
+@include below-tablet {
+  .app__main main {
+    padding-bottom: calc(#{pxtorem(72)} + env(safe-area-inset-bottom));
+  }
+}

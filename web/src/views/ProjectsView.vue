@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter, RouterLink } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import api from '@/api/client'
@@ -10,6 +10,7 @@ import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import AppPagination from '@/components/AppPagination.vue'
 import ComboBox from '@/components/ComboBox.vue'
 import { useToastStore, errorMessage } from '@/stores/toast'
+import { useMobileBarStore } from '@/stores/mobilebar'
 import { formatDuration, formatHoursDecimal, formatCurrency } from '@/utils/format'
 
 /** Project with the time summary the API adds for `include_time_summary=1`. */
@@ -24,6 +25,7 @@ type StatusFilter = 'active' | 'archived' | 'all'
 const { t } = useI18n()
 const router = useRouter()
 const toast = useToastStore()
+const mobileBar = useMobileBarStore()
 
 const projects = ref<ProjectWithSummary[]>([])
 const clients = ref<Client[]>([])
@@ -176,9 +178,18 @@ function formatPercent(percent: number) {
 }
 
 onMounted(() => {
+  mobileBar.register({
+    section: 'projects',
+    onNew: () => openCreate(),
+    onMine: () => { status.value = 'active' },
+    onAll: () => { status.value = 'all' },
+    isMine: () => status.value === 'active',
+    onSearch: (q) => { search.value = q },
+  })
   fetchProjects()
   fetchClients()
 })
+onUnmounted(() => mobileBar.unregister('projects'))
 </script>
 
 <template>

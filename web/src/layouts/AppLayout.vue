@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useTimerStore } from '@/stores/timer'
 import { useOrgStore } from '@/stores/org'
 import UserAvatar from '@/components/UserAvatar.vue'
+import MobileBar from '@/components/MobileBar.vue'
 import {
   Squares2X2Icon,
   ClockIcon,
@@ -139,6 +140,7 @@ async function handleLogout() {
       <main>
         <RouterView />
       </main>
+      <MobileBar />
     </div>
   </div>
 </template>
